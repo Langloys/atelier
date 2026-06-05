@@ -819,7 +819,7 @@ if(sessionStorage.getItem('at-pin-ok')==='1'){document.getElementById('pin-scree
       <div style="font-family:'Playfair Display',serif;font-size:1.1rem;font-style:italic;color:var(--mid);">Planning</div>
       <div style="display:flex;gap:8px;">
         <button class="btn" onclick="openAddEvtPlanning()">+ Événement perso</button>
-        <button class="btn btn-primary" onclick="renderPlanning()">↺ Recalculer</button>
+        <button class="btn btn-primary" onclick="refreshPlanning(this)">↺ Recalculer</button>
       </div>
     </div>
     <div class="planning-wrap" id="planning-wrap">
@@ -6913,6 +6913,19 @@ function planCalcul(){
   }
 
   return {lignes:slots, jours:jours};
+}
+
+async function refreshPlanning(btn){
+  var orig = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '⏳ Chargement...';
+  try {
+    var res = await sb.from('config').select('*').eq('key','planEvts').single();
+    if(res.data && res.data.data) planEvts = res.data.data;
+  } catch(e){ console.error('refreshPlanning', e); }
+  btn.innerHTML = orig;
+  btn.disabled = false;
+  renderPlanning();
 }
 
 function renderPlanning(){
