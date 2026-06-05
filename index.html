@@ -1795,7 +1795,7 @@ function renderToday(){
     displayDate.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
 
   const selDateStr = selDate || TODAY;
-  const todaySess = sessions.filter(s=>s.date===selDateStr);
+  const todaySess = sessions.filter(s=>s.date===selDateStr).sort(function(a,b){ return (a.createdAt||'').localeCompare(b.createdAt||'') || (a._id - b._id); });
   const totMin    = todaySess.reduce((a,s)=>a+(s.dur||0),0);
   document.getElementById('today-total-label').textContent =
     totMin ? fmtMin(totMin)+' enregistrées ce jour' : '';
