@@ -496,7 +496,7 @@ async function loadFromSupabase() {
 }
 
 // Persist vers Supabase (remplace localStorage)
-async async function persistSupabase() {
+async function persistSupabase() {
   // Oeuvres
   await Promise.all(oeuvres.map(o => sbUpsert('oeuvres', o._id, o)));
   // Exemplaires
