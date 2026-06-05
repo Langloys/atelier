@@ -422,7 +422,11 @@ var sbSyncing = false;
 
 async function sbUpsert(table, id, data) {
   try {
-    await sb.from(table).upsert({id: id, data: data, updated_at: new Date().toISOString()});
+    if(table === 'config') {
+      await sb.from(table).upsert({key: id, data: data, updated_at: new Date().toISOString()}, {onConflict: 'key'});
+    } else {
+      await sb.from(table).upsert({id: id, data: data, updated_at: new Date().toISOString()});
+    }
   } catch(e) { console.error('sbUpsert', table, e); }
 }
 
