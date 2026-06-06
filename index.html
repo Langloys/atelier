@@ -1831,7 +1831,11 @@ function renderToday(){
       return g.label||g.exId||'';
     })();
     var h='<div class="ses-row">';
-    h+='<span class="ses-row-proj">'+sesLabel+'</span>';
+    var onclickItem='';
+    if(g.exId&&g.exId.indexOf('o-')===0) onclickItem='onclick="openEditOeuvre(\'' + g.exId + '\')"';
+    else if(g.exId&&g.exId.indexOf('e-')===0) onclickItem='onclick="openEditEx(\'' + g.exId + '\')"';
+    var labelStyle=onclickItem?'cursor:pointer;text-decoration:underline dotted;':'';
+    h+='<span class="ses-row-proj" style="'+labelStyle+'" '+onclickItem+'>'+sesLabel+'</span>';
     var comTxt=g.coms.join(' · ');
     if(comTxt)h+='<span style="font-size:.67rem;color:var(--faint);font-style:italic;flex:1;">'+comTxt+'</span>';
     else h+='<span style="flex:1;"></span>';
