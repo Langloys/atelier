@@ -706,7 +706,7 @@ if(sessionStorage.getItem('at-pin-ok')==='1'){document.getElementById('pin-scree
 
     <!-- Sessions du jour -->
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-      <span id="app-version" style="font-size:.7rem;color:var(--faint);font-family:monospace;">20260607 - 14h30</span>
+      <span id="app-version" style="font-size:.7rem;color:var(--faint);font-family:monospace;">20260607 - 16h45</span>
       <button class="btn btn-sm" onclick="refreshToday(this)" style="font-size:.72rem;padding:4px 10px;">↺ Actualiser</button>
     </div>
     <div id="sessions-today"></div>
@@ -803,14 +803,14 @@ if(sessionStorage.getItem('at-pin-ok')==='1'){document.getElementById('pin-scree
     <table class="temps-table">
       <thead>
         <tr>
-          <th onclick="sortTemps('type')" id="th-type">Type</th>
+          <th onclick="sortTemps('type')" id="th-type" style="width:60px;">Type</th>
           <th onclick="sortTemps('nom')" id="th-nom">Nom / Numéro</th>
-          <th id="th-statut" style="text-align:center;">Statut</th>
-          <th onclick="sortTemps('prio')" id="th-prio" style="text-align:center;">Priorité</th>
-          <th onclick="sortTemps('fait')" id="th-fait" style="text-align:right;">Déjà fait</th>
-          <th style="text-align:right;">Avant base (h)</th>
-          <th style="text-align:right;">Estimé (h)</th>
-          <th onclick="sortTemps('restant')" id="th-restant" style="text-align:right;">⏳ Restant</th>
+          <th id="th-statut" style="text-align:center;width:90px;">Statut</th>
+          <th onclick="sortTemps('prio')" id="th-prio" style="text-align:center;width:100px;">Priorité</th>
+          <th onclick="sortTemps('fait')" id="th-fait" style="text-align:right;width:75px;">Déjà fait</th>
+          <th style="text-align:right;width:90px;">Avant base (h)</th>
+          <th style="text-align:right;width:80px;">Estimé (h)</th>
+          <th onclick="sortTemps('restant')" id="th-restant" style="text-align:right;width:75px;">⏳ Restant</th>
         </tr>
       </thead>
       <tbody id="temps-tbody"></tbody>
@@ -6445,7 +6445,7 @@ function renderTemps(){
   function makeRow(item, indent){
     var restantH = item.restantMin!==null ? item.restantMin : null;
     var faitH    = item.faitMin ? (item.faitMin/60).toFixed(1) : '0';
-    var estH     = item.estMin  ? (item.estMin/60).toFixed(0)  : '';
+    var estH     = item.estMin  ? (item.estMin/60).toFixed(1).replace(/\.0$/,'') : '';
     var avantH   = item.avantBase ? (item.avantBase/60).toFixed(1) : '0';
     var restCol  = restantH===0?'color:var(--green);font-weight:600;':restantH===null?'color:var(--faint);':'';
     var bg       = indent ? 'background:var(--off);' : '';
@@ -6481,7 +6481,7 @@ function renderTemps(){
     r+='</select></td>';
     r+='<td style="text-align:right;color:var(--mid);">'+faitH+'h</td>';
     r+='<td style="text-align:right;"><input type="number" class="temps-input" min="0" step="0.5" value="'+avantH+'" onchange="saveTempsField(\''+item._id+'\',\''+item.type+'\',\'avantBase\',this.value)"></td>';
-    r+='<td style="text-align:right;"><input type="number" class="temps-input" min="0" step="1" value="'+estH+'" onchange="saveTempsField(\''+item._id+'\',\''+item.type+'\',\'estMin\',this.value)"></td>';
+    r+='<td style="text-align:right;"><input type="number" class="temps-input" min="0" step="0.1" value="'+estH+'" onchange="saveTempsField(\''+item._id+'\',\''+item.type+'\',\'estMin\',this.value)"></td>';
     r+='<td style="text-align:right;'+restCol+'">';
     if(restantH===null) r+='<span style="color:var(--faint);">—</span>';
     else if(restantH===0) r+='✓';
@@ -6711,7 +6711,7 @@ function openTempsItem(id, type){
 }
 
 function saveTempsField(id, type, field, val){
-  var valNum = field==='prio' ? (parseInt(val)||null) : Math.round(parseFloat(val)*60)||null;
+  var valNum = field==='prio' ? (parseInt(val)||null) : (parseFloat(val)?Math.round(parseFloat(val)*60):null);
   if(type==='oeuvre'){
     var o=oeuvres.find(function(x){return x._id===id;});
     if(o){ o[field]=valNum; }
