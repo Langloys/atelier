@@ -1795,7 +1795,7 @@ function renderToday(){
     displayDate.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
 
   const selDateStr = selDate || TODAY;
-  const todaySess = sessions.filter(s=>s.date===selDateStr).sort(function(a,b){ return (a.createdAt||'').localeCompare(b.createdAt||'') || (a._id - b._id); });
+  const todaySess = sessions.filter(s=>s.date===selDateStr).sort(function(a,b){ return (b.createdAt||'').localeCompare(a.createdAt||'') || (b._id - a._id); });
   const totMin    = todaySess.reduce((a,s)=>a+(s.dur||0),0);
   document.getElementById('today-total-label').textContent =
     totMin ? fmtMin(totMin)+' enregistrées ce jour' : '';
@@ -2176,7 +2176,7 @@ function renderJournal(){
   }
   var html='';
   dates.forEach(function(d){
-    var ses=byDate[d];
+    var ses=byDate[d].sort(function(a,b){ return (b.createdAt||'').localeCompare(a.createdAt||'') || (b._id - a._id); });
     var tot=ses.reduce(function(a,s){return a+(s.dur||0);},0);
     html+='<div class="day-block">';
     html+='<div class="day-hd"><span class="day-dt">'+fmtDate(d)+'</span><span class="day-tot">⏱ '+fmtMin(tot)+'</span></div>';
