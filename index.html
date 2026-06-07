@@ -705,6 +705,10 @@ if(sessionStorage.getItem('at-pin-ok')==='1'){document.getElementById('pin-scree
     <div id="rappels-today" style="margin-bottom:16px;"></div>
 
     <!-- Sessions du jour -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+      <span id="app-version" style="font-size:.7rem;color:var(--faint);font-family:monospace;">v2026-06-07</span>
+      <button class="btn btn-sm" onclick="refreshToday(this)" style="font-size:.72rem;padding:4px 10px;">↺ Actualiser</button>
+    </div>
     <div id="sessions-today"></div>
 
     <!-- Récap par projet -->
@@ -1784,6 +1788,27 @@ function render(){
 }
 
 // ══ AUJOURD'HUI ══
+async function refreshToday(btn){
+  if(btn){ btn.disabled=true; btn.textContent='⏳'; }
+  try {
+    var tables = ['oeuvres','exemplaires','sessions','projets','clients'];
+    var results = await Promise.all(tables.map(function(t){ return fetchAll(t); }));
+    oeuvres=results[0].map(function(r){return r.data;});
+    exemplaires=results[1].map(function(r){return r.data;});
+    sessions=results[2].map(function(r){return r.data;});
+    projets=results[3].map(function(r){return r.data;});
+    clients=results[4].map(function(r){return r.data;});
+    var cfgRes = await sb.from('config').select('*');
+    if(cfgRes.data){cfgRes.data.forEach(function(row){
+      if(row.key==='actionsConfig'&&row.data) actionsConfig=row.data;
+      if(row.key==='activites'&&row.data) activites=row.data;
+      if(row.key==='planEvts'&&row.data) planEvts=row.data;
+    });}
+  } catch(e){ console.error('refreshToday',e); }
+  if(btn){ btn.disabled=false; btn.textContent='↺ Actualiser'; }
+  updateCounts(); renderToday();
+}
+
 function renderToday(){
   const d=new Date();
   // Init date to today if not yet set
