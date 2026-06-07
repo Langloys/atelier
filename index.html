@@ -1295,8 +1295,10 @@ if(sessionStorage.getItem('at-pin-ok')==='1'){document.getElementById('pin-scree
           <div style="font-size:.75rem;color:var(--faint);margin-top:4px;">Cliquer pour ajouter</div>
           <input type="file" id="ow-photo-f" accept="image/*" style="display:none" onchange="prevImgOw(this)">
         </div>
-        <img id="ow-prev" class="img-prev">
-        <button onclick="delPhotoOw()" style="display:none;position:absolute;top:6px;right:6px;background:rgba(0,0,0,.5);color:white;border:none;border-radius:50%;width:24px;height:24px;cursor:pointer;font-size:.8rem;line-height:24px;text-align:center;" id="ow-photo-del">✕</button>
+        <div style="position:relative;display:inline-block;">
+          <img id="ow-prev" class="img-prev">
+          <button onclick="delPhotoOw()" style="display:none;position:absolute;top:6px;right:6px;background:rgba(0,0,0,.5);color:white;border:none;border-radius:50%;width:24px;height:24px;cursor:pointer;font-size:.8rem;line-height:24px;text-align:center;" id="ow-photo-del">✕</button>
+        </div>
       </div>
       </div>
       <div class="fr">
@@ -1466,8 +1468,10 @@ if(sessionStorage.getItem('at-pin-ok')==='1'){document.getElementById('pin-scree
           <div style="font-size:1.3rem;color:var(--bd)">📷</div><p>Cliquer pour ajouter</p>
           <input type="file" id="ex-photo-f" accept="image/*" style="display:none" onchange="prevImg(this)">
         </div>
-        <img id="ex-prev" class="img-prev">
-        <button onclick="delPhotoEx()" style="display:none;position:absolute;top:6px;right:6px;background:rgba(0,0,0,.5);color:white;border:none;border-radius:50%;width:24px;height:24px;cursor:pointer;font-size:.8rem;line-height:24px;text-align:center;" id="ex-photo-del">✕</button>
+        <div style="position:relative;display:inline-block;">
+          <img id="ex-prev" class="img-prev">
+          <button onclick="delPhotoEx()" style="display:none;position:absolute;top:6px;right:6px;background:rgba(0,0,0,.5);color:white;border:none;border-radius:50%;width:24px;height:24px;cursor:pointer;font-size:.8rem;line-height:24px;text-align:center;" id="ex-photo-del">✕</button>
+        </div>
       </div>
     </div>
     <!-- Zone patine -->
