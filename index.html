@@ -706,7 +706,7 @@ if(sessionStorage.getItem('at-pin-ok')==='1'){document.getElementById('pin-scree
 
     <!-- Sessions du jour -->
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-      <span id="app-version" style="font-size:.7rem;color:var(--faint);font-family:monospace;">v2026-06-07</span>
+      <span id="app-version" style="font-size:.7rem;color:var(--faint);font-family:monospace;">20260607 - 12h50</span>
       <button class="btn btn-sm" onclick="refreshToday(this)" style="font-size:.72rem;padding:4px 10px;">↺ Actualiser</button>
     </div>
     <div id="sessions-today"></div>
@@ -5843,17 +5843,19 @@ function buildHeatmap(sessList){
 
   var html='<div style="margin-bottom:16px;">';
   html+='<div class="stats-section-title">Calendrier activité (52 semaines)</div>';
-  // Month labels
-  html+='<div style="display:flex;gap:3px;margin-bottom:3px;font-size:.6rem;color:var(--faint);height:14px;">';
+  // Wrapper scrollable unique pour labels + grille
+  html+='<div style="overflow-x:auto;padding-bottom:8px;">';
+  // Month labels — même largeur que la grille, dans le même scroll
+  html+='<div style="display:flex;gap:3px;margin-bottom:3px;font-size:.6rem;color:var(--faint);height:14px;flex-wrap:nowrap;">';
   var lastLabelIdx=-5;
   weeks.forEach(function(week,wi){
     var ml=monthLabels.find(function(m){return m.idx===wi;});
-    if(ml&&wi-lastLabelIdx>3){html+='<div style="min-width:13px;white-space:nowrap;">'+ml.label+'</div>';lastLabelIdx=wi;}
-    else html+='<div style="min-width:13px;"></div>';
+    if(ml&&wi-lastLabelIdx>3){html+='<div style="min-width:13px;width:13px;white-space:nowrap;overflow:visible;">'+ml.label+'</div>';lastLabelIdx=wi;}
+    else html+='<div style="min-width:13px;width:13px;"></div>';
   });
   html+='</div>';
-  // Grid
-  html+='<div class="heatmap-grid">';
+  // Grid — même conteneur scroll
+  html+='<div style="display:flex;gap:3px;flex-wrap:nowrap;">';
   weeks.forEach(function(week){
     html+='<div class="heatmap-week">';
     week.forEach(function(day){
@@ -5863,6 +5865,7 @@ function buildHeatmap(sessList){
     html+='</div>';
   });
   html+='</div>';
+  html+='</div>'; // fin wrapper scroll
   // Legend
   html+='<div style="display:flex;align-items:center;gap:4px;margin-top:6px;font-size:.62rem;color:var(--faint);">';
   html+='<span>Moins</span>';
