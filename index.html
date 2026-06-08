@@ -706,7 +706,7 @@ if(sessionStorage.getItem('at-pin-ok')==='1'){document.getElementById('pin-scree
 
     <!-- Sessions du jour -->
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-      <span id="app-version" style="font-size:.7rem;color:var(--faint);font-family:monospace;">20260608 - 10h15</span>
+      <span id="app-version" style="font-size:.7rem;color:var(--faint);font-family:monospace;">20260608 - 10h50</span>
       <button class="btn btn-sm" onclick="refreshToday(this)" style="font-size:.72rem;padding:4px 10px;">↺ Actualiser</button>
     </div>
     <div id="sessions-today"></div>
@@ -938,6 +938,10 @@ if(sessionStorage.getItem('at-pin-ok')==='1'){document.getElementById('pin-scree
       <div class="fr">
         <div class="fg"><label>Du</label><input type="date" id="pevt-debut"></div>
         <div class="fg"><label>Au</label><input type="date" id="pevt-fin"></div>
+      </div>
+      <div class="fr">
+        <div class="fg"><label>Heure début</label><input type="time" id="pevt-heure-debut"></div>
+        <div class="fg"><label>Heure fin</label><input type="time" id="pevt-heure-fin"></div>
       </div>
       <div class="fr">
         <div class="fg"><label>Heures retirées / jour</label>
@@ -7280,6 +7284,8 @@ function openAddEvtPlanning(){
   document.getElementById('pevt-debut').value=TODAY;
   document.getElementById('pevt-fin').value=TODAY;
   document.getElementById('pevt-heures').value='0';
+  document.getElementById('pevt-heure-debut').value='';
+  document.getElementById('pevt-heure-fin').value='';
   document.getElementById('pevt-color').value='#e8a87c';
   syncPaletteSelection('#e8a87c');
   document.getElementById('pevt-del-btn').style.display='none';
@@ -7299,6 +7305,8 @@ function openEditEvtPlanning(id){
   document.getElementById('pevt-debut').value=evt.debut||TODAY;
   document.getElementById('pevt-fin').value=evt.fin||TODAY;
   document.getElementById('pevt-heures').value=evt.heures||0;
+  document.getElementById('pevt-heure-debut').value=evt.heureDebut||'';
+  document.getElementById('pevt-heure-fin').value=evt.heureFin||'';
   document.getElementById('pevt-color').value=evt.color||'#e8a87c';
   syncPaletteSelection(evt.color||'#e8a87c');
   document.getElementById('pevt-del-btn').style.display='';
