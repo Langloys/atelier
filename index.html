@@ -706,7 +706,7 @@ if(sessionStorage.getItem('at-pin-ok')==='1'){document.getElementById('pin-scree
 
     <!-- Sessions du jour -->
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-      <span id="app-version" style="font-size:.7rem;color:var(--faint);font-family:monospace;">20260607 - 16h45</span>
+      <span id="app-version" style="font-size:.7rem;color:var(--faint);font-family:monospace;">20260608 - 10h15</span>
       <button class="btn btn-sm" onclick="refreshToday(this)" style="font-size:.72rem;padding:4px 10px;">↺ Actualiser</button>
     </div>
     <div id="sessions-today"></div>
@@ -7093,7 +7093,7 @@ function renderPlanning(){
           evtCouleurKey=evtKey; evtPrevColor=evt.color; evtPrevLabel=evt.label;
           evtLabelEcrit=false; evtSepCompteur=0;
         }
-        html+='<td class="plan-evt-cell" onclick="openEditEvtPlanning(\''+evt._id+'\')" style="background:'+evt.color+';cursor:pointer;position:relative;height:28px;" onmouseenter="showPlanTooltip(event,\''+evt.label.replace(/'/g,"\\'")+(evt.heures>0?' (−'+evt.heures+'h)':'')+'\')" onmouseleave="hidePlanTooltip()">';
+        html+='<td class="plan-evt-cell" onclick="openEditEvtPlanning(\''+evt._id+'\')" style="background:'+evt.color+';cursor:pointer;position:relative;height:28px;" onmouseenter="showPlanTooltip(event,\''+evt.label.replace(/'/g,"\\'")+(evt.heureDebut?(' '+evt.heureDebut+(evt.heureFin?' → '+evt.heureFin:'')):'')+(evt.heures>0?' (−'+evt.heures+'h)':'')+'\')" onmouseleave="hidePlanTooltip()">';
         if(!evtLabelEcrit){
           html+='<span style="position:absolute;left:3px;top:50%;transform:translateY(-50%);white-space:nowrap;font-size:.58rem;color:#000;font-weight:600;pointer-events:none;z-index:1;text-shadow:0 0 3px rgba(255,255,255,.7);">'+evt.label+'</span>';
           evtLabelEcrit=true;
@@ -7312,11 +7312,13 @@ function saveEvtPlanning(){
   if(fin<debut){alert('La date de fin doit être après le début.');return;}
   var heures=parseInt(document.getElementById('pevt-heures').value)||0;
   var color=document.getElementById('pevt-color').value;
+  var heureDebut=document.getElementById('pevt-heure-debut').value||null;
+  var heureFin=document.getElementById('pevt-heure-fin').value||null;
   if(editPlanEvtId){
     var evt=planEvts.find(function(e){return e._id===editPlanEvtId;});
-    if(evt){evt.label=label;evt.debut=debut;evt.fin=fin;evt.heures=heures;evt.color=color;}
+    if(evt){evt.label=label;evt.debut=debut;evt.fin=fin;evt.heures=heures;evt.color=color;evt.heureDebut=heureDebut;evt.heureFin=heureFin;}
   } else {
-    planEvts.push({_id:'pe-'+Date.now(),label:label,debut:debut,fin:fin,heures:heures,color:color});
+    planEvts.push({_id:'pe-'+Date.now(),label:label,debut:debut,fin:fin,heures:heures,color:color,heureDebut:heureDebut,heureFin:heureFin});
   }
   persistPlanEvts();
   closeM('mo-planning-evt');
