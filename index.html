@@ -2240,7 +2240,11 @@ function renderJournal(){
         }
         return lbl;
       })();
-      html+='<span class="ses-row-proj">'+sesDisplayLabel+'</span>';
+      var onclickJour='';
+      if(g.exId&&g.exId.indexOf('o-')===0) onclickJour='onclick="openEditOeuvre(\''+g.exId+'\')"';
+      else if(g.exId&&g.exId.indexOf('e-')===0) onclickJour='onclick="openEditEx(\''+g.exId+'\')"';
+      var labelStyleJour=onclickJour?'cursor:pointer;':'';
+      html+='<span class="ses-row-proj" style="'+labelStyleJour+'" '+onclickJour+'>'+sesDisplayLabel+'</span>';
       var comTxt=g.coms.join(' · ');
       if(comTxt)html+='<span style="font-size:.67rem;color:var(--faint);font-style:italic;flex:1;">'+comTxt+'</span>';
       else html+='<span style="flex:1;"></span>';
