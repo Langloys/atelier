@@ -2446,7 +2446,7 @@ function renderStock(){
   var html='';
 
   // -- Œuvres originales n'ont plus de stock direct, on affiche seulement les exemplaires --
-  var owStock=oeuvres.filter(function(o){ return false; }); // plus d'oeuvres en stock direct
+  var owStock=oeuvres.filter(function(o){    var st=o.statut||((o.actif===false||o.actif==='false')?'stock':'encours');    if(st!=='stock')return false;    if(q&&(o.nom||o.num).toLowerCase().indexOf(q)<0)return false;    return true;  });
 
   // -- Exemplaires en stock, commande ou collection particulière --
   var exStock=exemplaires.filter(function(e){
