@@ -2539,7 +2539,7 @@ function renderStock(){
           html+='<div class="stock-thumb">'+(e.photo?'<img src="'+e.photo+'">':'🏺')+'</div>';
           html+='<div class="stock-info">';
           html+='<div class="stock-code">'+matEmoji(e.mat)+' '+e.exId+'</div>';
-          html+='<div class="stock-nom">'+oe?oe.nom||oe.num:'?'+'</div>';
+          html+='<div class="stock-nom">'+(oe?oe.nom||oe.num:'?')+'</div>';
           html+='<div class="stock-sub">'+e.mat+' · '+shortSuf(e.num)+(e.lieu?' · 📍'+e.lieu:'')+'</div>';
           html+='</div>';
           html+='<div style="text-align:right;flex-shrink:0;">';
@@ -2554,7 +2554,7 @@ function renderStock(){
           html+='<div class="stock-thumb">'+(o.photo?'<img src="'+o.photo+'">':'🖼️')+'</div>';
           html+='<div class="stock-info">';
           html+='<div class="stock-code">'+typeEmoji(o.type)+' '+o.num+(o.technique?' · '+o.technique:'')+'</div>';
-          html+='<div class="stock-nom">'+o.nom||o.num+'</div>';
+          html+='<div class="stock-nom">'+(o.nom||o.num)+'</div>';
           html+='<div class="stock-sub">'+(o.dim||'')+(o.rangement?' 📦 '+o.rangement:'')+'</div>';
           html+='</div>';
           html+='<div style="text-align:right;flex-shrink:0;">';
