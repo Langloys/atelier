@@ -1558,7 +1558,7 @@ const DEFAULT_MATIERES = ['BRONZE','MOULE','RÉSINE','PLÂTRE','ARGILE','CÉRAMI
 const DEFAULT_TECHNIQUES = ['Aquarelle','Fusain','Huile','Crayon','Pastel','Acrylique','Encre','Mixte'];
 
 // ══ EMOJIS ══
-const TYPE_EMOJI={'BUSTE':'👤','BAS-RELIEF':'🪙','BASRELIEF':'🪙','JOYAU':'💎','ANIMAL':'🐾','CORPS':'🫀','HARMONY':'✨','HARMONY':'✨','DESSIN':'🖼️','ADMINISTRATIF':'📋','ADMIN':'📋','GAYA':'🌿'};
+const TYPE_EMOJI={'BUSTE':'👤','BAS-RELIEF':'🪙','BASRELIEF':'🪙','JOYAU':'💎','ANIMAL':'🐾','CORPS':'🫀','HARMONY':'✨','DESSIN':'🖼️','ADMINISTRATIF':'📋','ADMIN':'📋','GAYA':'🌿'};
 const MAT_EMOJI={'BRONZE':'🥉','MOULE':'🪨','RÉSINE':'🧪','PLÂTRE':'🤍','ARGILE':'🟤','TERRE':'🌱'};
 function typeEmoji(t){return TYPE_EMOJI[t]||'🎨';}
 function matEmoji(m){return MAT_EMOJI[m]||'';}
@@ -2482,10 +2482,14 @@ function renderStock(){
 
   var vsL={encours:'En cours',stock:'En stock',commande:'Sur commande',vendu:'Vendu',collection:'Collection particulière'};
 
+  // Trier par _id décroissant (plus récent en premier)
+  owStock.sort(function(a,b){return String(b._id)>String(a._id)?1:-1;});
+  exStock.sort(function(a,b){return String(b._id)>String(a._id)?1:-1;});
+
   // Regrouper les oeuvres par type
   if(stockGroupOpen===null){stockGroupOpen={};}
-  var typeOrder=['BUSTE','JOYAU','CORPS','DESSIN','ANIMAL','HARMONY','HARMONY','BAS-RELIEF','VOYAGE','GAYA'];
-  var typeLabels={BUSTE:'Bustes',JOYAU:'Joyaux',CORPS:'Corps',DESSIN:'Dessins',ANIMAL:'Animaux','BAS-RELIEF':'Bas-reliefs',VOYAGE:'Voyages','HARMONY':'Harmony','HARMONY':'Harmony',GAYA:'Gaya'};
+  var typeOrder=['BUSTE','JOYAU','CORPS','DESSIN','ANIMAL','HARMONY','BAS-RELIEF','VOYAGE','GAYA'];
+  var typeLabels={BUSTE:'Bustes',JOYAU:'Joyaux',CORPS:'Corps',DESSIN:'Dessins',ANIMAL:'Animaux','BAS-RELIEF':'Bas-reliefs',VOYAGE:'Voyages','HARMONY':'Harmony',GAYA:'Gaya'};
   var byType={};
 
   owStock.forEach(function(o){
