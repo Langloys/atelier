@@ -2415,11 +2415,15 @@ function updateCounts(){
   document.getElementById('ct-jour').textContent=sessions.length;
   document.getElementById('ct-all').textContent=oeuvres.length;
   document.getElementById('ct-enc').textContent=exemplaires.filter(function(e){return (e.statut||e.status)==='encours';}).length;
-  var stockCount=exemplaires.filter(function(e){
+  var stockCountEx=exemplaires.filter(function(e){
     var s=e.statut||e.venteStatus||e.status;
     return s==='stock'||s==='commande'||s==='collection';
   }).length;
-  document.getElementById('ct-stock').textContent=stockCount;
+  var stockCountOw=oeuvres.filter(function(o){
+    var st=o.statut||((o.actif===false||o.actif==='false')?'stock':'encours');
+    return st==='stock';
+  }).length;
+  document.getElementById('ct-stock').textContent=stockCountEx+stockCountOw;
   if(typeof updateFinBadge === 'function') updateFinBadge();
 }
 function renderStats(){
@@ -2435,8 +2439,15 @@ function renderStats(){
 }
 
 // ══ OEUVRES ══
+// État d'ouverture des groupes stock
+var stockGroupOpen={};
+
+function toggleStockGroup(type){
+  stockGroupOpen[type]=!stockGroupOpen[type];
+  renderStock();
+}
+
 function renderStock(){
-  // Hide both zones, use ex-zone for stock
   document.getElementById('oeuvres-zone').style.display='none';
   document.getElementById('toolbar').style.display='none';
   document.getElementById('dash-zone').style.display='none';
@@ -2445,10 +2456,15 @@ function renderStock(){
   var q=(document.getElementById('srch')||{value:''}).value.toLowerCase();
   var html='';
 
-  // -- Œuvres originales n'ont plus de stock direct, on affiche seulement les exemplaires --
-  var owStock=oeuvres.filter(function(o){    var st=o.statut||((o.actif===false||o.actif==='false')?'stock':'encours');    if(st!=='stock')return false;    if(q&&(o.nom||o.num).toLowerCase().indexOf(q)<0)return false;    return true;  });
+  // Œuvres en stock
+  var owStock=oeuvres.filter(function(o){
+    var st=o.statut||((o.actif===false||o.actif==='false')?'stock':'encours');
+    if(st!=='stock')return false;
+    if(q&&(o.nom||o.num).toLowerCase().indexOf(q)<0)return false;
+    return true;
+  });
 
-  // -- Exemplaires en stock, commande ou collection particulière --
+  // Exemplaires en stock / commande / collection
   var exStock=exemplaires.filter(function(e){
     var s=e.statut||e.venteStatus||e.status;
     return s==='stock'||s==='commande'||s==='collection';
@@ -2460,46 +2476,89 @@ function renderStock(){
   });
 
   if(!owStock.length && !exStock.length){
-    zone.innerHTML='<div class="empty-state"><div class="ei">🏛️</div><h3>Aucun article en stock</h3><p>Marquez des exemplaires comme "Terminé" ou ajoutez un prix à vos œuvres</p></div>';
+    zone.innerHTML='<div class="empty-state"><div class="ei">🏛️</div><h3>Aucun article en stock</h3><p>Mettez des œuvres en stock depuis leur fiche</p></div>';
     return;
   }
 
   var vsL={encours:'En cours',stock:'En stock',commande:'Sur commande',vendu:'Vendu',collection:'Collection particulière'};
-  var allStock=[];
-  owStock.forEach(function(o){allStock.push({type:'oeuvre',obj:o});});
-  exStock.forEach(function(e){allStock.push({type:'ex',obj:e});});
 
-  allStock.forEach(function(item){
-    if(item.type==='oeuvre'){
-      var o=item.obj;
-      var vs=o.venteStatus||'stock';
-      html+='<div class="stock-row" onclick="openEditOeuvre(\'' + o._id + '\')">';
-      html+='<div class="stock-thumb">'+(o.photo?'<img src="'+o.photo+'">':'🖼️')+'</div>';
-      html+='<div class="stock-info">';
-      html+='<div class="stock-code">'+typeEmoji(o.type)+' '+o.num+(o.technique?' · '+o.technique:'')+'</div>';
-      html+='<div class="stock-nom">'+(o.nom||o.num)+'</div>';
-      html+='<div class="stock-sub">'+(o.dim||'Œuvre originale')+'</div>';
+  // Regrouper les oeuvres par type
+  var typeOrder=['BUSTE','JOYAU','VOYAGE','DESSIN','RELIEF','FONTAINE','AUTRE'];
+  var typeLabels={BUSTE:'Bustes',JOYAU:'Joyaux',VOYAGE:'Voyages',DESSIN:'Dessins',RELIEF:'Reliefs',FONTAINE:'Fontaines',AUTRE:'Autres'};
+  var byType={};
+
+  owStock.forEach(function(o){
+    var t=o.type||'AUTRE';
+    if(!byType[t])byType[t]=[];
+    byType[t].push(o);
+  });
+
+  // Ajouter les exemplaires dans un groupe spécial
+  if(exStock.length){
+    byType['_EX']=exStock;
+  }
+
+  // Ordre d'affichage : types connus d'abord, puis le reste, exemplaires en dernier
+  var types=typeOrder.filter(function(t){return byType[t]&&byType[t].length;});
+  Object.keys(byType).forEach(function(t){
+    if(t!=='_EX'&&types.indexOf(t)<0)types.push(t);
+  });
+  if(byType['_EX'])types.push('_EX');
+
+  types.forEach(function(type){
+    var items=byType[type];
+    var isOpen=stockGroupOpen[type]!==false; // ouvert par défaut
+    var isEx=(type==='_EX');
+    var emoji=isEx?'🏺':typeEmoji(type);
+    var label=isEx?'Exemplaires':(typeLabels[type]||type);
+    var count=items.length;
+    var arrow=isOpen?'▾':'▸';
+
+    html+='<div class="stock-group">';
+    html+='<div class="stock-group-header" onclick="toggleStockGroup(\'' + type + '\')" style="display:flex;align-items:center;gap:.5rem;padding:.75rem 1rem;cursor:pointer;background:var(--bg2);border-radius:8px;margin-bottom:.25rem;user-select:none;">';
+    html+='<span style="font-size:1.2rem;">'+emoji+'</span>';
+    html+='<span style="font-weight:600;flex:1;">'+label+'</span>';
+    html+='<span class="ct" style="background:var(--accent);color:#fff;border-radius:20px;padding:2px 10px;font-size:.75rem;">'+count+'</span>';
+    html+='<span style="font-size:1rem;color:var(--faint);">'+arrow+'</span>';
+    html+='</div>';
+
+    if(isOpen){
+      html+='<div class="stock-group-body" style="margin-bottom:.75rem;">';
+      items.forEach(function(item){
+        if(!isEx){
+          var o=item;
+          var vs=o.venteStatus||o.statut||'stock';
+          html+='<div class="stock-row" onclick="openEditOeuvre(\'' + o._id + '\')">';
+          html+='<div class="stock-thumb">'+(o.photo?'<img src="'+o.photo+'">':'🖼️')+'</div>';
+          html+='<div class="stock-info">';
+          html+='<div class="stock-code">'+typeEmoji(o.type)+' '+o.num+(o.technique?' · '+o.technique:'')+'</div>';
+          html+='<div class="stock-nom">'+(o.nom||o.num)+'</div>';
+          html+='<div class="stock-sub">'+(o.dim||'')+(o.rangement?' 📦 '+o.rangement:'')+'</div>';
+          html+='</div>';
+          html+='<div style="text-align:right;flex-shrink:0;">';
+          html+='<div class="stock-prix">'+((o.prix||0).toLocaleString('fr-FR')+' €')+'</div>';
+          html+='<span class="badge vente-'+vs+'">'+(vsL[vs]||vs)+'</span>';
+          html+='</div></div>';
+        } else {
+          var e=item;
+          var o=oeuvres.find(function(x){return x._id===e.oeuvreId;});
+          var vs=e.statut||e.venteStatus||'stock';
+          html+='<div class="stock-row" onclick="openDetail(\'' + e._id + '\')">';
+          html+='<div class="stock-thumb">'+(e.photo?'<img src="'+e.photo+'">':'🏺')+'</div>';
+          html+='<div class="stock-info">';
+          html+='<div class="stock-code">'+matEmoji(e.mat)+' '+e.exId+'</div>';
+          html+='<div class="stock-nom">'+(o?o.nom||o.num:'?')+'</div>';
+          html+='<div class="stock-sub">'+e.mat+' · '+shortSuf(e.num)+(e.lieu?' · 📍'+e.lieu:'')+'</div>';
+          html+='</div>';
+          html+='<div style="text-align:right;flex-shrink:0;">';
+          html+='<div class="stock-prix">'+(e.prix?e.prix.toLocaleString('fr-FR')+' €':'—')+'</div>';
+          html+='<span class="badge vente-'+vs+'">'+(vsL[vs]||vs)+'</span>';
+          html+='</div></div>';
+        }
+      });
       html+='</div>';
-      html+='<div style="text-align:right;flex-shrink:0;">';
-      html+='<div class="stock-prix">'+((o.prix||0).toLocaleString('fr-FR'))+' €</div>';
-      html+='<span class="badge vente-'+vs+'">'+vsL[vs]+'</span>';
-      html+='</div></div>';
-    } else {
-      var e=item.obj;
-      var o=oeuvres.find(function(x){return x._id===e.oeuvreId;});
-      var vs=e.statut||e.venteStatus||'stock';
-      html+='<div class="stock-row" onclick="openDetail(\'' + e._id + '\')">';
-      html+='<div class="stock-thumb">'+(e.photo?'<img src="'+e.photo+'">':'🏺')+'</div>';
-      html+='<div class="stock-info">';
-      html+='<div class="stock-code">'+matEmoji(e.mat)+' '+e.exId+'</div>';
-      html+='<div class="stock-nom">'+(o?o.nom||o.num:'?')+'</div>';
-      html+='<div class="stock-sub">'+e.mat+' · '+shortSuf(e.num)+(e.lieu?' · 📍'+e.lieu:'')+'</div>';
-      html+='</div>';
-      html+='<div style="text-align:right;flex-shrink:0;">';
-      html+='<div class="stock-prix">'+(e.prix?e.prix.toLocaleString('fr-FR')+' €':'—')+'</div>';
-      html+='<span class="badge vente-'+vs+'">'+(vsL[vs]||vs)+'</span>';
-      html+='</div></div>';
     }
+    html+='</div>';
   });
 
   zone.innerHTML=html;
