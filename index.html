@@ -3081,7 +3081,7 @@ function openEditOeuvre(oid){
   document.getElementById('ow-type').value=o.type||'BUSTE';
   document.getElementById('ow-prio').value=o.prio||'';
   document.getElementById('ow-desc').value=o.desc||'';
-  document.getElementById('ow-actif').value=o.statut||((o.actif===false||o.actif==='false')?'termine':'encours');
+  document.getElementById('ow-actif').value=o.statut||((o.actif===false||o.actif==='false')?'stock':'encours');
   document.getElementById('ow-lieu').value=o.lieu||'';
   document.getElementById('ow-fonderie').value=o.fonderie||'';
   document.getElementById('ow-depot').value=o.depot||'';
@@ -3620,7 +3620,7 @@ function renderConfig(){
       html+='<optgroup label="Exemplaires">';
       exemplaires.forEach(function(e){
         var oe=oeuvres.find(function(x){return x._id===e.oeuvreId;});
-        if(!oe||!oe.actif)return;
+        if(!oe)return; var oeStatut=oe.statut||((oe.actif===false||oe.actif==='false')?'stock':'encours'); if(oeStatut==='stock')return;
         html+='<option value="'+e._id+'">'+(oe.nom||oe.num)+' · '+(e.mat||'')+' '+shortSuf(e.num)+'</option>';
       });
       html+='</optgroup>';
