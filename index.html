@@ -3443,7 +3443,9 @@ function _extractFilename(url){
 
 function delPhotoOw(){
   var fn = _extractFilename(tmpPhotoOw);
+  console.log('delPhotoOw: tmpPhotoOw=', tmpPhotoOw, '→ filename=', fn);
   if(fn) _deletePhotoByFilename(fn);
+  else console.warn('delPhotoOw: pas de filename extrait, suppression Storage ignorée');
   tmpPhotoOw=null;
   var p=document.getElementById('ow-prev'); p.src=''; p.style.display='none';
   var b=document.getElementById('ow-photo-del'); if(b) b.style.display='none';
@@ -3451,7 +3453,9 @@ function delPhotoOw(){
 
 function delPhotoEx(){
   var fn = _extractFilename(tmpPhoto);
+  console.log('delPhotoEx: tmpPhoto=', tmpPhoto, '→ filename=', fn);
   if(fn) _deletePhotoByFilename(fn);
+  else console.warn('delPhotoEx: pas de filename extrait, suppression Storage ignorée');
   tmpPhoto=null;
   photoExDeleted=true;
   var p=document.getElementById('ex-prev'); p.src=''; p.style.display='none';
@@ -6635,7 +6639,7 @@ renderToday();
 
 // ══ VERSION AUTOMATIQUE ══
 (function(){
-  document.getElementById('app-version').textContent = '20260618 - v2';
+  document.getElementById('app-version').textContent = '20260618 - v3';
 })();
 
 // ══ TEMPS ══
