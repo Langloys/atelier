@@ -3475,25 +3475,33 @@ function compressImage(dataUrl, maxPx, quality, callback){
 }
 
 // Upload vers Storage + insère dans table photos
-function _uploadPhotoToStorage(compressedDataUrl, itemId, previewId, delBtnId, onSuccess){
+function _uploadPhotoToStorage(compressedDataUrl, itemId, fileSlug, previewId, delBtnId, onSuccess){
   var p=document.getElementById(previewId);
   p.src=compressedDataUrl; p.style.display='block';
   var b=document.getElementById(delBtnId); if(b) b.style.display='block';
 
-  // Supprimer l'ancienne photo de cet item si elle existe dans la table
+  // Trouver le premier numéro libre pour cet item
   sb.from('photos').select('filename').eq('itemId', itemId)
     .then(function(res){
-      if(res.error){ console.warn('select photos:', res.error); return; }
+      if(res.error){ console.error('select photos ERREUR:', JSON.stringify(res.error)); }
+      var existingNums = [];
       if(res.data && res.data.length){
-        res.data.forEach(function(row){ _deletePhotoByFilename(row.filename); });
+        res.data.forEach(function(row){
+          var m = row.filename.match(/-(\d+)\.jpg$/);
+          if(m) existingNums.push(parseInt(m[1], 10));
+        });
       }
-    });
+      // Premier numéro libre à partir de 1
+      var n = 1;
+      while(existingNums.indexOf(n) !== -1) n++;
+      var num = String(n).padStart(2, '0');
+      var isPrincipale = existingNums.length === 0;
+      var safeId = (fileSlug||itemId||'item').replace(/[^a-zA-Z0-9\-_]/g,'_');
+      var fileName = safeId+'-'+num+'.jpg';
 
-  fetch(compressedDataUrl)
-    .then(function(r){return r.blob();})
-    .then(function(blob){
-      var safeId = (itemId||'item').replace(/[^a-zA-Z0-9\-_]/g,'_');
-      var fileName = safeId+'_'+Date.now()+'.jpg';
+      fetch(compressedDataUrl)
+        .then(function(r){return r.blob();})
+        .then(function(blob){
       return sb.storage.from('photos').upload(fileName, blob, {contentType:'image/jpeg', upsert:true})
         .then(function(res){
           if(res.error) throw res.error;
@@ -3504,7 +3512,7 @@ function _uploadPhotoToStorage(compressedDataUrl, itemId, previewId, delBtnId, o
             filename: fileName,
             principale: true,
             ordre: 1
-          }).then(function(r){ if(r.error) console.warn('insert table photos:', r.error); });
+          }).then(function(r){ if(r.error) console.error('insert table photos ERREUR:', JSON.stringify(r.error)); else console.log('insert table photos OK'); });
           return publicUrl;
         });
     })
@@ -3523,8 +3531,10 @@ function prevImgOw(input){
   var r=new FileReader();
   r.onload=function(ev){
     compressImage(ev.target.result, 1200, 0.82, function(compressed){
-      var slug=editOeuvreId||('new_ow_'+Date.now());
-      _uploadPhotoToStorage(compressed, slug, 'ow-prev', 'ow-photo-del',
+      var o = editOeuvreId ? oeuvres.find(function(x){return x._id===editOeuvreId;}) : null;
+      var fileSlug = o ? o.num : ('new_ow_'+Date.now());
+      var itemId = editOeuvreId || fileSlug;
+      _uploadPhotoToStorage(compressed, itemId, fileSlug, 'ow-prev', 'ow-photo-del',
         function(url){ if(url) tmpPhotoOw=url; });
     });
   };
@@ -3536,8 +3546,10 @@ function prevImg(input){
   var r=new FileReader();
   r.onload=function(ev){
     compressImage(ev.target.result, 1200, 0.82, function(compressed){
-      var slug=editExId||('new_ex_'+Date.now());
-      _uploadPhotoToStorage(compressed, slug, 'ex-prev', 'ex-photo-del',
+      var e = editExId ? exemplaires.find(function(x){return x._id===editExId;}) : null;
+      var fileSlug = e ? e.exId : ('new_ex_'+Date.now());
+      var itemId = editExId || fileSlug;
+      _uploadPhotoToStorage(compressed, itemId, fileSlug, 'ex-prev', 'ex-photo-del',
         function(url){ if(url) tmpPhoto=url; });
     });
   };
@@ -6623,14 +6635,7 @@ renderToday();
 
 // ══ VERSION AUTOMATIQUE ══
 (function(){
-  var now = new Date();
-  var pad = function(n){return String(n).padStart(2,'0');};
-  var y = now.getFullYear();
-  var m = pad(now.getMonth()+1);
-  var d = pad(now.getDate());
-  var h = pad(now.getHours());
-  var min = pad(now.getMinutes());
-  document.getElementById('app-version').textContent = y+''+m+''+d+' - '+h+'h'+min;
+  document.getElementById('app-version').textContent = '20260618 - v2';
 })();
 
 // ══ TEMPS ══
