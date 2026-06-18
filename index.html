@@ -3429,10 +3429,17 @@ function _photoPublicUrl(filename){
 // Supprime dans Storage + dans la table photos selon filename
 function _deletePhotoByFilename(filename){
   if(!filename) return;
+  console.log('_deletePhotoByFilename:', filename);
   sb.storage.from('photos').remove([filename])
-    .then(function(r){ if(r.error) console.warn('del storage:', r.error); });
+    .then(function(r){ 
+      if(r.error) console.error('del storage ERREUR:', JSON.stringify(r.error));
+      else console.log('del storage OK:', filename);
+    });
   sb.from('photos').delete().eq('filename', filename)
-    .then(function(r){ if(r.error) console.warn('del table photos:', r.error); });
+    .then(function(r){ 
+      if(r.error) console.error('del table ERREUR:', JSON.stringify(r.error));
+      else console.log('del table OK:', filename);
+    });
 }
 
 function _extractFilename(url){
@@ -6639,7 +6646,7 @@ renderToday();
 
 // ══ VERSION AUTOMATIQUE ══
 (function(){
-  document.getElementById('app-version').textContent = '20260618 - v4';
+  document.getElementById('app-version').textContent = '20260618 - v5';
 })();
 
 // ══ TEMPS ══
