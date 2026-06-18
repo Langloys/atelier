@@ -3500,29 +3500,29 @@ function _uploadPhotoToStorage(compressedDataUrl, itemId, fileSlug, previewId, d
       var fileName = safeId+'-'+num+'.jpg';
 
       fetch(compressedDataUrl)
-        .then(function(r){return r.blob();})
+        .then(function(r){ return r.blob(); })
         .then(function(blob){
-      return sb.storage.from('photos').upload(fileName, blob, {contentType:'image/jpeg', upsert:true})
-        .then(function(res){
-          if(res.error) throw res.error;
-          var publicUrl = _photoPublicUrl(fileName);
-          // Insérer dans la table photos (Supabase JS v2 : .then au lieu de .catch)
-          sb.from('photos').insert({
-            itemId: itemId,
-            filename: fileName,
-            principale: true,
-            ordre: 1
-          }).then(function(r){ if(r.error) console.error('insert table photos ERREUR:', JSON.stringify(r.error)); else console.log('insert table photos OK'); });
-          return publicUrl;
+          return sb.storage.from('photos').upload(fileName, blob, {contentType:'image/jpeg', upsert:true})
+            .then(function(upRes){
+              if(upRes.error) throw upRes.error;
+              var publicUrl = _photoPublicUrl(fileName);
+              sb.from('photos').insert({
+                itemId: itemId,
+                filename: fileName,
+                principale: isPrincipale,
+                ordre: n
+              }).then(function(r){ if(r.error) console.error('insert table photos ERREUR:', JSON.stringify(r.error)); else console.log('insert table photos OK:', fileName); });
+              return publicUrl;
+            });
+        })
+        .then(function(publicUrl){ onSuccess(publicUrl); })
+        .catch(function(err){
+          console.error('Upload photo Storage:', err);
+          if(err && (err.message||'').toLowerCase().includes('policy')){
+            alert('⚠️ Erreur upload photo : les policies Supabase Storage ne sont pas configurées.\nVoir les instructions dans la section Config > Photos.');
+          }
+          onSuccess(null);
         });
-    })
-    .then(function(publicUrl){ onSuccess(publicUrl); })
-    .catch(function(err){
-      console.error('Upload photo Storage:', err);
-      if(err && (err.message||'').toLowerCase().includes('policy')){
-        alert('⚠️ Erreur upload photo : les policies Supabase Storage ne sont pas configurées.\nVoir les instructions dans la section Config > Photos.');
-      }
-      onSuccess(null);
     });
 }
 
