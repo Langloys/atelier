@@ -3543,7 +3543,8 @@ function prevImgOw(input){
   r.onload=function(ev){
     compressImage(ev.target.result, 1200, 0.82, function(compressed){
       var o = editOeuvreId ? oeuvres.find(function(x){return x._id===editOeuvreId;}) : null;
-      var fileSlug = o ? o.num : ('new_ow_'+Date.now());
+      // Format : {NUM_OEUVRE}-00 (00 = terre originale)
+      var fileSlug = o ? (o.num+'-00') : ('new_ow_'+Date.now());
       var itemId = editOeuvreId || fileSlug;
       _uploadPhotoToStorage(compressed, itemId, fileSlug, 'ow-prev', 'ow-photo-del',
         function(url){ if(url) tmpPhotoOw=url; });
@@ -3558,7 +3559,9 @@ function prevImg(input){
   r.onload=function(ev){
     compressImage(ev.target.result, 1200, 0.82, function(compressed){
       var e = editExId ? exemplaires.find(function(x){return x._id===editExId;}) : null;
-      var fileSlug = e ? e.exId : ('new_ex_'+Date.now());
+      var o2 = e ? oeuvres.find(function(x){return x._id===e.oeuvreId;}) : null;
+      // Format : {NUM_OEUVRE}-{NUM_EXEMPLAIRE} ex: BUSTE-0510-01
+      var fileSlug = (e && o2) ? (o2.num+'-'+String(e.num).padStart(2,'0')) : ('new_ex_'+Date.now());
       var itemId = editExId || fileSlug;
       _uploadPhotoToStorage(compressed, itemId, fileSlug, 'ex-prev', 'ex-photo-del',
         function(url){ if(url) tmpPhoto=url; });
@@ -6646,7 +6649,7 @@ renderToday();
 
 // ══ VERSION AUTOMATIQUE ══
 (function(){
-  document.getElementById('app-version').textContent = '20260618 - v5';
+  document.getElementById('app-version').textContent = '20260618 - v6';
 })();
 
 // ══ TEMPS ══
