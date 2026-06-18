@@ -3423,7 +3423,7 @@ function openEditEx(eid){
 // L'URL publique se reconstruit : SUPABASE_URL/storage/v1/object/public/photos/FILENAME
 
 function _photoPublicUrl(filename){
-  return SUPABASE_URL+'/storage/v1/object/public/photos/'+filename;
+  return SUPABASE_URL+'/storage/v1/object/public/photos/'+filename+'?t='+Date.now();
 }
 
 // Supprime dans Storage + dans la table photos selon filename
@@ -6639,7 +6639,7 @@ renderToday();
 
 // ══ VERSION AUTOMATIQUE ══
 (function(){
-  document.getElementById('app-version').textContent = '20260618 - v3';
+  document.getElementById('app-version').textContent = '20260618 - v4';
 })();
 
 // ══ TEMPS ══
