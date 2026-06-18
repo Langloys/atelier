@@ -890,6 +890,32 @@ if(sessionStorage.getItem('at-pin-ok')==='1'){document.getElementById('pin-scree
   <div id="zone-config" style="display:none;padding:24px 0 60px;">
     <div style="font-family:'Playfair Display',serif;font-size:1.1rem;font-style:italic;color:var(--mid);margin-bottom:20px;">Configuration des actions par matière</div>
     <div id="config-content"></div>
+
+    <!-- ══ BLOC PHOTOS SUPABASE ══ -->
+    <div class="cfg-mat" style="margin-top:32px;">
+      <div class="cfg-mat-hd">
+        <span class="cfg-mat-title">📷 Photos — Supabase Storage</span>
+      </div>
+      <div style="padding:16px 18px;">
+        <div style="font-size:.8rem;color:var(--mid);margin-bottom:12px;line-height:1.6;">
+          Les photos sont stockées dans le bucket <strong>photos</strong> de Supabase Storage et référencées dans la table <code>photos</code>.
+          Le bouton ci-dessous permet de vider et reconstruire la table depuis les photos existantes dans les œuvres et exemplaires.
+        </div>
+        <div style="background:#fff3cd;border:1px solid #f0c040;border-radius:var(--r);padding:12px 14px;margin-bottom:16px;font-size:.78rem;color:#856404;line-height:1.6;">
+          <strong>⚠️ Si l'upload de photos ne fonctionne pas</strong>, il faut configurer les Policies Supabase Storage.<br>
+          Dans ton dashboard Supabase → Storage → Policies → bucket <strong>photos</strong> → créer :<br>
+          • <em>SELECT</em> : <code>true</code> (lecture publique)<br>
+          • <em>INSERT</em> : <code>true</code> (upload depuis l'app)<br>
+          • <em>DELETE</em> : <code>true</code> (suppression depuis l'app)
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+          <button class="btn" id="btn-rebuild-photos" onclick="rebuildPhotosTable()">
+            🔄 Reconstruire la table photos
+          </button>
+          <span style="font-size:.72rem;color:var(--faint);">Relit toutes les URLs photo des œuvres &amp; exemplaires et les insère dans la table</span>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- ══ CATALOGUE ══ -->
@@ -3392,23 +3418,40 @@ function openEditEx(eid){
 
   closeM('mo-det');openM('mo-ex');
 }
+// ══ PHOTOS — SUPABASE STORAGE + TABLE photos ══
+// La table photos : id (int8), itemId (text), filename (text), principale (bool), ordre (int4), createdAt (timestamptz)
+// L'URL publique se reconstruit : SUPABASE_URL/storage/v1/object/public/photos/FILENAME
+
+function _photoPublicUrl(filename){
+  return SUPABASE_URL+'/storage/v1/object/public/photos/'+filename;
+}
+
+// Supprime dans Storage + dans la table photos selon filename
+function _deletePhotoByFilename(filename){
+  if(!filename) return;
+  sb.storage.from('photos').remove([filename])
+    .catch(function(e){console.warn('del storage:',e);});
+  sb.from('photos').delete().eq('filename', filename)
+    .catch(function(e){console.warn('del table photos:',e);});
+}
+
+function _extractFilename(url){
+  if(!url) return null;
+  if(url.startsWith('data:')) return null;
+  return url.split('/').pop().split('?')[0];
+}
+
 function delPhotoOw(){
-  if(tmpPhotoOw && !tmpPhotoOw.startsWith('data:')){
-    sb.storage.from('photos').remove([tmpPhotoOw.split('/').pop()])
-      .catch(function(e){console.warn('del storage:',e);});
-  }
+  var fn = _extractFilename(tmpPhotoOw);
+  if(fn) _deletePhotoByFilename(fn);
   tmpPhotoOw=null;
   var p=document.getElementById('ow-prev'); p.src=''; p.style.display='none';
   var b=document.getElementById('ow-photo-del'); if(b) b.style.display='none';
 }
+
 function delPhotoEx(){
-  if(tmpPhoto && !tmpPhoto.startsWith('data:')){
-    // Extraire le nom du fichier (dernier segment avant éventuel '?')
-    var fileName = tmpPhoto.split('/').pop().split('?')[0];
-    sb.storage.from('photos').remove([fileName])
-      .then(function(r){ console.log('Photo Storage supprimée:', fileName, r); })
-      .catch(function(e){console.warn('del storage:',e);});
-  }
+  var fn = _extractFilename(tmpPhoto);
+  if(fn) _deletePhotoByFilename(fn);
   tmpPhoto=null;
   photoExDeleted=true;
   var p=document.getElementById('ex-prev'); p.src=''; p.style.display='none';
@@ -3431,24 +3474,49 @@ function compressImage(dataUrl, maxPx, quality, callback){
   img.src = dataUrl;
 }
 
-function _uploadPhotoToStorage(compressedDataUrl, idSlug, previewId, delBtnId, onSuccess){
+// Upload vers Storage + insère dans table photos
+function _uploadPhotoToStorage(compressedDataUrl, itemId, previewId, delBtnId, onSuccess){
   var p=document.getElementById(previewId);
   p.src=compressedDataUrl; p.style.display='block';
   var b=document.getElementById(delBtnId); if(b) b.style.display='block';
+
+  // Supprimer l'ancienne photo de cet item si elle existe dans la table
+  sb.from('photos').select('filename').eq('itemId', itemId)
+    .then(function(res){
+      if(res.data && res.data.length){
+        res.data.forEach(function(row){
+          _deletePhotoByFilename(row.filename);
+        });
+      }
+    }).catch(function(){});
+
   fetch(compressedDataUrl)
     .then(function(r){return r.blob();})
     .then(function(blob){
-      var fileName=idSlug.replace(/[^a-zA-Z0-9\-_]/g,'_')+'_'+Date.now()+'.jpg';
-      return sb.storage.from('photos').upload(fileName,blob,{contentType:'image/jpeg',upsert:true})
+      var safeId = (itemId||'item').replace(/[^a-zA-Z0-9\-_]/g,'_');
+      var fileName = safeId+'_'+Date.now()+'.jpg';
+      return sb.storage.from('photos').upload(fileName, blob, {contentType:'image/jpeg', upsert:true})
         .then(function(res){
           if(res.error) throw res.error;
-          return sb.storage.from('photos').getPublicUrl(fileName).data.publicUrl;
+          var publicUrl = _photoPublicUrl(fileName);
+          // Insérer dans la table photos
+          sb.from('photos').insert({
+            itemId: itemId,
+            filename: fileName,
+            principale: true,
+            ordre: 1
+          }).catch(function(e){console.warn('insert table photos:',e);});
+          return publicUrl;
         });
     })
     .then(function(publicUrl){ onSuccess(publicUrl); })
     .catch(function(err){
-      console.error('Upload photo Storage:',err);
-      onSuccess(compressedDataUrl); // fallback base64
+      console.error('Upload photo Storage:', err);
+      // Afficher un message d'erreur utile
+      if(err && (err.message||'').toLowerCase().includes('policy')){
+        alert('⚠️ Erreur upload photo : les policies Supabase Storage ne sont pas configurées.\nVoir les instructions dans la section Config > Photos.');
+      }
+      onSuccess(null); // pas de fallback base64
     });
 }
 
@@ -3456,10 +3524,10 @@ function prevImgOw(input){
   if(!input.files||!input.files[0])return;
   var r=new FileReader();
   r.onload=function(ev){
-    compressImage(ev.target.result, 400, 0.7, function(compressed){
+    compressImage(ev.target.result, 1200, 0.82, function(compressed){
       var slug=editOeuvreId||('new_ow_'+Date.now());
-      _uploadPhotoToStorage(compressed,slug,'ow-prev','ow-photo-del',
-        function(url){ tmpPhotoOw=url; });
+      _uploadPhotoToStorage(compressed, slug, 'ow-prev', 'ow-photo-del',
+        function(url){ if(url) tmpPhotoOw=url; });
     });
   };
   r.readAsDataURL(input.files[0]);
@@ -3469,13 +3537,46 @@ function prevImg(input){
   if(!input.files||!input.files[0])return;
   var r=new FileReader();
   r.onload=function(ev){
-    compressImage(ev.target.result, 400, 0.7, function(compressed){
+    compressImage(ev.target.result, 1200, 0.82, function(compressed){
       var slug=editExId||('new_ex_'+Date.now());
-      _uploadPhotoToStorage(compressed,slug,'ex-prev','ex-photo-del',
-        function(url){ tmpPhoto=url; });
+      _uploadPhotoToStorage(compressed, slug, 'ex-prev', 'ex-photo-del',
+        function(url){ if(url) tmpPhoto=url; });
     });
   };
   r.readAsDataURL(input.files[0]);
+}
+
+// ══ OUTIL CONFIG : reconstruire la table photos depuis les données actuelles ══
+async function rebuildPhotosTable(){
+  if(!confirm('Vider et reconstruire la table photos depuis les œuvres et exemplaires ?\nCela peut prendre quelques secondes.')) return;
+  var btn=document.getElementById('btn-rebuild-photos');
+  if(btn){btn.disabled=true;btn.textContent='En cours…';}
+  try{
+    // Vider la table
+    await sb.from('photos').delete().neq('id',0);
+    var rows=[];
+    oeuvres.forEach(function(o){
+      if(o.photo && !o.photo.startsWith('data:')){
+        var fn=_extractFilename(o.photo);
+        if(fn) rows.push({itemId:o._id, filename:fn, principale:true, ordre:1});
+      }
+    });
+    exemplaires.forEach(function(e){
+      if(e.photo && !e.photo.startsWith('data:')){
+        var fn=_extractFilename(e.photo);
+        if(fn) rows.push({itemId:e._id, filename:fn, principale:true, ordre:1});
+      }
+    });
+    if(rows.length){
+      var res=await sb.from('photos').insert(rows);
+      if(res.error) throw res.error;
+    }
+    alert('Table photos reconstruite : '+rows.length+' photo(s) enregistrée(s).');
+  }catch(err){
+    alert('Erreur : '+((err&&err.message)||JSON.stringify(err)));
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent='🔄 Reconstruire la table photos';}
+  }
 }
 function saveEx(){
   const pid=document.getElementById('ex-parent').value;
