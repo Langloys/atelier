@@ -3430,9 +3430,9 @@ function _photoPublicUrl(filename){
 function _deletePhotoByFilename(filename){
   if(!filename) return;
   sb.storage.from('photos').remove([filename])
-    .catch(function(e){console.warn('del storage:',e);});
+    .then(function(r){ if(r.error) console.warn('del storage:', r.error); });
   sb.from('photos').delete().eq('filename', filename)
-    .catch(function(e){console.warn('del table photos:',e);});
+    .then(function(r){ if(r.error) console.warn('del table photos:', r.error); });
 }
 
 function _extractFilename(url){
@@ -3483,12 +3483,11 @@ function _uploadPhotoToStorage(compressedDataUrl, itemId, previewId, delBtnId, o
   // Supprimer l'ancienne photo de cet item si elle existe dans la table
   sb.from('photos').select('filename').eq('itemId', itemId)
     .then(function(res){
+      if(res.error){ console.warn('select photos:', res.error); return; }
       if(res.data && res.data.length){
-        res.data.forEach(function(row){
-          _deletePhotoByFilename(row.filename);
-        });
+        res.data.forEach(function(row){ _deletePhotoByFilename(row.filename); });
       }
-    }).catch(function(){});
+    });
 
   fetch(compressedDataUrl)
     .then(function(r){return r.blob();})
@@ -3499,24 +3498,23 @@ function _uploadPhotoToStorage(compressedDataUrl, itemId, previewId, delBtnId, o
         .then(function(res){
           if(res.error) throw res.error;
           var publicUrl = _photoPublicUrl(fileName);
-          // Insérer dans la table photos
+          // Insérer dans la table photos (Supabase JS v2 : .then au lieu de .catch)
           sb.from('photos').insert({
             itemId: itemId,
             filename: fileName,
             principale: true,
             ordre: 1
-          }).catch(function(e){console.warn('insert table photos:',e);});
+          }).then(function(r){ if(r.error) console.warn('insert table photos:', r.error); });
           return publicUrl;
         });
     })
     .then(function(publicUrl){ onSuccess(publicUrl); })
     .catch(function(err){
       console.error('Upload photo Storage:', err);
-      // Afficher un message d'erreur utile
       if(err && (err.message||'').toLowerCase().includes('policy')){
         alert('⚠️ Erreur upload photo : les policies Supabase Storage ne sont pas configurées.\nVoir les instructions dans la section Config > Photos.');
       }
-      onSuccess(null); // pas de fallback base64
+      onSuccess(null);
     });
 }
 
