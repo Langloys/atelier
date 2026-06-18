@@ -3403,7 +3403,10 @@ function delPhotoOw(){
 }
 function delPhotoEx(){
   if(tmpPhoto && !tmpPhoto.startsWith('data:')){
-    sb.storage.from('photos').remove([tmpPhoto.split('/').pop()])
+    // Extraire le nom du fichier (dernier segment avant éventuel '?')
+    var fileName = tmpPhoto.split('/').pop().split('?')[0];
+    sb.storage.from('photos').remove([fileName])
+      .then(function(r){ console.log('Photo Storage supprimée:', fileName, r); })
       .catch(function(e){console.warn('del storage:',e);});
   }
   tmpPhoto=null;
@@ -3512,6 +3515,7 @@ function saveEx(){
     fin:document.getElementById('ex-fin').value||null,
     photo:tmpPhoto||(photoExDeleted?null:(editExId?exemplaires.find(x=>x._id===editExId)?.photo:null))
   };
+  console.log('saveEx photo=', e.photo, 'photoExDeleted=', photoExDeleted);
   // Sauvegarder patine dans e avant insertion
   var patineData = getPatineFromForm();
   if(patineData){ e.patine = patineData; saveNewPigmentsFromCouches(patineData); } else delete e.patine;
