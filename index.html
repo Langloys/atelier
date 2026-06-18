@@ -3393,11 +3393,19 @@ function openEditEx(eid){
   closeM('mo-det');openM('mo-ex');
 }
 function delPhotoOw(){
+  if(tmpPhotoOw && !tmpPhotoOw.startsWith('data:')){
+    sb.storage.from('photos').remove([tmpPhotoOw.split('/').pop()])
+      .catch(function(e){console.warn('del storage:',e);});
+  }
   tmpPhotoOw=null;
   var p=document.getElementById('ow-prev'); p.src=''; p.style.display='none';
   var b=document.getElementById('ow-photo-del'); if(b) b.style.display='none';
 }
 function delPhotoEx(){
+  if(tmpPhoto && !tmpPhoto.startsWith('data:')){
+    sb.storage.from('photos').remove([tmpPhoto.split('/').pop()])
+      .catch(function(e){console.warn('del storage:',e);});
+  }
   tmpPhoto=null;
   var p=document.getElementById('ex-prev'); p.src=''; p.style.display='none';
   var b=document.getElementById('ex-photo-del'); if(b) b.style.display='none';
@@ -3419,15 +3427,35 @@ function compressImage(dataUrl, maxPx, quality, callback){
   img.src = dataUrl;
 }
 
+function _uploadPhotoToStorage(compressedDataUrl, idSlug, previewId, delBtnId, onSuccess){
+  var p=document.getElementById(previewId);
+  p.src=compressedDataUrl; p.style.display='block';
+  var b=document.getElementById(delBtnId); if(b) b.style.display='block';
+  fetch(compressedDataUrl)
+    .then(function(r){return r.blob();})
+    .then(function(blob){
+      var fileName=idSlug.replace(/[^a-zA-Z0-9\-_]/g,'_')+'_'+Date.now()+'.jpg';
+      return sb.storage.from('photos').upload(fileName,blob,{contentType:'image/jpeg',upsert:true})
+        .then(function(res){
+          if(res.error) throw res.error;
+          return sb.storage.from('photos').getPublicUrl(fileName).data.publicUrl;
+        });
+    })
+    .then(function(publicUrl){ onSuccess(publicUrl); })
+    .catch(function(err){
+      console.error('Upload photo Storage:',err);
+      onSuccess(compressedDataUrl); // fallback base64
+    });
+}
+
 function prevImgOw(input){
   if(!input.files||!input.files[0])return;
   var r=new FileReader();
   r.onload=function(ev){
     compressImage(ev.target.result, 400, 0.7, function(compressed){
-      tmpPhotoOw=compressed;
-      var p=document.getElementById('ow-prev');
-      p.src=compressed;p.style.display='block';
-      var b=document.getElementById('ow-photo-del'); if(b) b.style.display='block';
+      var slug=editOeuvreId||('new_ow_'+Date.now());
+      _uploadPhotoToStorage(compressed,slug,'ow-prev','ow-photo-del',
+        function(url){ tmpPhotoOw=url; });
     });
   };
   r.readAsDataURL(input.files[0]);
@@ -3438,10 +3466,9 @@ function prevImg(input){
   var r=new FileReader();
   r.onload=function(ev){
     compressImage(ev.target.result, 400, 0.7, function(compressed){
-      tmpPhoto=compressed;
-      var p=document.getElementById('ex-prev');
-      p.src=compressed;p.style.display='block';
-      var b=document.getElementById('ex-photo-del'); if(b) b.style.display='block';
+      var slug=editExId||('new_ex_'+Date.now());
+      _uploadPhotoToStorage(compressed,slug,'ex-prev','ex-photo-del',
+        function(url){ tmpPhoto=url; });
     });
   };
   r.readAsDataURL(input.files[0]);
