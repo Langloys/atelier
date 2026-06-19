@@ -2159,6 +2159,7 @@ function openEditSessToday(sid){
 }
 function delSess(sid){
   sessions=sessions.filter(s=>s._id!=sid);
+  sbDelete('sessions', String(sid)).catch(function(e){console.error('delSess Supabase:',e);});
   persist();updateCounts();renderToday();
 }
 
@@ -2322,6 +2323,7 @@ function toggleSessGroupe(id){
 }
 function delSessJournal(sid){
   sessions=sessions.filter(function(s){return s._id!=sid;});
+  sbDelete('sessions', String(sid)).catch(function(e){console.error('delSessJournal Supabase:',e);});
   persist();updateCounts();renderJournal();
 }
 function openEditSess(sid){
@@ -2410,7 +2412,9 @@ function saveSessEdit(){
 }
 function delSessEdit(){
   if(!confirm('Supprimer cette session ?'))return;
-  sessions=sessions.filter(function(s){return s._id!=editSessId;});
+  var sid = editSessId;
+  sessions=sessions.filter(function(s){return s._id!=sid;});
+  sbDelete('sessions', String(sid)).catch(function(e){console.error('delSessEdit Supabase:',e);});
   persist();closeM('mo-ses');updateCounts();renderJournal();if(currentTab==='today')renderToday();
 }
 
@@ -3231,7 +3235,9 @@ function openAddOeuvre(){
 }
 function delOeuvre(){
   if(!confirm('Supprimer cette œuvre ? Ses exemplaires ne seront pas supprimés.'))return;
-  oeuvres=oeuvres.filter(function(o){return o._id!==editOeuvreId;});
+  var oid = editOeuvreId;
+  oeuvres=oeuvres.filter(function(o){return o._id!==oid;});
+  sbDelete('oeuvres', oid).catch(function(e){console.error('delOeuvre Supabase:',e);});
   persist();closeM('mo-oeuvre');fillTypeSelects();updateCounts();render();refreshJExSel();updateExParent();
 }
 function saveOeuvre(){
@@ -3567,12 +3573,16 @@ function openDetail(eid){
 function editExBtn(){openEditEx(detExId);}
 function delExFromForm(){
   if(!confirm('Supprimer cet exemplaire ?'))return;
-  exemplaires=exemplaires.filter(function(x){return x._id!==editExId;});
+  var eid = editExId;
+  exemplaires=exemplaires.filter(function(x){return x._id!==eid;});
+  sbDelete('exemplaires', eid).catch(function(e){console.error('delExFromForm Supabase:',e);});
   persist();closeM('mo-ex');updateCounts();render();refreshJExSel();
 }
 function delEx(){
   if(!confirm('Supprimer ?'))return;
-  exemplaires=exemplaires.filter(x=>x._id!==detExId);
+  var eid = detExId;
+  exemplaires=exemplaires.filter(x=>x._id!==eid);
+  sbDelete('exemplaires', eid).catch(function(e){console.error('delEx Supabase:',e);});
   persist();closeM('mo-det');updateCounts();render();refreshJExSel();
 }
 
@@ -4739,7 +4749,9 @@ function getPatineFromFormOw(){
 
 function delProjet(){
   if(!confirm('Supprimer ce projet ?'))return;
-  projets=projets.filter(function(p){return p._id!==editProjetId;});
+  var pid = editProjetId;
+  projets=projets.filter(function(p){return p._id!==pid;});
+  sbDelete('projets', pid).catch(function(e){console.error('delProjet Supabase:',e);});
   persist();closeM('mo-projet');updateCounts();renderProjets();refreshJExSel();
 }
 
@@ -5002,7 +5014,9 @@ function linkClientToProjet(pid,cid){
 
 function delClient(){
   if(!confirm('Supprimer ce client ?'))return;
-  clients=clients.filter(function(c){return c._id!==editClientId;});
+  var cid = editClientId;
+  clients=clients.filter(function(c){return c._id!==cid;});
+  sbDelete('clients', cid).catch(function(e){console.error('delClient Supabase:',e);});
   persist();closeM('mo-client');openProjetDetail(detProjetId);
 }
 
@@ -6445,7 +6459,8 @@ function toggleTache(tid){
 
 function delTache(){
   if(!confirm('Supprimer cette tâche ?'))return;
-  taches = (taches||[]).filter(function(x){return x._id!==editTacheId;});
+  var tid = editTacheId;
+  taches = (taches||[]).filter(function(x){return x._id!==tid;});
   persist();closeM('mo-tache');updateCounts();renderTaches();
 }
 
