@@ -5604,6 +5604,7 @@ function openDayDetail(date){
   html += '</div>';
   document.getElementById('stats-det-content').innerHTML = html;
   openM('mo-stats-det');
+  setTimeout(function(){var hm=document.getElementById('stats-det-content').querySelector('.heatmap-grid');if(hm)hm.scrollLeft=hm.scrollWidth;},350);
 }
 
 function openStatsDetailAction(action){
@@ -5683,7 +5684,7 @@ function openStatsDetailAction(action){
 
   document.getElementById('stats-det-content').innerHTML=html;
   openM('mo-stats-det');
-  setTimeout(function(){var hm=document.querySelector('.heatmap-grid');if(hm)hm.scrollLeft=hm.scrollWidth;},50);
+  setTimeout(function(){var hm=document.getElementById('stats-det-content').querySelector('.heatmap-grid');if(hm)hm.scrollLeft=hm.scrollWidth;},350);
 }
 
 function openActivActionDetail(exId, type, action){
@@ -5758,7 +5759,7 @@ function openActivActionDetail(exId, type, action){
 
   document.getElementById('stats-det-content').innerHTML=html;
   openM('mo-stats-det');
-  setTimeout(function(){var hm=document.querySelector('.heatmap-grid');if(hm)hm.scrollLeft=hm.scrollWidth;},200);
+  setTimeout(function(){var hm=document.getElementById('stats-det-content').querySelector('.heatmap-grid');if(hm)hm.scrollLeft=hm.scrollWidth;},350);
 }
 
 function printStats(){
@@ -6046,11 +6047,7 @@ function openStatsDetail(id, type){
 
   document.getElementById('stats-det-content').innerHTML=html;
   openM('mo-stats-det');
-  // Scroll heatmap to the right (most recent dates)
-  setTimeout(function(){
-    var hm=document.querySelector('.heatmap-grid');
-    if(hm)hm.scrollLeft=hm.scrollWidth;
-  },50);
+  setTimeout(function(){var hm=document.getElementById('stats-det-content').querySelector('.heatmap-grid');if(hm)hm.scrollLeft=hm.scrollWidth;},350);
 }
 
 function buildHeatmap(sessList){
@@ -6664,7 +6661,7 @@ renderToday();
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260619 - v10 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260619 - v11 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
