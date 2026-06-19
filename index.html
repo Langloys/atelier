@@ -6921,6 +6921,7 @@ function saveTempsStatut(id, type, val, sel){
   } else if(type==='projet'){
     var p=(projets||[]).find(function(x){return x._id===id;});
     if(p){ p.status=val; sbSaveProjet(p); }
+  }
   // Afficher/masquer les champs contextuels (pour oeuvres ET exemplaires)
   if(sel && (type==='oeuvre'||type==='ex')){
     var td=sel.parentNode;
