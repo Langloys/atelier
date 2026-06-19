@@ -2086,7 +2086,7 @@ function refreshActionsForId(id){
   if(id.indexOf('activ-')===0){
     var activId=id.replace('activ-','');
     var activ=(activites||[]).find(function(a){return a.id===activId;});
-    var activActions=activ?activ.actions:[];
+    var activActions=activ?(activ.actions||[]).filter(function(a){return!(activ.archivedActions&&activ.archivedActions.indexOf(a)>=0);}):[];
     actSel.innerHTML='<option value="">— Action —</option>'+activActions.map(function(a){return '<option value="'+a+'">'+a+'</option>';}).join('');
     return;
   }
@@ -2374,7 +2374,7 @@ function refreshSesActions(exId, currentAction){
   if(exId&&exId.indexOf('activ-')===0){
     var aid=exId.replace('activ-','');
     var activ=(activites||[]).find(function(a){return a.id===aid;});
-    var activActions=activ?activ.actions:[];
+    var activActions=activ?(activ.actions||[]).filter(function(a){return!(activ.archivedActions&&activ.archivedActions.indexOf(a)>=0);}):[];
     sel.innerHTML='<option value="">— Action —</option>'+activActions.map(function(a){return '<option value="'+a+'"'+(a===currentAction?' selected':'')+'>'+a+'</option>';}).join('');
     return;
   }
@@ -3625,7 +3625,7 @@ function refreshActions(){
   if(exSel.indexOf('activ-')===0){
     var activId=exSel.replace('activ-','');
     var activ=(activites||[]).find(function(a){return a.id===activId;});
-    var activActions=activ?activ.actions:[];
+    var activActions=activ?(activ.actions||[]).filter(function(a){return!(activ.archivedActions&&activ.archivedActions.indexOf(a)>=0);}):[];
     sel.innerHTML='<option value="">— Action —</option>'+
       activActions.map(function(a){return '<option value="'+a+'">'+a+'</option>';}).join('');
     return;
@@ -3673,7 +3673,24 @@ function addActivAction(ai){
   persist();renderConfig();
 }
 function delActivAction(ai,idx){
+  var action=activites[ai].actions[idx];
   activites[ai].actions.splice(idx,1);
+  // Retirer aussi des archivés si présent
+  if(activites[ai].archivedActions){
+    var ai2=activites[ai].archivedActions.indexOf(action);
+    if(ai2>=0)activites[ai].archivedActions.splice(ai2,1);
+  }
+  persist();renderConfig();
+}
+function toggleArchiveActivAction(ai,idx){
+  var action=activites[ai].actions[idx];
+  if(!activites[ai].archivedActions)activites[ai].archivedActions=[];
+  var pos=activites[ai].archivedActions.indexOf(action);
+  if(pos>=0){
+    activites[ai].archivedActions.splice(pos,1);
+  } else {
+    activites[ai].archivedActions.push(action);
+  }
   persist();renderConfig();
 }
 var dragActivSrc=null;
@@ -3825,12 +3842,14 @@ function renderConfig(){
     html+='<div class="cfg-actions-list" id="cfg-activ-'+a.id+'">';
     var aLen=(a.actions||[]).length;
     (a.actions||[]).forEach(function(action,idx){
-      html+='<div class="cfg-action-row">';
+      var archived=(a.archivedActions||[]).indexOf(action)>=0;
+      html+='<div class="cfg-action-row" style="'+(archived?'opacity:0.45;':'')+'">';
       html+='<div style="display:flex;flex-direction:column;gap:1px;margin-right:2px;">';
       html+='<button class="cfg-del-btn" style="font-size:.7rem;padding:0 3px;" onclick="moveActivAction('+ai+','+idx+',-1)" '+(idx===0?'disabled':'')+'>▲</button>';
       html+='<button class="cfg-del-btn" style="font-size:.7rem;padding:0 3px;" onclick="moveActivAction('+ai+','+idx+',1)" '+(idx===aLen-1?'disabled':'')+'>▼</button>';
       html+='</div>';
-      html+='<span class="cfg-action-name">'+action+'</span>';
+      html+='<span class="cfg-action-name" style="'+(archived?'text-decoration:line-through;color:var(--faint);':'')+'">'+action+'</span>';
+      html+='<button class="cfg-del-btn" style="font-size:.8rem;" title="'+(archived?'Désarchiver':'Archiver')+'" onclick="toggleArchiveActivAction('+ai+','+idx+')">'+( archived?'🔓':'📦')+'</button>';
       html+='<button class="cfg-del-btn" onclick="delActivAction('+ai+','+idx+')">×</button>';
       html+='</div>';
     });
@@ -6092,7 +6111,8 @@ function getActionsForId(exId){
   } else if(exId.indexOf('activ-')===0){
     var aid=exId.replace('activ-','');
     var activ=(activites||[]).find(function(a){return a.id===aid;});
-    return activ?activ.actions:[];
+    if(!activ)return[];
+    return (activ.actions||[]).filter(function(a){return!(activ.archivedActions&&activ.archivedActions.indexOf(a)>=0);});
   } else if(exId.indexOf('proj-')===0){
     return actionsConfig['COMMUN']||[];
   }
@@ -6551,7 +6571,7 @@ renderToday();
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260619 - v4 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260619 - v5 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
