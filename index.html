@@ -5485,7 +5485,8 @@ function renderStats2(){
         // Lignes par action
         actionsSorted.forEach(function(act){
           var pct=e.total?Math.round(act[1]/e.total*100):0;
-          html += '<div style="display:flex;align-items:center;gap:8px;padding:2px 0 2px 12px;">';
+          var safeAction=act[0].replace(/'/g,"\'");
+          html += '<div style="display:flex;align-items:center;gap:8px;padding:2px 0 2px 12px;cursor:pointer;border-radius:4px;" onclick="openActivActionDetail(\''+safeId+'\',\''+safeType+'\',\''+safeAction+'\')" onmouseover="this.style.background='var(--off)'" onmouseout="this.style.background=''">';
           html += '<span style="font-size:.72rem;color:var(--mid);min-width:110px;">'+act[0]+'</span>';
           html += '<div style="flex:1;background:var(--off);border-radius:3px;height:4px;"><div style="width:'+pct+'%;background:var(--gold);height:4px;border-radius:3px;"></div></div>';
           html += '<span style="font-size:.72rem;color:var(--faint);min-width:45px;text-align:right;">'+fmtMin(act[1])+'</span>';
@@ -5670,6 +5671,81 @@ function openStatsDetailAction(action){
   document.getElementById('stats-det-content').innerHTML=html;
   openM('mo-stats-det');
   setTimeout(function(){var hm=document.querySelector('.heatmap-grid');if(hm)hm.scrollLeft=hm.scrollWidth;},50);
+}
+
+function openActivActionDetail(exId, type, action){
+  // Filtrer les sessions pour cette entité ET cette action
+  var sessList;
+  if(type==='activ'){
+    sessList = sessions.filter(function(s){ return s.exId===exId && s.action===action; });
+  } else if(type==='projet'){
+    var pid = exId.indexOf('proj-')===0 ? exId : 'proj-'+exId;
+    sessList = sessions.filter(function(s){ return (s.exId===pid || s.projetId===exId) && s.action===action; });
+  } else {
+    sessList = sessions.filter(function(s){ return s.exId===exId && s.action===action; });
+  }
+  if(!sessList.length) return;
+
+  // Titre : entité + action
+  var entityLabel = '';
+  if(type==='activ'){
+    var aid=exId.replace('activ-','');
+    var activ=(activites||[]).find(function(a){return a.id===aid;});
+    entityLabel=activ?activ.label:exId;
+  } else if(type==='projet'){
+    var p=(projets||[]).find(function(x){return x._id===exId||x._id===exId.replace('proj-','');});
+    entityLabel=p?'📁 '+p.titre:exId;
+  } else {
+    var o=oeuvres.find(function(x){return x._id===exId;});
+    if(o) entityLabel=typeEmoji(o.type)+' '+o.num+' — '+(o.nom||o.num);
+    else { var ex=exemplaires.find(function(x){return x._id===exId;}); if(ex) entityLabel=ex.exId; }
+  }
+  document.getElementById('stats-det-title').textContent = entityLabel + ' · ' + action;
+
+  var totalMin=sessList.reduce(function(a,s){return a+(s.dur||0);},0);
+  var avgMin=Math.round(totalMin/sessList.length);
+  var maxSess=sessList.reduce(function(a,s){return s.dur>a.dur?s:a;},sessList[0]);
+
+  var dowMin=[0,0,0,0,0,0,0];
+  sessList.forEach(function(s){var d=new Date(s.date+'T00:00:00');dowMin[d.getDay()]+=s.dur||0;});
+  var bestDow=dowMin.indexOf(Math.max.apply(null,dowMin));
+  var dowNames=['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
+
+  var dates=Array.from(new Set(sessList.map(function(s){return s.date;}))).sort();
+  var maxStreak=1,cur=1;
+  for(var i=1;i<dates.length;i++){
+    var d1=new Date(dates[i-1]+'T00:00:00'),d2=new Date(dates[i]+'T00:00:00');
+    if((d2-d1)/86400000===1){cur++;maxStreak=Math.max(maxStreak,cur);}else{cur=1;}
+  }
+
+  var html='<div style="padding:16px 22px;">';
+  html+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:20px;">';
+  html+='<div class="stat-kpi"><div class="stat-kpi-val">'+fmtMin(totalMin)+'</div><div class="stat-kpi-lbl">Total</div></div>';
+  html+='<div class="stat-kpi"><div class="stat-kpi-val">'+sessList.length+'</div><div class="stat-kpi-lbl">Sessions</div></div>';
+  html+='<div class="stat-kpi"><div class="stat-kpi-val">'+fmtMin(avgMin)+'</div><div class="stat-kpi-lbl">Moy. / session</div></div>';
+  html+='<div class="stat-kpi"><div class="stat-kpi-val">'+fmtMin(maxSess.dur)+'</div><div class="stat-kpi-lbl">Plus longue</div></div>';
+  html+='<div class="stat-kpi"><div class="stat-kpi-val">'+maxStreak+'j</div><div class="stat-kpi-lbl">Série max</div></div>';
+  html+='<div class="stat-kpi"><div class="stat-kpi-val">'+dowNames[bestDow]+'</div><div class="stat-kpi-lbl">Meilleur jour</div></div>';
+  html+='</div>';
+
+  html+=buildHeatmap(sessList);
+
+  html+='<div style="margin-top:16px;">';
+  html+='<div class="stats-section-title">Historique des sessions</div>';
+  var sortedDesc=sessList.slice().sort(function(a,b){return b.date.localeCompare(a.date)||(b._id-a._id);});
+  sortedDesc.forEach(function(s){
+    html+='<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);font-size:.8rem;">';
+    html+='<span style="color:var(--faint);min-width:90px;">'+fmtShort(s.date)+'</span>';
+    if(s.com)html+='<span style="flex:1;color:var(--faint);font-style:italic;">'+s.com+'</span>';
+    else html+='<span style="flex:1;"></span>';
+    html+='<span style="color:var(--gold);font-weight:500;">'+fmtMin(s.dur)+'</span>';
+    html+='</div>';
+  });
+  html+='</div></div>';
+
+  document.getElementById('stats-det-content').innerHTML=html;
+  openM('mo-stats-det');
+  setTimeout(function(){var hm=document.querySelector('.heatmap-grid');if(hm)hm.scrollLeft=hm.scrollWidth;},200);
 }
 
 function printStats(){
@@ -6574,7 +6650,7 @@ renderToday();
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260619 - v6 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260619 - v7 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
