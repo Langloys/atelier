@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Atelier — Catalogue</title>
+<link rel="icon" href="data:,">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;1,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -6545,16 +6546,12 @@ refreshJExSel();
 updateCounts();
 renderToday();
 
-// ══ VERSION AUTOMATIQUE ══
+// ══ VERSION ══
 (function(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
-  var y = now.getFullYear();
-  var m = pad(now.getMonth()+1);
-  var d = pad(now.getDate());
-  var h = pad(now.getHours());
-  var min = pad(now.getMinutes());
-  document.getElementById('app-version').textContent = y+''+m+''+d+' - '+h+'h'+min;
+  var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
+  document.getElementById('app-version').textContent = '20260619 - v3 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
