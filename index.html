@@ -3207,7 +3207,7 @@ function openEditOeuvre(oid){
     statsHtml += '</div>';
     owStats.innerHTML = statsHtml;
     owStats.style.display = 'block';
-    setTimeout(function(){ var hm=owStats.querySelector('.heatmap-grid'); if(hm) hm.scrollLeft=hm.scrollWidth; }, 50);
+    setTimeout(function(){ var hm=owStats.querySelector('.heatmap-grid'); if(hm) hm.scrollLeft=hm.scrollWidth; }, 200);
   } else {
     owStats.style.display = 'none';
     owStats.innerHTML = '';
@@ -3399,7 +3399,7 @@ function openEditEx(eid){
     exHtml += '</div>';
     exStats.innerHTML = exHtml;
     exStats.style.display = 'block';
-    setTimeout(function(){ var hm=exStats.querySelector('.heatmap-grid'); if(hm) hm.scrollLeft=hm.scrollWidth; }, 50);
+    setTimeout(function(){ var hm=exStats.querySelector('.heatmap-grid'); if(hm) hm.scrollLeft=hm.scrollWidth; }, 200);
   } else {
     exStats.style.display = 'none';
     exStats.innerHTML = '';
@@ -6551,7 +6551,7 @@ renderToday();
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260619 - v3 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260619 - v4 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
