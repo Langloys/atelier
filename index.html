@@ -5485,8 +5485,8 @@ function renderStats2(){
         // Lignes par action
         actionsSorted.forEach(function(act){
           var pct=e.total?Math.round(act[1]/e.total*100):0;
-          var safeAction=act[0].replace(/'/g,"\'");
-          html += '<div style="display:flex;align-items:center;gap:8px;padding:2px 0 2px 12px;cursor:pointer;border-radius:4px;" onclick="openActivActionDetail(\''+safeId+'\',\''+safeType+'\',\''+safeAction+'\')" onmouseover="this.style.background='var(--off)'" onmouseout="this.style.background=''">';
+          var safeAction=act[0].replace(/'/g,'&#39;');
+          html += '<div style="display:flex;align-items:center;gap:8px;padding:2px 0 2px 12px;cursor:pointer;border-radius:4px;" data-exid="'+safeId+'" data-type="'+safeType+'" data-action="'+safeAction+'" onclick="openActivActionDetail(this.dataset.exid,this.dataset.type,this.dataset.action)" onmouseover="this.style.background=\'var(--off)\'" onmouseout="this.style.background=\'\'">';
           html += '<span style="font-size:.72rem;color:var(--mid);min-width:110px;">'+act[0]+'</span>';
           html += '<div style="flex:1;background:var(--off);border-radius:3px;height:4px;"><div style="width:'+pct+'%;background:var(--gold);height:4px;border-radius:3px;"></div></div>';
           html += '<span style="font-size:.72rem;color:var(--faint);min-width:45px;text-align:right;">'+fmtMin(act[1])+'</span>';
@@ -6650,7 +6650,7 @@ renderToday();
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260619 - v7 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260619 - v8 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
