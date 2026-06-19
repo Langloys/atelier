@@ -3649,28 +3649,30 @@ function refreshActions(){
 // ══ CONFIG ÉCRAN ══
 var dragSrc = null;
 
-function addActivite(){
+async function addActivite(){
   var input=document.getElementById('new-activ-label');
   var val=input.value.trim();
   if(!val)return;
   var id='activ-'+Date.now();
   activites.push({id:id,label:val,actions:[]});
   input.value='';
-  persist();renderConfig();
+  renderConfig();
+  await sbUpsert('config','activites',activites).catch(function(e){console.error('addActivite:',e);});
 }
 function delActivite(ai){
   if(!confirm('Supprimer cette activité ?'))return;
   activites.splice(ai,1);
   persist();renderConfig();
 }
-function addActivAction(ai){
+async function addActivAction(ai){
   var input=document.getElementById('cfg-activ-input-'+ai);
   var val=input.value.trim();
   if(!val)return;
   if(!activites[ai].actions)activites[ai].actions=[];
   activites[ai].actions.push(val);
   input.value='';
-  persist();renderConfig();
+  renderConfig();
+  await sbUpsert('config','activites',activites).catch(function(e){console.error('addActivAction:',e);});
 }
 function delActivAction(ai,idx){
   var action=activites[ai].actions[idx];
@@ -3682,7 +3684,7 @@ function delActivAction(ai,idx){
   }
   persist();renderConfig();
 }
-function toggleArchiveActivAction(ai,idx){
+async function toggleArchiveActivAction(ai,idx){
   var action=activites[ai].actions[idx];
   if(!activites[ai].archivedActions)activites[ai].archivedActions=[];
   var pos=activites[ai].archivedActions.indexOf(action);
@@ -3691,7 +3693,8 @@ function toggleArchiveActivAction(ai,idx){
   } else {
     activites[ai].archivedActions.push(action);
   }
-  persist();renderConfig();
+  renderConfig();
+  await sbUpsert('config','activites',activites).catch(function(e){console.error('toggleArchive:',e);});
 }
 var dragActivSrc=null;
 function onDragStartActiv(event,ai,idx){
@@ -6571,7 +6574,7 @@ renderToday();
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260619 - v5 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260619 - v6 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
