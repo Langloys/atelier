@@ -502,13 +502,24 @@ async function loadFromSupabase() {
 
 // Persist vers Supabase (remplace localStorage)
 // Envoie un tableau de promesses par petits groupes pour éviter ERR_INSUFFICIENT_RESOURCES
+function sleep(ms){ return new Promise(function(r){setTimeout(r,ms);}); }
 async function batchAll(items, fn, batchSize) {
-  batchSize = batchSize || 10;
+  batchSize = batchSize || 5;
   for (var i = 0; i < items.length; i += batchSize) {
     var chunk = items.slice(i, i + batchSize);
     await Promise.all(chunk.map(fn));
+    if (i + batchSize < items.length) await sleep(80);
   }
 }
+
+// ══ SAUVEGARDE CIBLÉE (évite de tout re-sauvegarder) ══
+function sbSaveSession(s){ sbUpsert('sessions',String(s._id),s).catch(function(e){console.error('sbSaveSession',e);}); }
+function sbSaveOeuvre(o){ sbUpsert('oeuvres',o._id,o).catch(function(e){console.error('sbSaveOeuvre',e);}); }
+function sbSaveEx(e){ sbUpsert('exemplaires',e._id,e).catch(function(e2){console.error('sbSaveEx',e2);}); }
+function sbSaveProjet(p){ sbUpsert('projets',p._id,p).catch(function(e){console.error('sbSaveProjet',e);}); }
+function sbSaveClient(c){ sbUpsert('clients',c._id,c).catch(function(e){console.error('sbSaveClient',e);}); }
+function sbSaveConfig(key){ var val; if(key==='actionsConfig')val=actionsConfig; else if(key==='activites')val=activites; else if(key==='recettesPatine')val=recettesPatine; else if(key==='taches')val=taches; else if(key==='techniques')val=techniques||[]; else if(key==='matieres')val=matieres||[]; else if(key==='typesOeuvres')val=typesOeuvres||[]; else if(key==='creationActions')val=creationActions||[]; else if(key==='lieux')val=lieux||[]; else if(key==='fonderies')val=fonderies||[]; else if(key==='rangements')val=rangements||[]; else if(key==='galeries')val=galeries||[]; else if(key==='planEvts')val=planEvts||[]; else if(key==='finances')val=finances||[]; else if(key==='finTypes')val=finTypes||[]; else return; sbUpsert('config',key,val).catch(function(e){console.error('sbSaveConfig '+key,e);}); }
+function sbSaveAllConfig(){ ['actionsConfig','activites','recettesPatine','taches','techniques','matieres','typesOeuvres','creationActions','lieux','fonderies','rangements','galeries'].forEach(sbSaveConfig); }
 
 async function persistSupabase() {
   // Oeuvres — par paquets de 10
@@ -1699,9 +1710,14 @@ function load(){
   });
   // (migration migration sessions — sauvegarde via persistSupabase() au prochain persist)
 }
+var _persistTimer = null;
 function persist(){
-  // Tout persisté dans Supabase
-  if(typeof persistSupabase === 'function') persistSupabase().catch(function(e){console.error('supabase sync:',e);});
+  // Debounce : regroupe les appels rapprochés en un seul envoi
+  if(_persistTimer) clearTimeout(_persistTimer);
+  _persistTimer = setTimeout(function(){
+    _persistTimer = null;
+    if(typeof persistSupabase === 'function') persistSupabase().catch(function(e){console.error('supabase sync:',e);});
+  }, 600);
 }
 load();
 updateLieuxDatalist();
@@ -2131,13 +2147,13 @@ function addSessionToday(){
       else if(id.indexOf('activ-')===0){activId=id.replace('activ-','');realExId=id;}
       // Last item gets the remainder
       var itemDur = (idx===checked.length-1) ? dur - durPerItem*(checked.length-1) : durPerItem;
-      sessions.push({_id:Date.now()+idx,date:sessionDate,exId:realExId,projetId:projetId,activId:activId,label:label,action:action,dur:itemDur,com:com,createdAt:(function(){var n=new Date();return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0')+' '+String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');})()});
+      var _ns={_id:Date.now()+idx,date:sessionDate,exId:realExId,projetId:projetId,activId:activId,label:label,action:action,dur:itemDur,com:com,createdAt:(function(){var n=new Date();return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0')+' '+String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');})()};sessions.push(_ns);sbSaveSession(_ns);
     });
     document.getElementById('j-dur').value='';
     document.getElementById('j-com').value='';
     // Uncheck all
     document.querySelectorAll('#multi-sel-list input:checked').forEach(function(cb){cb.checked=false;});
-    persist();updateCounts();renderToday();
+    updateCounts();renderToday();
     return;
   }
 
@@ -2149,10 +2165,10 @@ function addSessionToday(){
   var projetId=null, activId=null, realExId=exSel;
   if(exSel.indexOf('proj-')===0){projetId=exSel.replace('proj-','');realExId=exSel;}
   else if(exSel.indexOf('activ-')===0){activId=exSel.replace('activ-','');realExId=exSel;}
-  sessions.push({_id:Date.now(),date:sessionDate,exId:realExId,projetId:projetId,activId:activId,label:label,action:action,dur:dur,com:com,createdAt:(function(){var n=new Date();return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0')+' '+String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');})()});
+  var _ns2={_id:Date.now(),date:sessionDate,exId:realExId,projetId:projetId,activId:activId,label:label,action:action,dur:dur,com:com,createdAt:(function(){var n=new Date();return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0')+' '+String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');})()};sessions.push(_ns2);sbSaveSession(_ns2);
   document.getElementById('j-dur').value='';
   document.getElementById('j-com').value='';
-  persist();updateCounts();renderToday();
+  updateCounts();renderToday();
 }
 
 function openEditSessToday(sid){
@@ -2161,7 +2177,7 @@ function openEditSessToday(sid){
 function delSess(sid){
   sessions=sessions.filter(s=>s._id!=sid);
   sbDelete('sessions', String(sid)).catch(function(e){console.error('delSess Supabase:',e);});
-  persist();updateCounts();renderToday();
+  updateCounts();renderToday();
 }
 
 // ══ JOURNAL ══
@@ -2325,7 +2341,7 @@ function toggleSessGroupe(id){
 function delSessJournal(sid){
   sessions=sessions.filter(function(s){return s._id!=sid;});
   sbDelete('sessions', String(sid)).catch(function(e){console.error('delSessJournal Supabase:',e);});
-  persist();updateCounts();renderJournal();
+  updateCounts();renderJournal();
 }
 function openEditSess(sid){
   var s=sessions.find(function(x){return x._id==sid;});
@@ -2409,14 +2425,14 @@ function saveSessEdit(){
   var selOpt=document.getElementById('ses-ex').selectedOptions[0];
   s.label=exVal==='DIVERS'?'Divers':(selOpt?selOpt.text:'');
   s.action=document.getElementById('ses-action').value;
-  persist();closeM('mo-ses');updateCounts();renderJournal();if(currentTab==='today')renderToday();
+  sbSaveSession(s);closeM('mo-ses');updateCounts();renderJournal();if(currentTab==='today')renderToday();
 }
 function delSessEdit(){
   if(!confirm('Supprimer cette session ?'))return;
   var sid = editSessId;
   sessions=sessions.filter(function(s){return s._id!=sid;});
   sbDelete('sessions', String(sid)).catch(function(e){console.error('delSessEdit Supabase:',e);});
-  persist();closeM('mo-ses');updateCounts();renderJournal();if(currentTab==='today')renderToday();
+  closeM('mo-ses');updateCounts();renderJournal();if(currentTab==='today')renderToday();
 }
 
 // ══ STATS ══
@@ -2587,33 +2603,33 @@ function renderStock(){
 function addRangementConfig(){
   var label=(document.getElementById('cfg-rangement-label')||{value:''}).value.trim();
   if(!label||rangements.indexOf(label)>=0)return;
-  rangements.push(label); persist(); updateRangementsDatalist(); renderConfig();
+  rangements.push(label); sbSaveConfig('rangements'); updateRangementsDatalist(); renderConfig();
 }
 function deleteRangement(label){
   rangements=rangements.filter(function(r){return r!==label;});
-  persist(); updateRangementsDatalist(); renderConfig();
+  sbSaveConfig('rangements'); updateRangementsDatalist(); renderConfig();
 }
 function addGalerieConfig(){
   var label=(document.getElementById('cfg-galerie-label')||{value:''}).value.trim();
   if(!label||galeries.indexOf(label)>=0)return;
-  galeries.push(label); persist(); updateGaleriesDatalist(); renderConfig();
+  galeries.push(label); sbSaveConfig('galeries'); updateGaleriesDatalist(); renderConfig();
 }
 function deleteGalerie(label){
   galeries=galeries.filter(function(g){return g!==label;});
-  persist(); updateGaleriesDatalist(); renderConfig();
+  sbSaveConfig('galeries'); updateGaleriesDatalist(); renderConfig();
 }
 
 function addFonderieConfig(){
   var label=(document.getElementById('cfg-fonderie-label')||{value:''}).value.trim();
   if(!label||fonderies.indexOf(label)>=0)return;
   fonderies.push(label);
-  persist();
+  sbSaveConfig('fonderies');
   updateFonderiesDatalist();
   renderConfig();
 }
 function deleteFonderie(label){
   fonderies=fonderies.filter(function(f){return f!==label;});
-  persist();
+  sbSaveConfig('fonderies');
   updateFonderiesDatalist();
   renderConfig();
 }
@@ -2622,13 +2638,13 @@ function addLieu(){
   var label=(document.getElementById('cfg-lieu-label')||{value:''}).value.trim();
   if(!label||lieux.indexOf(label)>=0)return;
   lieux.push(label);
-  persist();
+  sbSaveConfig('lieux');
   updateLieuxDatalist();
   renderConfig();
 }
 function deleteLieu(label){
   lieux=lieux.filter(function(l){return l!==label;});
-  persist();
+  sbSaveConfig('lieux');
   updateLieuxDatalist();
   renderConfig();
 }
@@ -2742,12 +2758,10 @@ function updateExFonderieZone(){
 function saveFonderieStatut(id, type, val){
   if(type==='oeuvre'){
     var o=oeuvres.find(function(x){return x._id===id;});
-    if(o){ o.statut=val; o.actif=(val==='encours'); }
-    persist();
+    if(o){ o.statut=val; o.actif=(val==='encours'); sbSaveOeuvre(o); }
   } else {
     var e=exemplaires.find(function(x){return x._id===id;});
-    if(e){ e.statut=val; e.venteStatus=val; }
-    persist();
+    if(e){ e.statut=val; e.venteStatus=val; sbSaveEx(e); }
   }
   updateCounts();
   render();
@@ -2865,7 +2879,7 @@ function updateFonderiesDatalist(){
 function addFonderie(label){
   if(!label||fonderies.indexOf(label)>=0) return;
   fonderies.push(label);
-  persist();
+  sbSaveConfig('fonderies');
   updateFonderiesDatalist();
 }
 
@@ -3239,7 +3253,7 @@ function delOeuvre(){
   var oid = editOeuvreId;
   oeuvres=oeuvres.filter(function(o){return o._id!==oid;});
   sbDelete('oeuvres', oid).catch(function(e){console.error('delOeuvre Supabase:',e);});
-  persist();closeM('mo-oeuvre');fillTypeSelects();updateCounts();render();refreshJExSel();updateExParent();
+  closeM('mo-oeuvre');fillTypeSelects();updateCounts();render();refreshJExSel();updateExParent();
 }
 function saveOeuvre(){
   const nom=document.getElementById('ow-nom').value.trim();
@@ -3300,7 +3314,7 @@ function saveOeuvre(){
     oeuvres.push(o);
   }
   var owPatineData = getPatineFromFormOw(); if(owPatineData){ o.patine=owPatineData; saveNewPigmentsFromCouches(owPatineData); } else delete o.patine;
-  persist();closeM('mo-oeuvre');fillTypeSelects();updateCounts();render();refreshJExSel();updateExParent();
+  sbSaveOeuvre(o);closeM('mo-oeuvre');fillTypeSelects();updateCounts();render();refreshJExSel();updateExParent();
 }
 
 // ══ MODAL EXEMPLAIRE ══
@@ -3506,9 +3520,9 @@ function saveEx(){
   var retourVal   = statut==='fonderie' ? document.getElementById('ex-retour').value||null : null;
   var rangementVal= statut==='range'   ? document.getElementById('ex-rangement').value.trim() : null;
   var galerieVal  = statut==='galerie' ? document.getElementById('ex-galerie-nom').value.trim() : null;
-  if(fonderieVal && fonderies.indexOf(fonderieVal)<0){ fonderies.push(fonderieVal); updateFonderiesDatalist(); persist(); }
-  if(rangementVal && rangements.indexOf(rangementVal)<0){ rangements.push(rangementVal); updateRangementsDatalist(); persist(); }
-  if(galerieVal && galeries.indexOf(galerieVal)<0){ galeries.push(galerieVal); updateGaleriesDatalist(); persist(); }
+  if(fonderieVal && fonderies.indexOf(fonderieVal)<0){ fonderies.push(fonderieVal); updateFonderiesDatalist(); sbSaveConfig('fonderies'); }
+  if(rangementVal && rangements.indexOf(rangementVal)<0){ rangements.push(rangementVal); updateRangementsDatalist(); sbSaveConfig('rangements'); }
+  if(galerieVal && galeries.indexOf(galerieVal)<0){ galeries.push(galerieVal); updateGaleriesDatalist(); sbSaveConfig('galeries'); }
   const e={_id:editExId||'e-'+Date.now(),oeuvreId:pid,exId,mat:document.getElementById('ex-mat').value,num,
     statut:statut,
     status:(statut==='encours'?'encours':(statut==='stock'||statut==='commande'?'termine':'archive')),
@@ -3535,7 +3549,7 @@ function saveEx(){
   var patineData = getPatineFromForm();
   if(patineData){ e.patine = patineData; saveNewPigmentsFromCouches(patineData); } else delete e.patine;
   if(editExId){const i=exemplaires.findIndex(x=>x._id===editExId);exemplaires[i]=e;}else exemplaires.push(e);
-  persist();closeM('mo-ex');updateCounts();render();refreshJExSel();
+  sbSaveEx(e);closeM('mo-ex');updateCounts();render();refreshJExSel();
 }
 
 // ══ DETAIL ══
@@ -3577,14 +3591,14 @@ function delExFromForm(){
   var eid = editExId;
   exemplaires=exemplaires.filter(function(x){return x._id!==eid;});
   sbDelete('exemplaires', eid).catch(function(e){console.error('delExFromForm Supabase:',e);});
-  persist();closeM('mo-ex');updateCounts();render();refreshJExSel();
+  closeM('mo-ex');updateCounts();render();refreshJExSel();
 }
 function delEx(){
   if(!confirm('Supprimer ?'))return;
   var eid = detExId;
   exemplaires=exemplaires.filter(x=>x._id!==eid);
   sbDelete('exemplaires', eid).catch(function(e){console.error('delEx Supabase:',e);});
-  persist();closeM('mo-det');updateCounts();render();refreshJExSel();
+  closeM('mo-det');updateCounts();render();refreshJExSel();
 }
 
 // ══ JOURNAL SELECT ══
@@ -3662,7 +3676,7 @@ async function addActivite(){
 function delActivite(ai){
   if(!confirm('Supprimer cette activité ?'))return;
   activites.splice(ai,1);
-  persist();renderConfig();
+  sbSaveConfig('activites');renderConfig();
 }
 async function addActivAction(ai){
   var input=document.getElementById('cfg-activ-input-'+ai);
@@ -3682,7 +3696,7 @@ function delActivAction(ai,idx){
     var ai2=activites[ai].archivedActions.indexOf(action);
     if(ai2>=0)activites[ai].archivedActions.splice(ai2,1);
   }
-  persist();renderConfig();
+  sbSaveConfig('activites');renderConfig();
 }
 async function toggleArchiveActivAction(ai,idx){
   var action=activites[ai].actions[idx];
@@ -3720,7 +3734,7 @@ function onDropActiv(event,ai,container){
   if(dropIdx>dragActivSrc.idx)dropIdx--;
   arr.splice(dropIdx,0,item);
   dragActivSrc=null;
-  persist();renderConfig();
+  sbSaveConfig('activites');renderConfig();
 }
 
 function renderConfig(){
@@ -4047,7 +4061,7 @@ function toggleCreationAction(action){
   var idx=creationActions.indexOf(action);
   if(idx>=0) creationActions.splice(idx,1);
   else creationActions.push(action);
-  persist();
+  sbSaveConfig('creationActions');
   renderConfig();
 }
 
@@ -4057,17 +4071,17 @@ function addMatiere(){
   if((matieres||[]).indexOf(val)>=0){alert('Cette matière existe déjà.');return;}
   matieres.push(val);
   document.getElementById('new-mat-input').value='';
-  persist();renderConfig();
+  sbSaveConfig('matieres');renderConfig();
 }
 function delMatiere(idx){
   matieres.splice(idx,1);
-  persist();renderConfig();
+  sbSaveConfig('matieres');renderConfig();
 }
 function moveMatiere(idx,dir){
   var ni=idx+dir;
   if(ni<0||ni>=matieres.length)return;
   var tmp=matieres[idx];matieres[idx]=matieres[ni];matieres[ni]=tmp;
-  persist();renderConfig();
+  sbSaveConfig('matieres');renderConfig();
 }
 
 function addTechnique(){
@@ -4076,17 +4090,17 @@ function addTechnique(){
   if((techniques||[]).indexOf(val)>=0){alert('Cette technique existe déjà.');return;}
   techniques.push(val);
   document.getElementById('new-tech-input').value='';
-  persist();renderConfig();
+  sbSaveConfig('techniques');renderConfig();
 }
 function delTechnique(idx){
   techniques.splice(idx,1);
-  persist();renderConfig();
+  sbSaveConfig('techniques');renderConfig();
 }
 function moveTechnique(idx,dir){
   var ni=idx+dir;
   if(ni<0||ni>=techniques.length)return;
   var tmp=techniques[idx];techniques[idx]=techniques[ni];techniques[ni]=tmp;
-  persist();renderConfig();
+  sbSaveConfig('techniques');renderConfig();
 }
 
 function moveType(idx, dir){
@@ -4094,7 +4108,7 @@ function moveType(idx, dir){
   var ni=idx+dir;
   if(ni<0||ni>=arr.length)return;
   var tmp=arr[idx];arr[idx]=arr[ni];arr[ni]=tmp;
-  persist();fillTypeSelects();renderConfig();
+  sbSaveConfig('typesOeuvres');fillTypeSelects();renderConfig();
 }
 function addType(){
   var val=document.getElementById('new-type-input').value.trim().toUpperCase();
@@ -4102,14 +4116,14 @@ function addType(){
   if(typesOeuvres.indexOf(val)>=0){alert('Ce type existe déjà.');return;}
   typesOeuvres.push(val);
   document.getElementById('new-type-input').value='';
-  persist();fillTypeSelects();renderConfig();
+  sbSaveConfig('typesOeuvres');fillTypeSelects();renderConfig();
 }
 function delType(idx){
   var t=typesOeuvres[idx];
   var used=oeuvres.some(function(o){return o.type===t;});
   if(used&&!confirm('Ce type est utilisé par des œuvres. Supprimer quand même ?'))return;
   typesOeuvres.splice(idx,1);
-  persist();fillTypeSelects();renderConfig();
+  sbSaveConfig('typesOeuvres');fillTypeSelects();renderConfig();
 }
 function renameType(idx){
   var old=typesOeuvres[idx];
@@ -4119,26 +4133,26 @@ function renameType(idx){
   // Update all oeuvres using this type
   oeuvres.forEach(function(o){if(o.type===old)o.type=nv;});
   typesOeuvres[idx]=nv;
-  persist();fillTypeSelects();renderConfig();render();
+  sbSaveConfig('typesOeuvres');fillTypeSelects();renderConfig();render();
 }
 function moveAction(mat, idx, dir){
   var arr=actionsConfig[mat];
   var newIdx=idx+dir;
   if(newIdx<0||newIdx>=arr.length)return;
   var tmp=arr[idx]; arr[idx]=arr[newIdx]; arr[newIdx]=tmp;
-  persist();renderConfig();
+  sbSaveConfig('actionsConfig');renderConfig();
 }
 function moveActivAction(ai, idx, dir){
   var arr=activites[ai].actions;
   var newIdx=idx+dir;
   if(newIdx<0||newIdx>=arr.length)return;
   var tmp=arr[idx]; arr[idx]=arr[newIdx]; arr[newIdx]=tmp;
-  persist();renderConfig();
+  sbSaveConfig('activites');renderConfig();
 }
 function delMatSection(mat){
   if(!confirm('Supprimer la section "'+mat+'" et toutes ses actions ?'))return;
   delete actionsConfig[mat];
-  persist();renderConfig();
+  sbSaveConfig('actionsConfig');renderConfig();
 }
 function addAction(mat){
   var input = document.getElementById('cfg-input-'+mat);
@@ -4147,13 +4161,13 @@ function addAction(mat){
   if(!actionsConfig[mat]) actionsConfig[mat]=[];
   actionsConfig[mat].push(val);
   input.value='';
-  persist();
+  sbSaveConfig('actionsConfig');
   renderConfig();
 }
 
 function delAction(mat, idx){
   actionsConfig[mat].splice(idx,1);
-  persist();
+  sbSaveConfig('actionsConfig');
   renderConfig();
 }
 
@@ -4174,7 +4188,7 @@ function onDrop(event, mat, container){
   if(dropIdx > dragSrc.idx) dropIdx--;
   arr.splice(dropIdx, 0, item);
   dragSrc = null;
-  persist();
+  sbSaveConfig('actionsConfig');
   renderConfig();
 }
 
@@ -4390,7 +4404,7 @@ function saveProjet(){
   };
   if(editProjetId){var i=projets.findIndex(function(x){return x._id===editProjetId;});projets[i]=p;}
   else projets.push(p);
-  persist();closeM('mo-projet');updateCounts();renderProjets();refreshJExSel();
+  sbSaveProjet(p);closeM('mo-projet');updateCounts();renderProjets();refreshJExSel();
 }
 
 function editProjFromDetail(){
@@ -4547,7 +4561,6 @@ function confirmerTransfert(){
   // Supprimer le projet
   projets = projets.filter(function(p){return p._id!==transfertPid;});
 
-  persist();
   closeM('mo-transfert');
   closeM('mo-proj-detail');
   updateCounts();
@@ -4669,7 +4682,7 @@ function sauvegarderRecettePatine(){
   var nom = prompt('Nom de la recette :');
   if(!nom) return;
   recettesPatine.push({_id:'r-'+Date.now(), nom:nom, couches:JSON.parse(JSON.stringify(tmpPatineCouches))});
-  persist();
+  sbSaveConfig('recettesPatine');
   refreshPatineRecettesSel();
   alert('Recette "'+nom+'" sauvegardée !');
 }
@@ -4719,7 +4732,7 @@ function sauvegarderRecettePatineOw(){
   var nom = prompt('Nom de la recette :');
   if(!nom) return;
   recettesPatine.push({_id:'r-'+Date.now(), nom:nom, couches:JSON.parse(JSON.stringify(tmpPatineCouchesOw))});
-  persist();
+  sbSaveConfig('recettesPatine');
   // Refresh les deux selects
   ['ow-patine-recette-sel','ex-patine-recette-sel'].forEach(function(id){
     var sel = document.getElementById(id);
@@ -4775,7 +4788,7 @@ function delProjet(){
   var pid = editProjetId;
   projets=projets.filter(function(p){return p._id!==pid;});
   sbDelete('projets', pid).catch(function(e){console.error('delProjet Supabase:',e);});
-  persist();closeM('mo-projet');updateCounts();renderProjets();refreshJExSel();
+  closeM('mo-projet');updateCounts();renderProjets();refreshJExSel();
 }
 
 // ══ DETAIL PROJET ══
@@ -4947,7 +4960,7 @@ function removeClientFromProjet(pid,cid){
   var p=projets.find(function(x){return x._id===pid;});
   if(!p)return;
   p.clientIds=p.clientIds.filter(function(x){return x!==cid;});
-  persist();openProjetDetail(pid);
+  sbSaveProjet(p);openProjetDetail(pid);
 }
 
 // ══ CLIENTS ══
@@ -5015,7 +5028,7 @@ function saveClient(){
   };
   if(editClientId){var i=clients.findIndex(function(x){return x._id===editClientId;});clients[i]=c;}
   else clients.push(c);
-  persist();
+  sbSaveClient(c);
   closeM('mo-client');
   if(currentClientProjetId&&!editClientId){
     linkClientToProjet(currentClientProjetId,c._id);
@@ -5029,7 +5042,7 @@ function linkClientToProjet(pid,cid){
   if(!p)return;
   if(!p.clientIds)p.clientIds=[];
   if(p.clientIds.indexOf(cid)<0)p.clientIds.push(cid);
-  persist();
+  sbSaveProjet(p);
   closeM('mo-cli-pick');
   closeM('mo-client');
   openProjetDetail(pid);
@@ -5040,7 +5053,7 @@ function delClient(){
   var cid = editClientId;
   clients=clients.filter(function(c){return c._id!==cid;});
   sbDelete('clients', cid).catch(function(e){console.error('delClient Supabase:',e);});
-  persist();closeM('mo-client');openProjetDetail(detProjetId);
+  closeM('mo-client');openProjetDetail(detProjetId);
 }
 
 // ══ ÉCHANGES ══
@@ -5083,14 +5096,14 @@ function saveEchange(){
   } else {
     p.echanges[editEchangeData.cid].push(e);
   }
-  persist();closeM('mo-echange');openProjetDetail(editEchangeData.pid);
+  sbSaveProjet(p);closeM('mo-echange');openProjetDetail(editEchangeData.pid);
 }
 
 function delEchangeBtn(pid,cid,eid){
   var p=projets.find(function(x){return x._id===pid;});
   if(!p||!p.echanges||!p.echanges[cid])return;
   p.echanges[cid]=p.echanges[cid].filter(function(e){return e._id!==eid;});
-  persist();openProjetDetail(pid);
+  sbSaveProjet(p);openProjetDetail(pid);
 }
 
 function doneRappel(pid,cid,eid){
@@ -5098,7 +5111,7 @@ function doneRappel(pid,cid,eid){
   if(!p||!p.echanges||!p.echanges[cid])return;
   var e=p.echanges[cid].find(function(x){return x._id===eid;});
   if(e)e.rappelDone=true;
-  persist();renderTodayRappels();updateCounts();
+  if(p)sbSaveProjet(p);renderTodayRappels();updateCounts();
   if(currentTab==='taches')renderTaches();
   else if(detProjetId===pid)openProjetDetail(pid);
 }
@@ -5844,7 +5857,7 @@ function renommerRecettePatine(i){
   var nom = prompt('Nouveau nom :', recettesPatine[i].nom);
   if(!nom) return;
   recettesPatine[i].nom = nom;
-  persist();
+  sbSaveConfig('recettesPatine');
   renderPatineRecettesList();
   // Refresh selects dans modales
   ['ow-patine-recette-sel','ex-patine-recette-sel'].forEach(function(id){
@@ -5856,7 +5869,7 @@ function renommerRecettePatine(i){
 function supprimerRecettePatine(i){
   if(!confirm('Supprimer la recette "'+recettesPatine[i].nom+'" ?')) return;
   recettesPatine.splice(i,1);
-  persist();
+  sbSaveConfig('recettesPatine');
   renderPatineRecettesList();
 }
 
@@ -6138,7 +6151,7 @@ function fixAction(sid){
     newAction=custom.trim();
   }
   var s=sessions.find(function(x){return x._id==sid;});
-  if(s){s.action=newAction;persist();renderConfig();}
+  if(s){s.action=newAction;sbSaveSession(s);renderConfig();}
 }
 
 // ══ SAISIE RAPIDE ══
@@ -6308,7 +6321,7 @@ function saveQuickEntry(){
     added++;
   });
   if(!added){alert('Aucune durée saisie.');return;}
-  persist();updateCounts();
+  updateCounts();
   // Clear inputs
   renderQuickEntry();
   // Show confirmation
@@ -6348,7 +6361,7 @@ function onOrphanSelChange(sid, newVal){
   if(newVal==='DELETE'){
     if(!confirm('Supprimer cette session ?'))return;
     sessions=sessions.filter(function(x){return x._id!=sid;});
-    persist();updateCounts();renderConfig();
+    sbDelete('sessions',String(sid)).catch(function(){});updateCounts();renderConfig();
     return;
   }
   // Build action list for this selection
@@ -6402,8 +6415,9 @@ function confirmReassign(sid){
     var ex=exemplaires.find(function(x){return x._id===newVal;});
     var oe=ex?oeuvres.find(function(x){return x._id===ex.oeuvreId;}):null;
     s.label=oe?(oe.nom||oe.num)+(ex?' · '+(ex.mat||''):''):'?';
+    sbSaveSession(s);
   }
-  persist();renderConfig();
+  renderConfig();
 }
 
 // ══ TÂCHES ══
@@ -6543,25 +6557,25 @@ function saveTache(){
   };
   if(editTacheId){var i=(taches||[]).findIndex(function(x){return x._id===editTacheId;});taches[i]=t;}
   else taches.push(t);
-  persist();closeM('mo-tache');updateCounts();
+  sbSaveConfig('taches');closeM('mo-tache');updateCounts();
   renderTaches();
   if(detProjetId&&currentTab!=='taches')openProjetDetail(detProjetId);
 }
 
 function toggleTacheInProjet(tid, pid){
   var t=(taches||[]).find(function(x){return x._id===tid;});
-  if(t){t.done=!t.done;persist();updateCounts();openProjetDetail(pid);}
+  if(t){t.done=!t.done;sbSaveConfig('taches');updateCounts();openProjetDetail(pid);}
 }
 function toggleTache(tid){
   var t = (taches||[]).find(function(x){return x._id===tid;});
-  if(t){t.done=!t.done;persist();updateCounts();renderTaches();}
+  if(t){t.done=!t.done;sbSaveConfig('taches');updateCounts();renderTaches();}
 }
 
 function delTache(){
   if(!confirm('Supprimer cette tâche ?'))return;
   var tid = editTacheId;
   taches = (taches||[]).filter(function(x){return x._id!==tid;});
-  persist();closeM('mo-tache');updateCounts();renderTaches();
+  sbSaveConfig('taches');closeM('mo-tache');updateCounts();renderTaches();
 }
 
 // ══ EXPORT / IMPORT ══
@@ -6650,7 +6664,7 @@ renderToday();
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260619 - v8 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260619 - v10 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -6873,25 +6887,24 @@ function renderTemps(){
 }
 
 function _getItem(id, type){ return type==='oeuvre'?oeuvres.find(function(x){return x._id===id;}):exemplaires.find(function(x){return x._id===id;}); }
-function _persistItem(){ persist(); }
 
 function saveTempsFounderie2(id,type,val){
   var item=_getItem(id,type); if(!item)return;
   item.fonderie=val||null;
-  if(val&&fonderies.indexOf(val)<0){fonderies.push(val);updateFonderiesDatalist();}
-  persist();
+  if(val&&fonderies.indexOf(val)<0){fonderies.push(val);updateFonderiesDatalist();sbSaveConfig('fonderies');}
+  if(item._id){if(item.mat)sbSaveEx(item);else sbSaveOeuvre(item);}
 }
 function saveTempsRangement2(id,type,val){
   var item=_getItem(id,type); if(!item)return;
   item.rangement=val||null;
-  if(val&&rangements.indexOf(val)<0){rangements.push(val);updateRangementsDatalist();}
-  persist();
+  if(val&&rangements.indexOf(val)<0){rangements.push(val);updateRangementsDatalist();sbSaveConfig('rangements');}
+  if(item._id){if(item.mat)sbSaveEx(item);else sbSaveOeuvre(item);}
 }
 function saveTempsGalerie2(id,type,val){
   var item=_getItem(id,type); if(!item)return;
   item.galerie=val||null;
-  if(val&&galeries.indexOf(val)<0){galeries.push(val);updateGaleriesDatalist();}
-  persist();
+  if(val&&galeries.indexOf(val)<0){galeries.push(val);updateGaleriesDatalist();sbSaveConfig('galeries');}
+  if(item._id){if(item.mat)sbSaveEx(item);else sbSaveOeuvre(item);}
 }
 
 function saveTempsFounderie(id,val){ saveTempsFounderie2(id,'ex',val); }
@@ -6901,17 +6914,13 @@ function saveTempsGalerie(id,val){ saveTempsGalerie2(id,'ex',val); }
 function saveTempsStatut(id, type, val, sel){
   if(type==='oeuvre'){
     var o=oeuvres.find(function(x){return x._id===id;});
-    if(o){ o.statut=val; o.actif=(val==='encours'); }
-    persist();
+    if(o){ o.statut=val; o.actif=(val==='encours'); sbSaveOeuvre(o); }
   } else if(type==='ex'){
     var e=exemplaires.find(function(x){return x._id===id;});
-    if(e){ e.statut=val; e.venteStatus=val; }
-    persist();
+    if(e){ e.statut=val; e.venteStatus=val; sbSaveEx(e); }
   } else if(type==='projet'){
     var p=(projets||[]).find(function(x){return x._id===id;});
-    if(p){ p.status=val; }
-    persist();
-  }
+    if(p){ p.status=val; sbSaveProjet(p); }
   // Afficher/masquer les champs contextuels (pour oeuvres ET exemplaires)
   if(sel && (type==='oeuvre'||type==='ex')){
     var td=sel.parentNode;
@@ -6937,8 +6946,8 @@ function saveTempsFounderie(id, val){
   var e=exemplaires.find(function(x){return x._id===id;});
   if(!e)return;
   e.fonderie=val||null;
-  if(val && fonderies.indexOf(val)<0){ fonderies.push(val); updateFonderiesDatalist(); }
-  persist();
+  if(val && fonderies.indexOf(val)<0){ fonderies.push(val); updateFonderiesDatalist(); sbSaveConfig('fonderies'); }
+  sbSaveEx(e);
 }
 
 function openTempsItem(id, type){
@@ -6951,19 +6960,16 @@ function saveTempsField(id, type, field, val){
   var valNum = field==='prio' ? (parseInt(val)||null) : (parseFloat(val)?Math.round(parseFloat(val)*60):null);
   if(type==='oeuvre'){
     var o=oeuvres.find(function(x){return x._id===id;});
-    if(o){ o[field]=valNum; }
-    persist();
+    if(o){ o[field]=valNum; sbSaveOeuvre(o); }
     // Recalculer le restant sur cette ligne uniquement
     if(field!=='prio') updateTempsRestant(id, type);
   } else if(type==='ex'){
     var e=exemplaires.find(function(x){return x._id===id;});
-    if(e){ e[field]=valNum; }
-    persist();
+    if(e){ e[field]=valNum; sbSaveEx(e); }
     if(field!=='prio') updateTempsRestant(id, type);
   } else if(type==='projet'){
     var p=(projets||[]).find(function(x){return x._id===id;});
-    if(p){ p[field]=valNum; }
-    persist();
+    if(p){ p[field]=valNum; sbSaveProjet(p); }
     if(field!=='prio') updateTempsRestant(id, type);
   }
 }
