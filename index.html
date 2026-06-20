@@ -502,6 +502,21 @@ async function loadFromSupabase() {
 
 // Persist vers Supabase (remplace localStorage)
 // Envoie un tableau de promesses par petits groupes pour éviter ERR_INSUFFICIENT_RESOURCES
+// Scroll heatmap vers la droite — réessaie jusqu'à ce que la largeur soit disponible
+function scrollHeatmapRight(container) {
+  var attempts = 0;
+  function tryScroll() {
+    var hm = container.querySelector('.heatmap-grid');
+    if (hm && hm.scrollWidth > hm.clientWidth) {
+      hm.scrollLeft = hm.scrollWidth;
+    } else if (attempts < 20) {
+      attempts++;
+      setTimeout(tryScroll, 50);
+    }
+  }
+  setTimeout(tryScroll, 50);
+}
+
 function sleep(ms){ return new Promise(function(r){setTimeout(r,ms);}); }
 async function batchAll(items, fn, batchSize) {
   batchSize = batchSize || 5;
@@ -3221,7 +3236,7 @@ function openEditOeuvre(oid){
     statsHtml += '</div>';
     owStats.innerHTML = statsHtml;
     owStats.style.display = 'block';
-    requestAnimationFrame(function(){ requestAnimationFrame(function(){ var hm=owStats.querySelector('.heatmap-grid'); if(hm) hm.scrollLeft=hm.scrollWidth; }); });
+    scrollHeatmapRight(owStats);
   } else {
     owStats.style.display = 'none';
     owStats.innerHTML = '';
@@ -3413,7 +3428,7 @@ function openEditEx(eid){
     exHtml += '</div>';
     exStats.innerHTML = exHtml;
     exStats.style.display = 'block';
-    requestAnimationFrame(function(){ requestAnimationFrame(function(){ var hm=exStats.querySelector('.heatmap-grid'); if(hm) hm.scrollLeft=hm.scrollWidth; }); });
+    scrollHeatmapRight(exStats);
   } else {
     exStats.style.display = 'none';
     exStats.innerHTML = '';
@@ -5604,7 +5619,7 @@ function openDayDetail(date){
   html += '</div>';
   document.getElementById('stats-det-content').innerHTML = html;
   openM('mo-stats-det');
-  requestAnimationFrame(function(){ requestAnimationFrame(function(){ var hm=document.getElementById('stats-det-content').querySelector('.heatmap-grid');if(hm)hm.scrollLeft=hm.scrollWidth; }); });
+  scrollHeatmapRight(document.getElementById('stats-det-content'));
 }
 
 function openStatsDetailAction(action){
@@ -5684,7 +5699,7 @@ function openStatsDetailAction(action){
 
   document.getElementById('stats-det-content').innerHTML=html;
   openM('mo-stats-det');
-  requestAnimationFrame(function(){ requestAnimationFrame(function(){ var hm=document.getElementById('stats-det-content').querySelector('.heatmap-grid');if(hm)hm.scrollLeft=hm.scrollWidth; }); });
+  scrollHeatmapRight(document.getElementById('stats-det-content'));
 }
 
 function openActivActionDetail(exId, type, action){
@@ -5759,7 +5774,7 @@ function openActivActionDetail(exId, type, action){
 
   document.getElementById('stats-det-content').innerHTML=html;
   openM('mo-stats-det');
-  requestAnimationFrame(function(){ requestAnimationFrame(function(){ var hm=document.getElementById('stats-det-content').querySelector('.heatmap-grid');if(hm)hm.scrollLeft=hm.scrollWidth; }); });
+  scrollHeatmapRight(document.getElementById('stats-det-content'));
 }
 
 function printStats(){
@@ -6047,7 +6062,7 @@ function openStatsDetail(id, type){
 
   document.getElementById('stats-det-content').innerHTML=html;
   openM('mo-stats-det');
-  requestAnimationFrame(function(){ requestAnimationFrame(function(){ var hm=document.getElementById('stats-det-content').querySelector('.heatmap-grid');if(hm)hm.scrollLeft=hm.scrollWidth; }); });
+  scrollHeatmapRight(document.getElementById('stats-det-content'));
 }
 
 function buildHeatmap(sessList){
@@ -6661,7 +6676,7 @@ renderToday();
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260619 - v12 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260619 - v13 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
