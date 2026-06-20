@@ -69,7 +69,7 @@
 .stock-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;padding-bottom:60px;}
 #mo-client.open, #mo-cli-pick.open, #mo-echange.open{z-index:600;}
 /* ══ STATS DETAIL ══ */
-.heatmap-grid{display:flex;gap:3px;flex-wrap:nowrap;overflow-x:auto;padding-bottom:8px;}
+.heatmap-grid{overflow-x:auto;padding-bottom:8px;}
 .heatmap-week{display:flex;flex-direction:column;gap:3px;}
 .heatmap-day{width:13px;height:13px;border-radius:2px;background:var(--light);cursor:pointer;transition:transform .1s;}
 .heatmap-day:hover{transform:scale(1.3);}
@@ -3236,13 +3236,13 @@ function openEditOeuvre(oid){
     statsHtml += '</div>';
     owStats.innerHTML = statsHtml;
     owStats.style.display = 'block';
-    scrollHeatmapRight(owStats);
   } else {
     owStats.style.display = 'none';
     owStats.innerHTML = '';
   }
 
   openM('mo-oeuvre');
+  scrollHeatmapRight(document.getElementById('ow-stats-bloc'));
 }
 
 function openAddOeuvre(){
@@ -3428,13 +3428,13 @@ function openEditEx(eid){
     exHtml += '</div>';
     exStats.innerHTML = exHtml;
     exStats.style.display = 'block';
-    scrollHeatmapRight(exStats);
   } else {
     exStats.style.display = 'none';
     exStats.innerHTML = '';
   }
 
   closeM('mo-det');openM('mo-ex');
+  scrollHeatmapRight(document.getElementById('ex-stats-bloc'));
 }
 function delPhotoOw(){
   if(tmpPhotoOw && !tmpPhotoOw.startsWith('data:')){
@@ -6100,7 +6100,7 @@ function buildHeatmap(sessList){
   var html='<div style="margin-bottom:16px;">';
   html+='<div class="stats-section-title">Calendrier activité (52 semaines)</div>';
   // Wrapper scrollable unique pour labels + grille
-  html+='<div style="overflow-x:auto;padding-bottom:8px;">';
+  html+='<div class="heatmap-grid" style="overflow-x:auto;padding-bottom:8px;">';
   // Month labels — même largeur que la grille, dans le même scroll
   html+='<div style="display:flex;gap:3px;margin-bottom:3px;font-size:.6rem;color:var(--faint);height:14px;flex-wrap:nowrap;">';
   var lastLabelIdx=-5;
@@ -6676,7 +6676,7 @@ renderToday();
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260619 - v13 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260619 - v15 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
