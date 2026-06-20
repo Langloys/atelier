@@ -504,17 +504,10 @@ async function loadFromSupabase() {
 // Envoie un tableau de promesses par petits groupes pour éviter ERR_INSUFFICIENT_RESOURCES
 // Scroll heatmap vers la droite — réessaie jusqu'à ce que la largeur soit disponible
 function scrollHeatmapRight(container) {
-  var attempts = 0;
-  function tryScroll() {
+  requestAnimationFrame(function(){
     var hm = container.querySelector('.heatmap-grid');
-    if (hm && hm.scrollWidth > hm.clientWidth) {
-      hm.scrollLeft = hm.scrollWidth;
-    } else if (attempts < 20) {
-      attempts++;
-      setTimeout(tryScroll, 50);
-    }
-  }
-  setTimeout(tryScroll, 50);
+    if (hm) hm.scrollLeft = hm.scrollWidth;
+  });
 }
 
 function sleep(ms){ return new Promise(function(r){setTimeout(r,ms);}); }
@@ -6676,7 +6669,7 @@ renderToday();
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260619 - v15 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260619 - v16 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
