@@ -3533,9 +3533,7 @@ function prevImgOw(input){
   if(!input.files||!input.files[0])return;
   var r=new FileReader();
   r.onload=function(ev){
-    compressImage(ev.target.result, 400, 0.7, function(compressed){
-      // Prévisualisation immédiate
-      var p=document.getElementById('ow-prev'); p.src=compressed; p.style.display='block';
+    compressImage(ev.target.result, 1200, 0.88, function(compressed){ p.src=compressed; p.style.display='block';
       var b=document.getElementById('ow-photo-del'); if(b) b.style.display='block';
       if(editOeuvreId){
         // Œuvre existante : upload direct puis mise à jour du champ photo
@@ -3563,7 +3561,7 @@ function prevImg(input){
   if(!input.files||!input.files[0])return;
   var r=new FileReader();
   r.onload=function(ev){
-    compressImage(ev.target.result, 400, 0.7, function(compressed){
+    compressImage(ev.target.result, 1200, 0.88, function(compressed){
       // Prévisualisation immédiate
       var p=document.getElementById('ex-prev'); p.src=compressed; p.style.display='block';
       var b=document.getElementById('ex-photo-del'); if(b) b.style.display='block';
@@ -6760,7 +6758,7 @@ renderToday();
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260622 - v25 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260622 - v26 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
