@@ -473,16 +473,7 @@ async function loadFromSupabase() {
     if(cfgRes.data) {
       cfgRes.data.forEach(function(row) {
         if(row.key === 'actionsConfig' && row.data) actionsConfig = row.data;
-        if(row.key === 'activites' && row.data) {
-          // Fusion : les activités Supabase remplacent les défauts, mais on garde les défauts manquants
-          var sbActivites = row.data;
-          var merged = sbActivites.slice(); // partir des activités Supabase
-          DEFAULT_ACTIVITES.forEach(function(def){
-            var exists = merged.find(function(a){ return a.id === def.id; });
-            if(!exists) merged.push(def); // ajouter les défauts manquants en fin de liste
-          });
-          activites = merged;
-        }
+        if(row.key === 'activites' && row.data) activites = row.data;
         if(row.key === 'recettesPatine' && row.data) recettesPatine = row.data;
         if(row.key === 'taches' && row.data) taches = row.data;
         if(row.key === 'techniques' && row.data) techniques = row.data;
@@ -1606,20 +1597,6 @@ const DEFAULT_TYPES = [
 ];
 
 // ══ ACTIVITÉS DIVERSES (hors œuvre/projet) ══
-const DEFAULT_ACTIVITES = [
-  {id:'sport',     label:'🏃 Sport',            actions:['Entraînement','Course','Natation','Vélo','Yoga','Autre']},
-  {id:'podcast',   label:'🎙️ Podcast / Audio',  actions:['Écoute','Enregistrement','Montage','Autre']},
-  {id:'lecture',   label:'📚 Lecture',           actions:['Lecture','Recherche','Notes','Autre']},
-  {id:'formation', label:'🎓 Formation',         actions:['Cours','Atelier','Conférence','Autre']},
-  {id:'langue',    label:'🗣️ Langue',            actions:['Occitan','Anglais','Autre']},
-  {id:'atelier',   label:'🧹 Atelier',           actions:['Rangement','Nettoyage','Organisation','Maintenance','Autre']},
-  {id:'admin',     label:'📋 Administratif',     actions:['Planning','Comptabilité','Devis','Facture','Email','Autre']},
-  {id:'sante',     label:'❤️ Santé / Bien-être', actions:['Médecin','Kiné','Repos','Autre']},
-  {id:'perso',     label:'👤 Personnel',         actions:['Famille','Courses','Autre']},
-];
-// IDs des activités par défaut — ces activités sont toujours présentes même si Supabase ne les a pas
-const DEFAULT_ACTIVITES_IDS = DEFAULT_ACTIVITES.map(function(a){return a.id;});
-
 // ══ TYPES DE DÉPENSES ══
 const DEFAULT_FIN_TYPES = [
   {id:'mat',    color:'#8b6914', label:'Matériaux'},
@@ -1661,7 +1638,7 @@ function load(){
   });
   projets   = [];
   clients   = [];
-  activites    = JSON.parse(JSON.stringify(DEFAULT_ACTIVITES));
+  activites    = []; // chargé depuis Supabase uniquement
   typesOeuvres = DEFAULT_TYPES.slice();
   taches      = [];
   techniques  = DEFAULT_TECHNIQUES.slice();
@@ -6738,7 +6715,7 @@ renderToday();
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260622 - v17 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260622 - v18 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
