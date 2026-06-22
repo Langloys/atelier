@@ -3513,7 +3513,7 @@ function _uploadBlob(blob, fileName, itemId, oldUrl, onSuccess){
         filename: fileName,
         principale: true,
         ordre: 1
-      }, {onConflict: 'filename'}).then(function(res){
+      }, {onConflict: 'itemId'}).then(function(res){
         if(res.error) console.error('photos table:', res.error);
       });
       onSuccess(url);
@@ -6759,7 +6759,7 @@ renderToday();
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260622 - v27 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260622 - v28 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
