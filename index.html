@@ -3312,12 +3312,11 @@ function saveOeuvre(){
     var blobToUpload = _tmpPhotoBlob;
     _tmpPhotoBlob = null;
     var fileName = photoFileName(o.num);
-    fetch(blobToUpload).then(function(r){return r.blob();}).then(function(blob){
-      _uploadBlob(blob, fileName, newOeuvreId, function(url){
-        if(url) o.photo = url;
-        sbSaveOeuvre(o);
-      });
-    }).catch(function(err){ console.error('Upload photo oeuvre:', err); sbSaveOeuvre(o); });
+    var blob = dataURLtoBlob(blobToUpload);
+    _uploadBlob(blob, fileName, newOeuvreId, function(url){
+      if(url) o.photo = url;
+      sbSaveOeuvre(o);
+    });
   } else {
     _tmpPhotoBlob = null;
     sbSaveOeuvre(o);
@@ -3502,6 +3501,14 @@ function _uploadBlob(blob, fileName, itemId, onSuccess){
     .catch(function(err){ console.error('Upload photo Storage:', err); onSuccess(null); });
 }
 
+// Convertit un dataURL en Blob sans passer par fetch()
+function dataURLtoBlob(dataUrl){
+  var arr = dataUrl.split(','), mime = arr[0].match(/:(.*?);/)[1];
+  var bstr = atob(arr[1]), n = bstr.length, u8arr = new Uint8Array(n);
+  while(n--){ u8arr[n] = bstr.charCodeAt(n); }
+  return new Blob([u8arr], {type: mime});
+}
+
 function prevImgOw(input){
   if(!input.files||!input.files[0])return;
   var r=new FileReader();
@@ -3511,12 +3518,17 @@ function prevImgOw(input){
       var p=document.getElementById('ow-prev'); p.src=compressed; p.style.display='block';
       var b=document.getElementById('ow-photo-del'); if(b) b.style.display='block';
       if(editOeuvreId){
-        // Œuvre existante : on connaît le num, upload direct
+        // Œuvre existante : upload direct puis mise à jour du champ photo
         var o=oeuvres.find(function(x){return x._id===editOeuvreId;});
-        var num=document.getElementById('ow-num').value.trim()||(o&&o.num)||editOeuvreId;
+        var num=(o&&o.num)||document.getElementById('ow-num').value.trim();
         var fileName=photoFileName(num);
-        fetch(compressed).then(function(r){return r.blob();}).then(function(blob){
-          _uploadBlob(blob, fileName, editOeuvreId, function(url){ if(url) tmpPhotoOw=url; });
+        var blob=dataURLtoBlob(compressed);
+        _uploadBlob(blob, fileName, editOeuvreId, function(url){
+          if(url){
+            tmpPhotoOw=url;
+            // Mettre à jour immédiatement le champ photo de l'oeuvre dans Supabase
+            if(o){ o.photo=url; sbSaveOeuvre(o); }
+          }
         });
       } else {
         // Nouvelle œuvre : stocker le blob, upload dans saveOeuvre quand on aura le num
@@ -3537,13 +3549,18 @@ function prevImg(input){
       var p=document.getElementById('ex-prev'); p.src=compressed; p.style.display='block';
       var b=document.getElementById('ex-photo-del'); if(b) b.style.display='block';
       if(editExId){
-        // Exemplaire existant : on connaît le num, upload direct
+        // Exemplaire existant : upload direct puis mise à jour du champ photo
         var e=exemplaires.find(function(x){return x._id===editExId;});
         var o=e&&oeuvres.find(function(x){return x._id===e.oeuvreId;});
         var exNum=document.getElementById('ex-num').value||e.num;
         var fileName=photoFileName(o&&o.num||'XX', exNum);
-        fetch(compressed).then(function(r){return r.blob();}).then(function(blob){
-          _uploadBlob(blob, fileName, editExId, function(url){ if(url) tmpPhoto=url; });
+        var blob=dataURLtoBlob(compressed);
+        _uploadBlob(blob, fileName, editExId, function(url){
+          if(url){
+            tmpPhoto=url;
+            // Mettre à jour immédiatement le champ photo de l'exemplaire dans Supabase
+            if(e){ e.photo=url; sbSaveEx(e); }
+          }
         });
       } else {
         // Nouvel exemplaire : stocker le blob, upload dans saveEx
@@ -3604,12 +3621,11 @@ function saveEx(){
     _tmpPhotoExBlob = null;
     var owNum = o && o.num ? o.num : 'XX';
     var fileName = photoFileName(owNum, num);
-    fetch(blobToUploadEx).then(function(r){return r.blob();}).then(function(blob){
-      _uploadBlob(blob, fileName, newExId, function(url){
-        if(url) e.photo = url;
-        sbSaveEx(e);
-      });
-    }).catch(function(err){ console.error('Upload photo ex:', err); sbSaveEx(e); });
+    var blob = dataURLtoBlob(blobToUploadEx);
+    _uploadBlob(blob, fileName, newExId, function(url){
+      if(url) e.photo = url;
+      sbSaveEx(e);
+    });
   } else {
     _tmpPhotoExBlob = null;
     sbSaveEx(e);
@@ -6726,7 +6742,7 @@ renderToday();
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260622 - v21 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260622 - v22 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
