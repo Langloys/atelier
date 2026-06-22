@@ -3507,14 +3507,16 @@ function _uploadBlob(blob, fileName, itemId, oldUrl, onSuccess){
       return sb.storage.from('photos').getPublicUrl(fileName).data.publicUrl;
     })
     .then(function(url){
-      // Écrire dans la table photos (upsert sur itemId+ordre pour une seule photo principale)
-      sb.from('photos').upsert({
-        itemId: itemId,
-        filename: fileName,
-        principale: true,
-        ordre: 1
-      }, {onConflict: 'itemId'}).then(function(res){
-        if(res.error) console.error('photos table:', res.error);
+      // Écrire dans la table photos : supprimer l'ancienne ligne principale puis insérer
+      sb.from('photos').delete().eq('itemId', itemId).eq('principale', true).then(function(){
+        sb.from('photos').insert({
+          itemId: itemId,
+          filename: fileName,
+          principale: true,
+          ordre: 1
+        }).then(function(res){
+          if(res.error) console.error('photos table:', res.error);
+        });
       });
       onSuccess(url);
     })
@@ -6759,7 +6761,7 @@ renderToday();
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260622 - v28 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260622 - v29 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
