@@ -3313,7 +3313,7 @@ function saveOeuvre(){
     _tmpPhotoBlob = null;
     var fileName = photoFileName(o.num);
     fetch(blobToUpload).then(function(r){return r.blob();}).then(function(blob){
-      _uploadBlob(blob, fileName, function(url){
+      _uploadBlob(blob, fileName, newOeuvreId, function(url){
         if(url) o.photo = url;
         sbSaveOeuvre(o);
       });
@@ -3480,14 +3480,23 @@ function photoFileName(owNum, exNum){
   return owNum + '-' + suffix + '-01.jpg';
 }
 
-function _uploadBlob(blob, fileName, onSuccess){
+function _uploadBlob(blob, fileName, itemId, onSuccess){
   // Si un fichier du même nom existe déjà, on le remplace (upsert:true)
   sb.storage.from('photos').upload(fileName, blob, {contentType:'image/jpeg', upsert:true})
     .then(function(res){
       if(res.error) throw res.error;
       return sb.storage.from('photos').getPublicUrl(fileName).data.publicUrl;
     })
-    .then(function(url){ onSuccess(url); })
+    .then(function(url){
+      // Écrire dans la table photos (upsert sur filename pour éviter les doublons)
+      sb.from('photos').upsert({
+        itemId: itemId,
+        filename: fileName,
+        principale: true,
+        ordre: 1
+      }, {onConflict: 'filename'}).catch(function(e){ console.error('photos table:', e); });
+      onSuccess(url);
+    })
     .catch(function(err){ console.error('Upload photo Storage:', err); onSuccess(null); });
 }
 
@@ -3505,7 +3514,7 @@ function prevImgOw(input){
         var num=document.getElementById('ow-num').value.trim()||(o&&o.num)||editOeuvreId;
         var fileName=photoFileName(num);
         fetch(compressed).then(function(r){return r.blob();}).then(function(blob){
-          _uploadBlob(blob, fileName, function(url){ if(url) tmpPhotoOw=url; });
+          _uploadBlob(blob, fileName, editOeuvreId, function(url){ if(url) tmpPhotoOw=url; });
         });
       } else {
         // Nouvelle œuvre : stocker le blob, upload dans saveOeuvre quand on aura le num
@@ -3532,7 +3541,7 @@ function prevImg(input){
         var exNum=document.getElementById('ex-num').value||e.num;
         var fileName=photoFileName(o&&o.num||'XX', exNum);
         fetch(compressed).then(function(r){return r.blob();}).then(function(blob){
-          _uploadBlob(blob, fileName, function(url){ if(url) tmpPhoto=url; });
+          _uploadBlob(blob, fileName, editExId, function(url){ if(url) tmpPhoto=url; });
         });
       } else {
         // Nouvel exemplaire : stocker le blob, upload dans saveEx
@@ -3594,7 +3603,7 @@ function saveEx(){
     var owNum = o && o.num ? o.num : 'XX';
     var fileName = photoFileName(owNum, num);
     fetch(blobToUploadEx).then(function(r){return r.blob();}).then(function(blob){
-      _uploadBlob(blob, fileName, function(url){
+      _uploadBlob(blob, fileName, newExId, function(url){
         if(url) e.photo = url;
         sbSaveEx(e);
       });
@@ -6715,7 +6724,7 @@ renderToday();
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260622 - v19 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260622 - v20 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
