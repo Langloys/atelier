@@ -3476,7 +3476,14 @@ var _tmpPhotoExBlob = null; // blob en attente pour nouvel exemplaire
 // Exem.   : {o.num}-{e.num}-01-{timestamp}.jpg ex: BUSTE-0152-01-01-1750123456.jpg
 function photoFileName(owNum, exNum){
   var suffix = exNum !== undefined ? exNum : '00';
-  return owNum + '-' + suffix + '-01-' + Date.now() + '.jpg';
+  var now = new Date();
+  var ts = now.getFullYear().toString()
+    + String(now.getMonth()+1).padStart(2,'0')
+    + String(now.getDate()).padStart(2,'0')
+    + '-'
+    + String(now.getHours()).padStart(2,'0')
+    + String(now.getMinutes()).padStart(2,'0');
+  return owNum + '-' + suffix + '-01-' + ts + '.jpg';
 }
 
 function _deleteOldPhoto(oldUrl){
@@ -6753,7 +6760,7 @@ renderToday();
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260622 - v24 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260622 - v25 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
