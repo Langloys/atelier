@@ -3307,20 +3307,16 @@ function saveOeuvre(){
   }
   var owPatineData = getPatineFromFormOw(); if(owPatineData){ o.patine=owPatineData; saveNewPigmentsFromCouches(owPatineData); } else delete o.patine;
 
-  // Si photo en attente (nouvelle œuvre), uploader maintenant avec le bon _id
+  // Si photo en attente (nouvelle œuvre), uploader maintenant avec le bon num
   if(_tmpPhotoBlob && !editOeuvreId){
     var blobToUpload = _tmpPhotoBlob;
     _tmpPhotoBlob = null;
+    var fileName = photoFileName(o.num);
     fetch(blobToUpload).then(function(r){return r.blob();}).then(function(blob){
-      var fileName = newOeuvreId.replace(/[^a-zA-Z0-9\-_]/g,'_')+'_'+Date.now()+'.jpg';
-      return sb.storage.from('photos').upload(fileName,blob,{contentType:'image/jpeg',upsert:true})
-        .then(function(res){
-          if(res.error) throw res.error;
-          return sb.storage.from('photos').getPublicUrl(fileName).data.publicUrl;
-        });
-    }).then(function(url){
-      o.photo = url;
-      sbSaveOeuvre(o);
+      _uploadBlob(blob, fileName, function(url){
+        if(url) o.photo = url;
+        sbSaveOeuvre(o);
+      });
     }).catch(function(err){ console.error('Upload photo oeuvre:', err); sbSaveOeuvre(o); });
   } else {
     _tmpPhotoBlob = null;
@@ -3473,28 +3469,26 @@ function compressImage(dataUrl, maxPx, quality, callback){
   img.src = dataUrl;
 }
 
-var _tmpPhotoBlob = null; // blob en attente pour nouvelle oeuvre
+var _tmpPhotoBlob = null;   // blob en attente pour nouvelle oeuvre
 var _tmpPhotoExBlob = null; // blob en attente pour nouvel exemplaire
 
-function _uploadPhotoToStorage(compressedDataUrl, idSlug, previewId, delBtnId, onSuccess){
-  var p=document.getElementById(previewId);
-  p.src=compressedDataUrl; p.style.display='block';
-  var b=document.getElementById(delBtnId); if(b) b.style.display='block';
-  fetch(compressedDataUrl)
-    .then(function(r){return r.blob();})
-    .then(function(blob){
-      var fileName=idSlug.replace(/[^a-zA-Z0-9\-_]/g,'_')+'_'+Date.now()+'.jpg';
-      return sb.storage.from('photos').upload(fileName,blob,{contentType:'image/jpeg',upsert:true})
-        .then(function(res){
-          if(res.error) throw res.error;
-          return sb.storage.from('photos').getPublicUrl(fileName).data.publicUrl;
-        });
+// ══ CONVENTION NOMMAGE PHOTOS ══
+// Œuvre   : {o.num}-00-01.jpg      ex: BUSTE-0152-00-01.jpg
+// Exem.   : {o.num}-{e.num}-01.jpg ex: BUSTE-0152-01-01.jpg / BUSTE-0152-99-01.jpg
+function photoFileName(owNum, exNum){
+  var suffix = exNum !== undefined ? exNum : '00';
+  return owNum + '-' + suffix + '-01.jpg';
+}
+
+function _uploadBlob(blob, fileName, onSuccess){
+  // Si un fichier du même nom existe déjà, on le remplace (upsert:true)
+  sb.storage.from('photos').upload(fileName, blob, {contentType:'image/jpeg', upsert:true})
+    .then(function(res){
+      if(res.error) throw res.error;
+      return sb.storage.from('photos').getPublicUrl(fileName).data.publicUrl;
     })
-    .then(function(publicUrl){ onSuccess(publicUrl); })
-    .catch(function(err){
-      console.error('Upload photo Storage:',err);
-      onSuccess(compressedDataUrl); // fallback base64
-    });
+    .then(function(url){ onSuccess(url); })
+    .catch(function(err){ console.error('Upload photo Storage:', err); onSuccess(null); });
 }
 
 function prevImgOw(input){
@@ -3502,17 +3496,21 @@ function prevImgOw(input){
   var r=new FileReader();
   r.onload=function(ev){
     compressImage(ev.target.result, 400, 0.7, function(compressed){
+      // Prévisualisation immédiate
+      var p=document.getElementById('ow-prev'); p.src=compressed; p.style.display='block';
+      var b=document.getElementById('ow-photo-del'); if(b) b.style.display='block';
       if(editOeuvreId){
-        // Œuvre existante : on connaît l'id, on uploade directement
-        _tmpPhotoBlob = null;
-        _uploadPhotoToStorage(compressed, editOeuvreId, 'ow-prev', 'ow-photo-del',
-          function(url){ tmpPhotoOw=url; });
+        // Œuvre existante : on connaît le num, upload direct
+        var o=oeuvres.find(function(x){return x._id===editOeuvreId;});
+        var num=document.getElementById('ow-num').value.trim()||(o&&o.num)||editOeuvreId;
+        var fileName=photoFileName(num);
+        fetch(compressed).then(function(r){return r.blob();}).then(function(blob){
+          _uploadBlob(blob, fileName, function(url){ if(url) tmpPhotoOw=url; });
+        });
       } else {
-        // Nouvelle œuvre : on stocke le blob et on prévisualise, l'upload se fera dans saveOeuvre
+        // Nouvelle œuvre : stocker le blob, upload dans saveOeuvre quand on aura le num
         _tmpPhotoBlob = compressed;
-        tmpPhotoOw = compressed; // affichage prévisualisation
-        var p=document.getElementById('ow-prev'); p.src=compressed; p.style.display='block';
-        var b=document.getElementById('ow-photo-del'); if(b) b.style.display='block';
+        tmpPhotoOw = compressed;
       }
     });
   };
@@ -3524,17 +3522,22 @@ function prevImg(input){
   var r=new FileReader();
   r.onload=function(ev){
     compressImage(ev.target.result, 400, 0.7, function(compressed){
+      // Prévisualisation immédiate
+      var p=document.getElementById('ex-prev'); p.src=compressed; p.style.display='block';
+      var b=document.getElementById('ex-photo-del'); if(b) b.style.display='block';
       if(editExId){
-        // Exemplaire existant : on connaît l'id, on uploade directement
-        _tmpPhotoExBlob = null;
-        _uploadPhotoToStorage(compressed, editExId, 'ex-prev', 'ex-photo-del',
-          function(url){ tmpPhoto=url; });
+        // Exemplaire existant : on connaît le num, upload direct
+        var e=exemplaires.find(function(x){return x._id===editExId;});
+        var o=e&&oeuvres.find(function(x){return x._id===e.oeuvreId;});
+        var exNum=document.getElementById('ex-num').value||e.num;
+        var fileName=photoFileName(o&&o.num||'XX', exNum);
+        fetch(compressed).then(function(r){return r.blob();}).then(function(blob){
+          _uploadBlob(blob, fileName, function(url){ if(url) tmpPhoto=url; });
+        });
       } else {
-        // Nouvel exemplaire : on stocke le blob, l'upload se fera dans saveEx
+        // Nouvel exemplaire : stocker le blob, upload dans saveEx
         _tmpPhotoExBlob = compressed;
         tmpPhoto = compressed;
-        var p=document.getElementById('ex-prev'); p.src=compressed; p.style.display='block';
-        var b=document.getElementById('ex-photo-del'); if(b) b.style.display='block';
       }
     });
   };
@@ -3584,20 +3587,17 @@ function saveEx(){
   if(patineData){ e.patine = patineData; saveNewPigmentsFromCouches(patineData); } else delete e.patine;
   if(editExId){const i=exemplaires.findIndex(x=>x._id===editExId);exemplaires[i]=e;}else exemplaires.push(e);
 
-  // Si photo en attente (nouvel exemplaire), uploader maintenant avec le bon _id
+  // Si photo en attente (nouvel exemplaire), uploader maintenant avec le bon nom
   if(_tmpPhotoExBlob && !editExId){
     var blobToUploadEx = _tmpPhotoExBlob;
     _tmpPhotoExBlob = null;
+    var owNum = o && o.num ? o.num : 'XX';
+    var fileName = photoFileName(owNum, num);
     fetch(blobToUploadEx).then(function(r){return r.blob();}).then(function(blob){
-      var fileName = newExId.replace(/[^a-zA-Z0-9\-_]/g,'_')+'_'+Date.now()+'.jpg';
-      return sb.storage.from('photos').upload(fileName,blob,{contentType:'image/jpeg',upsert:true})
-        .then(function(res){
-          if(res.error) throw res.error;
-          return sb.storage.from('photos').getPublicUrl(fileName).data.publicUrl;
-        });
-    }).then(function(url){
-      e.photo = url;
-      sbSaveEx(e);
+      _uploadBlob(blob, fileName, function(url){
+        if(url) e.photo = url;
+        sbSaveEx(e);
+      });
     }).catch(function(err){ console.error('Upload photo ex:', err); sbSaveEx(e); });
   } else {
     _tmpPhotoExBlob = null;
@@ -6715,7 +6715,7 @@ renderToday();
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260622 - v18 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260622 - v19 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
