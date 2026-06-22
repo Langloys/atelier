@@ -3485,7 +3485,9 @@ function _uploadBlob(blob, fileName, itemId, onSuccess){
   sb.storage.from('photos').upload(fileName, blob, {contentType:'image/jpeg', upsert:true})
     .then(function(res){
       if(res.error) throw res.error;
-      return sb.storage.from('photos').getPublicUrl(fileName).data.publicUrl;
+      var publicUrl = sb.storage.from('photos').getPublicUrl(fileName).data.publicUrl;
+      // Ajouter un timestamp pour casser le cache navigateur (même nom de fichier)
+      return publicUrl + '?v=' + Date.now();
     })
     .then(function(url){
       // Écrire dans la table photos (upsert sur filename pour éviter les doublons)
@@ -6724,7 +6726,7 @@ renderToday();
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260622 - v20 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260622 - v21 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
