@@ -473,7 +473,16 @@ async function loadFromSupabase() {
     if(cfgRes.data) {
       cfgRes.data.forEach(function(row) {
         if(row.key === 'actionsConfig' && row.data) actionsConfig = row.data;
-        if(row.key === 'activites' && row.data) activites = row.data;
+        if(row.key === 'activites' && row.data) {
+          // Fusion : les activités Supabase remplacent les défauts, mais on garde les défauts manquants
+          var sbActivites = row.data;
+          var merged = sbActivites.slice(); // partir des activités Supabase
+          DEFAULT_ACTIVITES.forEach(function(def){
+            var exists = merged.find(function(a){ return a.id === def.id; });
+            if(!exists) merged.push(def); // ajouter les défauts manquants en fin de liste
+          });
+          activites = merged;
+        }
         if(row.key === 'recettesPatine' && row.data) recettesPatine = row.data;
         if(row.key === 'taches' && row.data) taches = row.data;
         if(row.key === 'techniques' && row.data) techniques = row.data;
@@ -1608,6 +1617,8 @@ const DEFAULT_ACTIVITES = [
   {id:'sante',     label:'❤️ Santé / Bien-être', actions:['Médecin','Kiné','Repos','Autre']},
   {id:'perso',     label:'👤 Personnel',         actions:['Famille','Courses','Autre']},
 ];
+// IDs des activités par défaut — ces activités sont toujours présentes même si Supabase ne les a pas
+const DEFAULT_ACTIVITES_IDS = DEFAULT_ACTIVITES.map(function(a){return a.id;});
 
 // ══ TYPES DE DÉPENSES ══
 const DEFAULT_FIN_TYPES = [
@@ -3240,6 +3251,7 @@ function openEditOeuvre(oid){
 
 function openAddOeuvre(){
   editOeuvreId=null;
+  _tmpPhotoBlob=null;
   initPatineZoneOw(null); renderCouchesPatineOwDirect();
   var owStats2=document.getElementById('ow-stats-bloc'); if(owStats2){owStats2.style.display='none';owStats2.innerHTML='';}
   document.getElementById('mo-oeuvre-title').textContent='Nouvelle œuvre';
@@ -3278,7 +3290,8 @@ function saveOeuvre(){
   if(owGalerie && galeries.indexOf(owGalerie)<0){ galeries.push(owGalerie); updateGaleriesDatalist(); }
   if(owFonderie && fonderies.indexOf(owFonderie)<0){ fonderies.push(owFonderie); updateFonderiesDatalist(); }
   var newNum = document.getElementById('ow-num').value.trim();
-  const o={_id:editOeuvreId||'o-'+Date.now(),
+  var newOeuvreId = editOeuvreId||'o-'+Date.now();
+  const o={_id:newOeuvreId,
     num:newNum,
     nom,type:document.getElementById('ow-type').value,
     prio:parseInt(document.getElementById('ow-prio').value)||null,
@@ -3304,17 +3317,11 @@ function saveOeuvre(){
     var ancienne = oeuvres.find(function(x){return x._id===editOeuvreId;});
     var ancienNum = ancienne ? ancienne.num : null;
     if(ancienNum && ancienNum !== newNum){
-      // Mettre à jour les exId des exemplaires
       exemplaires.filter(function(e){return e.oeuvreId===editOeuvreId;}).forEach(function(e){
-        if(e.exId && e.exId.startsWith(ancienNum)){
-          e.exId = newNum + e.exId.slice(ancienNum.length);
-        }
+        if(e.exId && e.exId.startsWith(ancienNum)) e.exId = newNum + e.exId.slice(ancienNum.length);
       });
-      // Mettre à jour les labels dans les sessions
       sessions.filter(function(s){return s.exId===editOeuvreId;}).forEach(function(s){
-        if(s.label && s.label.includes(ancienNum)){
-          s.label = s.label.replace(ancienNum, newNum);
-        }
+        if(s.label && s.label.includes(ancienNum)) s.label = s.label.replace(ancienNum, newNum);
       });
     }
     const i=oeuvres.findIndex(x=>x._id===editOeuvreId);oeuvres[i]=o;
@@ -3322,7 +3329,27 @@ function saveOeuvre(){
     oeuvres.push(o);
   }
   var owPatineData = getPatineFromFormOw(); if(owPatineData){ o.patine=owPatineData; saveNewPigmentsFromCouches(owPatineData); } else delete o.patine;
-  sbSaveOeuvre(o);closeM('mo-oeuvre');fillTypeSelects();updateCounts();render();refreshJExSel();updateExParent();
+
+  // Si photo en attente (nouvelle œuvre), uploader maintenant avec le bon _id
+  if(_tmpPhotoBlob && !editOeuvreId){
+    var blobToUpload = _tmpPhotoBlob;
+    _tmpPhotoBlob = null;
+    fetch(blobToUpload).then(function(r){return r.blob();}).then(function(blob){
+      var fileName = newOeuvreId.replace(/[^a-zA-Z0-9\-_]/g,'_')+'_'+Date.now()+'.jpg';
+      return sb.storage.from('photos').upload(fileName,blob,{contentType:'image/jpeg',upsert:true})
+        .then(function(res){
+          if(res.error) throw res.error;
+          return sb.storage.from('photos').getPublicUrl(fileName).data.publicUrl;
+        });
+    }).then(function(url){
+      o.photo = url;
+      sbSaveOeuvre(o);
+    }).catch(function(err){ console.error('Upload photo oeuvre:', err); sbSaveOeuvre(o); });
+  } else {
+    _tmpPhotoBlob = null;
+    sbSaveOeuvre(o);
+  }
+  closeM('mo-oeuvre');fillTypeSelects();updateCounts();render();refreshJExSel();updateExParent();
 }
 
 // ══ MODAL EXEMPLAIRE ══
@@ -3345,6 +3372,7 @@ function updateExId(){
 }
 function openAddEx(){
   photoExDeleted=false;
+  _tmpPhotoExBlob=null;
   var exSB=document.getElementById('ex-stats-bloc');if(exSB){exSB.style.display='none';exSB.innerHTML='';}
   initPatineZone(null);
   document.getElementById('mo-ex-title').textContent='Nouvel exemplaire';
@@ -3468,6 +3496,9 @@ function compressImage(dataUrl, maxPx, quality, callback){
   img.src = dataUrl;
 }
 
+var _tmpPhotoBlob = null; // blob en attente pour nouvelle oeuvre
+var _tmpPhotoExBlob = null; // blob en attente pour nouvel exemplaire
+
 function _uploadPhotoToStorage(compressedDataUrl, idSlug, previewId, delBtnId, onSuccess){
   var p=document.getElementById(previewId);
   p.src=compressedDataUrl; p.style.display='block';
@@ -3494,9 +3525,18 @@ function prevImgOw(input){
   var r=new FileReader();
   r.onload=function(ev){
     compressImage(ev.target.result, 400, 0.7, function(compressed){
-      var slug=editOeuvreId||('new_ow_'+Date.now());
-      _uploadPhotoToStorage(compressed,slug,'ow-prev','ow-photo-del',
-        function(url){ tmpPhotoOw=url; });
+      if(editOeuvreId){
+        // Œuvre existante : on connaît l'id, on uploade directement
+        _tmpPhotoBlob = null;
+        _uploadPhotoToStorage(compressed, editOeuvreId, 'ow-prev', 'ow-photo-del',
+          function(url){ tmpPhotoOw=url; });
+      } else {
+        // Nouvelle œuvre : on stocke le blob et on prévisualise, l'upload se fera dans saveOeuvre
+        _tmpPhotoBlob = compressed;
+        tmpPhotoOw = compressed; // affichage prévisualisation
+        var p=document.getElementById('ow-prev'); p.src=compressed; p.style.display='block';
+        var b=document.getElementById('ow-photo-del'); if(b) b.style.display='block';
+      }
     });
   };
   r.readAsDataURL(input.files[0]);
@@ -3507,9 +3547,18 @@ function prevImg(input){
   var r=new FileReader();
   r.onload=function(ev){
     compressImage(ev.target.result, 400, 0.7, function(compressed){
-      var slug=editExId||('new_ex_'+Date.now());
-      _uploadPhotoToStorage(compressed,slug,'ex-prev','ex-photo-del',
-        function(url){ tmpPhoto=url; });
+      if(editExId){
+        // Exemplaire existant : on connaît l'id, on uploade directement
+        _tmpPhotoExBlob = null;
+        _uploadPhotoToStorage(compressed, editExId, 'ex-prev', 'ex-photo-del',
+          function(url){ tmpPhoto=url; });
+      } else {
+        // Nouvel exemplaire : on stocke le blob, l'upload se fera dans saveEx
+        _tmpPhotoExBlob = compressed;
+        tmpPhoto = compressed;
+        var p=document.getElementById('ex-prev'); p.src=compressed; p.style.display='block';
+        var b=document.getElementById('ex-photo-del'); if(b) b.style.display='block';
+      }
     });
   };
   r.readAsDataURL(input.files[0]);
@@ -3531,7 +3580,8 @@ function saveEx(){
   if(fonderieVal && fonderies.indexOf(fonderieVal)<0){ fonderies.push(fonderieVal); updateFonderiesDatalist(); sbSaveConfig('fonderies'); }
   if(rangementVal && rangements.indexOf(rangementVal)<0){ rangements.push(rangementVal); updateRangementsDatalist(); sbSaveConfig('rangements'); }
   if(galerieVal && galeries.indexOf(galerieVal)<0){ galeries.push(galerieVal); updateGaleriesDatalist(); sbSaveConfig('galeries'); }
-  const e={_id:editExId||'e-'+Date.now(),oeuvreId:pid,exId,mat:document.getElementById('ex-mat').value,num,
+  var newExId = editExId||'e-'+Date.now();
+  const e={_id:newExId,oeuvreId:pid,exId,mat:document.getElementById('ex-mat').value,num,
     statut:statut,
     status:(statut==='encours'?'encours':(statut==='stock'||statut==='commande'?'termine':'archive')),
     venteStatus:statut,
@@ -3552,12 +3602,31 @@ function saveEx(){
     fin:document.getElementById('ex-fin').value||null,
     photo:tmpPhoto||(photoExDeleted?null:(editExId?exemplaires.find(x=>x._id===editExId)?.photo:null))
   };
-  console.log('saveEx photo=', e.photo, 'photoExDeleted=', photoExDeleted);
   // Sauvegarder patine dans e avant insertion
   var patineData = getPatineFromForm();
   if(patineData){ e.patine = patineData; saveNewPigmentsFromCouches(patineData); } else delete e.patine;
   if(editExId){const i=exemplaires.findIndex(x=>x._id===editExId);exemplaires[i]=e;}else exemplaires.push(e);
-  sbSaveEx(e);closeM('mo-ex');updateCounts();render();refreshJExSel();
+
+  // Si photo en attente (nouvel exemplaire), uploader maintenant avec le bon _id
+  if(_tmpPhotoExBlob && !editExId){
+    var blobToUploadEx = _tmpPhotoExBlob;
+    _tmpPhotoExBlob = null;
+    fetch(blobToUploadEx).then(function(r){return r.blob();}).then(function(blob){
+      var fileName = newExId.replace(/[^a-zA-Z0-9\-_]/g,'_')+'_'+Date.now()+'.jpg';
+      return sb.storage.from('photos').upload(fileName,blob,{contentType:'image/jpeg',upsert:true})
+        .then(function(res){
+          if(res.error) throw res.error;
+          return sb.storage.from('photos').getPublicUrl(fileName).data.publicUrl;
+        });
+    }).then(function(url){
+      e.photo = url;
+      sbSaveEx(e);
+    }).catch(function(err){ console.error('Upload photo ex:', err); sbSaveEx(e); });
+  } else {
+    _tmpPhotoExBlob = null;
+    sbSaveEx(e);
+  }
+  closeM('mo-ex');updateCounts();render();refreshJExSel();
 }
 
 // ══ DETAIL ══
@@ -6669,7 +6738,7 @@ renderToday();
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260619 - v16 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260622 - v17 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
