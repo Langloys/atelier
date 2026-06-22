@@ -3495,7 +3495,9 @@ function _uploadBlob(blob, fileName, itemId, onSuccess){
         filename: fileName,
         principale: true,
         ordre: 1
-      }, {onConflict: 'filename'}).catch(function(e){ console.error('photos table:', e); });
+      }, {onConflict: 'filename'}).then(function(res){
+        if(res.error) console.error('photos table:', res.error);
+      });
       onSuccess(url);
     })
     .catch(function(err){ console.error('Upload photo Storage:', err); onSuccess(null); });
@@ -6742,7 +6744,7 @@ renderToday();
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260622 - v22 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260622 - v23 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
