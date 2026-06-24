@@ -963,7 +963,6 @@ if(sessionStorage.getItem('at-pin-ok')==='1'){document.getElementById('pin-scree
     <div class="mh"><h2 id="mo-pevt-title">Nouvel événement</h2><button class="mc" onclick="closeM('mo-planning-evt')">×</button></div>
     <div class="mb">
       <div class="fg"><label>Libellé *</label><input type="text" id="pevt-label" placeholder="Vacances, Salon, Fille…"></div>
-      <div class="fg"><label>Note</label><textarea id="pevt-note" placeholder="Infos complémentaires, adresse, contact…" style="font-family:'Jost',sans-serif;font-size:.82rem;padding:8px 10px;border:1px solid var(--bd);border-radius:var(--r);width:100%;resize:vertical;min-height:64px;outline:none;color:var(--ink);" onfocus="this.style.borderColor='var(--ink)'" onblur="this.style.borderColor='var(--bd)'"></textarea></div>
       <div class="fr">
         <div class="fg"><label>Du</label><input type="date" id="pevt-debut"></div>
         <div class="fg"><label>Au</label><input type="date" id="pevt-fin"></div>
@@ -6811,7 +6810,7 @@ renderToday();
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260624 - v32 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260624 - v31 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -7484,7 +7483,7 @@ function renderPlanning(){
           evtCouleurKey=evtKey; evtPrevColor=evt.color; evtPrevLabel=evt.label;
           evtLabelEcrit=false; evtSepCompteur=0;
         }
-        html+='<td class="plan-evt-cell" onclick="openEditEvtPlanning(\''+evt._id+'\')" style="background:'+evt.color+';cursor:pointer;position:relative;height:28px;" onmouseenter="showPlanTooltip(event,\''+evt.label.replace(/'/g,"\\'")+(evt.heureDebut?(' '+evt.heureDebut+(evt.heureFin?' → '+evt.heureFin:'')):'')+(evt.heures>0?' (−'+evt.heures+'h)':'')+(evt.note?(' · '+evt.note).replace(/'/g,"\\'"): '')+'\')" onmouseleave="hidePlanTooltip()">';
+        html+='<td class="plan-evt-cell" onclick="openEditEvtPlanning(\''+evt._id+'\')" style="background:'+evt.color+';cursor:pointer;position:relative;height:28px;" onmouseenter="showPlanTooltip(event,\''+evt.label.replace(/'/g,"\\'")+(evt.heureDebut?(' '+evt.heureDebut+(evt.heureFin?' → '+evt.heureFin:'')):'')+(evt.heures>0?' (−'+evt.heures+'h)':'')+'\')" onmouseleave="hidePlanTooltip()">';
         if(!evtLabelEcrit){
           html+='<span style="position:absolute;left:3px;top:50%;transform:translateY(-50%);white-space:nowrap;font-size:.58rem;color:#000;font-weight:600;pointer-events:none;z-index:1;text-shadow:0 0 3px rgba(255,255,255,.7);">'+evt.label+'</span>';
           evtLabelEcrit=true;
@@ -7709,7 +7708,6 @@ function openAddEvtPlanning(){
   document.getElementById('pevt-heure-fin').value='';
   document.getElementById('pevt-color').value='#e8a87c';
   syncPaletteSelection('#e8a87c');
-  document.getElementById('pevt-note').value='';
   document.getElementById('pevt-del-btn').style.display='none';
   openM('mo-planning-evt');
 }
@@ -7731,7 +7729,6 @@ function openEditEvtPlanning(id){
   document.getElementById('pevt-heure-fin').value=evt.heureFin||'';
   document.getElementById('pevt-color').value=evt.color||'#e8a87c';
   syncPaletteSelection(evt.color||'#e8a87c');
-  document.getElementById('pevt-note').value=evt.note||'';
   document.getElementById('pevt-del-btn').style.display='';
   openM('mo-planning-evt');
 }
@@ -7745,12 +7742,11 @@ function saveEvtPlanning(){
   var color=document.getElementById('pevt-color').value;
   var heureDebut=document.getElementById('pevt-heure-debut').value||null;
   var heureFin=document.getElementById('pevt-heure-fin').value||null;
-  var note=document.getElementById('pevt-note').value.trim()||null;
   if(editPlanEvtId){
     var evt=planEvts.find(function(e){return e._id===editPlanEvtId;});
-    if(evt){evt.label=label;evt.debut=debut;evt.fin=fin;evt.heures=heures;evt.color=color;evt.heureDebut=heureDebut;evt.heureFin=heureFin;evt.note=note;}
+    if(evt){evt.label=label;evt.debut=debut;evt.fin=fin;evt.heures=heures;evt.color=color;evt.heureDebut=heureDebut;evt.heureFin=heureFin;}
   } else {
-    planEvts.push({_id:'pe-'+Date.now(),label:label,debut:debut,fin:fin,heures:heures,color:color,heureDebut:heureDebut,heureFin:heureFin,note:note});
+    planEvts.push({_id:'pe-'+Date.now(),label:label,debut:debut,fin:fin,heures:heures,color:color,heureDebut:heureDebut,heureFin:heureFin});
   }
   persistPlanEvts();
   closeM('mo-planning-evt');
