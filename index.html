@@ -2073,13 +2073,62 @@ function buildMultiSelList(){
   // Refresh actions based on first selected
   list.addEventListener('change', function(){
     var checked = Array.from(list.querySelectorAll('input:checked'));
-    if(checked.length >= 1) refreshActionsForId(checked[0].value);
+    if(checked.length >= 1) refreshActionsForMulti(checked.map(function(cb){return cb.value;}));
     else {
       var sel = document.getElementById('j-action');
       sel.innerHTML = '<option value="">— Choisir l\'exemplaire d\'abord —</option>';
     }
     updateMultiLabel();
   });
+}
+
+function getActionsListForId(id){
+  // Retourne le tableau d'actions (spécifiques + communes) pour un id donné
+  var commun = actionsConfig['COMMUN'] || [];
+  if(id.indexOf('activ-')===0){
+    var activId2 = id.replace('activ-','');
+    var activ2 = (activites||[]).find(function(a){return a.id===activId2;});
+    if(!activ2) return commun;
+    return (activ2.actions||[]).filter(function(a){return!(activ2.archivedActions&&activ2.archivedActions.indexOf(a)>=0);});
+  }
+  var mat = '';
+  if(id.indexOf('o-')===0){
+    var o2 = oeuvres.find(function(x){return x._id===id;});
+    mat = (o2 && o2.type==='DESSIN') ? 'DESSIN' : 'TERRE';
+  } else if(id.indexOf('proj-')===0){
+    // projet : actions communes uniquement
+    return commun;
+  } else {
+    var ex2 = exemplaires.find(function(e){return e._id===id;});
+    mat = ex2 ? (ex2.mat||'') : '';
+  }
+  var specific2 = (mat && actionsConfig[mat]) ? actionsConfig[mat] : [];
+  // Si la matière est inconnue ou vide, on renvoie toutes les actions connues
+  if(!specific2.length && !mat){
+    var allActs = [];
+    Object.keys(actionsConfig).forEach(function(k){
+      (actionsConfig[k]||[]).forEach(function(a){ if(allActs.indexOf(a)<0) allActs.push(a); });
+    });
+    return allActs;
+  }
+  return specific2.concat(commun.filter(function(a){return specific2.indexOf(a)<0;}));
+}
+
+function refreshActionsForMulti(ids){
+  // Union ordonnée des actions de tous les ids cochés
+  var actSel = document.getElementById('j-action');
+  var union = [];
+  ids.forEach(function(id){
+    var acts = getActionsListForId(id);
+    acts.forEach(function(a){ if(union.indexOf(a)<0) union.push(a); });
+  });
+  // Conserver l'action déjà sélectionnée si possible
+  var prev = actSel.value;
+  actSel.innerHTML = '<option value="">— Action —</option>' +
+    union.map(function(a){return '<option value="'+a+'">'+a+'</option>';}).join('');
+  if(prev && union.indexOf(prev)>=0){
+    actSel.value = prev;
+  }
 }
 
 function refreshActionsForId(id){
@@ -6761,7 +6810,7 @@ renderToday();
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260622 - v29 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260624 - v30 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
