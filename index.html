@@ -6810,7 +6810,7 @@ renderToday();
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260624 - v30 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260624 - v31 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -7626,7 +7626,41 @@ function renderPlanning(){
       var pw = document.getElementById('planning-wrap');
       pw.scrollLeft = todayIdx*36;
     }
+    // Drag-scroll à la souris (cliquer-glisser)
+    initPlanningDragScroll();
   }, 50);
+}
+
+function initPlanningDragScroll(){
+  var pw = document.getElementById('planning-wrap');
+  if(!pw || pw._dragScrollInit) return;
+  pw._dragScrollInit = true;
+  var isDown = false, startX = 0, scrollStart = 0, moved = false;
+  pw.addEventListener('mousedown', function(e){
+    // Ne pas intercepter les clics sur les cellules/boutons
+    if(e.button !== 0) return;
+    isDown = true; moved = false;
+    startX = e.pageX;
+    scrollStart = pw.scrollLeft;
+    pw.style.cursor = 'grabbing';
+    e.preventDefault();
+  });
+  window.addEventListener('mousemove', function(e){
+    if(!isDown) return;
+    var dx = e.pageX - startX;
+    if(Math.abs(dx) > 4) moved = true;
+    if(moved) pw.scrollLeft = scrollStart - dx;
+  });
+  window.addEventListener('mouseup', function(e){
+    if(!isDown) return;
+    isDown = false;
+    pw.style.cursor = 'grab';
+    // Si on a vraiment glissé, bloquer le clic suivant
+    if(moved){
+      var blocker = function(ev){ ev.stopPropagation(); ev.preventDefault(); window.removeEventListener('click', blocker, true); };
+      window.addEventListener('click', blocker, true);
+    }
+  });
 }
 
 // Tooltip
