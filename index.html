@@ -2946,8 +2946,9 @@ function typeSort(a, b){
 
 function numRang(o){
   if(!o) return 0;
-  if(o.numCourt) return parseInt(o.numCourt)||0;
-  // Extraire les derniers chiffres du num (ex: DESSIN-20260056 → 56, BUSTE-0446 → 446)
+  // numCourt fiable uniquement s'il est > 0 (les oeuvres récentes ont numCourt absent ou 0)
+  if(o.numCourt && parseInt(o.numCourt) > 0) return parseInt(o.numCourt);
+  // Extraire les derniers chiffres du num (ex: CORPS-0258 → 258, DESSIN-20260056 → 56)
   var m = (o.num||'').match(/(\d+)$/);
   return m ? parseInt(m[1]) : 0;
 }
