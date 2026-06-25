@@ -2986,10 +2986,16 @@ function renderOeuvres(){
         // Marquer si l'oeuvre n'apparaît que grâce à ses exemplaires actifs (cires ou encours)
         o._onlyForCires = (st!=='encours'&&hasEncoursEx);
       }
-      if(currentTab==='stock'&&!exemplaires.some(function(e){
-        var s=e.statut||e.venteStatus||e.status;
-        return e.oeuvreId===o._id&&(s==='stock'||s==='commande'||s==='collection');
-      }))return false;
+      if(currentTab==='stock'){
+        // Inclure si l'oeuvre a statut stock/commande/collection directement
+        // OU si elle a au moins un exemplaire en stock/commande/collection
+        var hasStockStatut = (st==='stock'||st==='commande'||st==='collection');
+        var hasStockEx = exemplaires.some(function(e){
+          var s=e.statut||e.venteStatus||e.status;
+          return e.oeuvreId===o._id&&(s==='stock'||s==='commande'||s==='collection');
+        });
+        if(!hasStockStatut && !hasStockEx) return false;
+      }
       if(tf&&o.type!==tf)return false;
       if(q&&o.nom.toLowerCase().indexOf(q)<0&&(o.num||'').toString().indexOf(q)<0)return false;
       return true;
@@ -6812,7 +6818,7 @@ renderToday();
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260625 - v33 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260625 - v34 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
