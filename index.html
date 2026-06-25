@@ -2558,9 +2558,14 @@ function renderStock(){
 
   var vsL={encours:'En cours',stock:'En stock',commande:'Sur commande',vendu:'Vendu',collection:'Collection particulière'};
 
-  // Trier par _id décroissant (plus récent en premier)
-  owStock.sort(function(a,b){return String(b._id)>String(a._id)?1:-1;});
-  exStock.sort(function(a,b){return String(b._id)>String(a._id)?1:-1;});
+  // Trier par numéro décroissant (plus récent en premier)
+  owStock.sort(function(a,b){return numRang(b)-numRang(a);});
+  exStock.sort(function(a,b){
+    var oa=oeuvres.find(function(x){return x._id===a.oeuvreId;});
+    var ob=oeuvres.find(function(x){return x._id===b.oeuvreId;});
+    var nd=numRang(ob)-numRang(oa); if(nd!==0)return nd;
+    return parseInt(a.num||0,10)-parseInt(b.num||0,10);
+  });
 
   // Regrouper les oeuvres par type
   if(stockGroupOpen===null){stockGroupOpen={};}
@@ -2586,6 +2591,15 @@ function renderStock(){
   var types=typeOrder.filter(function(t){return byType[t]&&byType[t].length;});
   Object.keys(byType).forEach(function(t){
     if(types.indexOf(t)<0)types.push(t);
+  });
+
+  // Trier chaque groupe par numéro décroissant
+  types.forEach(function(t){
+    byType[t].sort(function(a,b){
+      var oa=a._isEx ? a.oe : a;
+      var ob=b._isEx ? b.oe : b;
+      return numRang(ob)-numRang(oa);
+    });
   });
 
   types.forEach(function(type){
@@ -6818,7 +6832,7 @@ renderToday();
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260625 - v34 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260625 - v35 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
