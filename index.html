@@ -3394,6 +3394,7 @@ function updateExId(){
   document.getElementById('ex-id').value=o&&n?o.num+'-'+n:'';
 }
 function openAddEx(){
+  editExId=null; // ← crucial : on crée un nouvel exemplaire, pas une modification
   photoExDeleted=false;
   _tmpPhotoExBlob=null;
   var exSB=document.getElementById('ex-stats-bloc');if(exSB){exSB.style.display='none';exSB.innerHTML='';}
