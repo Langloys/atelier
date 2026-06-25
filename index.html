@@ -837,7 +837,7 @@ if(sessionStorage.getItem('at-pin-ok')==='1'){document.getElementById('pin-scree
           <th onclick="sortTemps('prio')" id="th-prio" style="text-align:center;width:100px;">Priorité</th>
           <th onclick="sortTemps('fait')" id="th-fait" style="text-align:right;width:75px;">Déjà fait</th>
           <th style="text-align:right;width:90px;">Avant base (h)</th>
-          <th style="text-align:right;width:80px;">Estimé (h)</th>
+          <th style="text-align:right;width:80px;">Restant (h)</th>
           <th onclick="sortTemps('restant')" id="th-restant" style="text-align:right;width:75px;">⏳ Restant</th>
         </tr>
       </thead>
@@ -1136,7 +1136,7 @@ if(sessionStorage.getItem('at-pin-ok')==='1'){document.getElementById('pin-scree
         <div class="fg"><label>Date début</label><input type="date" id="proj-debut"></div>
         <div class="fg"><label>Date fin prévue</label><input type="date" id="proj-fin"></div>
         <div class="fg"><label>Budget (€)</label><input type="number" id="proj-budget" placeholder="0"></div>
-        <div class="fg"><label>Temps estimé (h)</label><input type="number" id="proj-est" placeholder="0" min="0" step="0.5"></div>
+        <div class="fg"><label>Temps restant (h)</label><input type="number" id="proj-est" placeholder="0" min="0" step="0.5"></div>
       </div>
       <div class="fg"><label>Description / contexte</label><textarea id="proj-desc" placeholder="Contexte de la commande, objectifs…"></textarea></div>
       <div class="fg">
@@ -1336,7 +1336,7 @@ if(sessionStorage.getItem('at-pin-ok')==='1'){document.getElementById('pin-scree
       </div>
       <div class="fr">
         <div class="fg"><label>Prix (€)</label><input type="number" id="ow-prix" placeholder="0"></div>
-        <div class="fg"><label>Temps estimé (h)</label><input type="number" id="ow-est" placeholder="0" min="0"></div>
+        <div class="fg"><label>Temps restant (h)</label><input type="number" id="ow-est" placeholder="0" min="0"></div>
         <div class="fg"><label>Temps avant base (h)</label><input type="number" id="ow-avant-base" placeholder="0" min="0" title="Temps passé avant d'utiliser cette base"></div>
         <div class="fg"><label>Statut</label>
           <select id="ow-actif" onchange="updateOwStatutZone()">
@@ -1489,7 +1489,7 @@ if(sessionStorage.getItem('at-pin-ok')==='1'){document.getElementById('pin-scree
         <div class="fg"><label>Frais (€)</label><input type="number" id="ex-frais" placeholder="0"></div>
       </div>
       <div class="fr">
-        <div class="fg"><label>Temps estimé (h)</label><input type="number" id="ex-est" placeholder="0"></div>
+        <div class="fg"><label>Temps restant (h)</label><input type="number" id="ex-est" placeholder="0"></div>
         <div class="fg"><label>Temps avant base (h)</label><input type="number" id="ex-avant-base" placeholder="0" min="0" title="Temps passé avant d'utiliser cette base"></div>
         <div class="fg"><label>Début</label><input type="date" id="ex-debut"></div>
         <div class="fg"><label>Fin</label><input type="date" id="ex-fin"></div>
@@ -3030,7 +3030,7 @@ function renderOeuvres(){
       // Temps restant oeuvre (sessions directes sur l'oeuvre seulement)
       var oSessMin=oeuvreSess(o).reduce(function(a,s){return a+(s.dur||0);},0);
       var oTotalAvecBase = oSessMin + (o.avantBase||0); // sessions + avant base
-      var oRestantMin=o.estMin?Math.max(0,o.estMin-oTotalAvecBase):null;
+      var oRestantMin=o.estMin?o.estMin:null; // estMin = restant saisi directement
       var oStatut=o.statut||((o.actif===false||o.actif==='false')?'stock':'encours');
       var VSL_OW={encours:'En cours',stock:'En stock',commande:'Sur commande',vendu:'Vendu',collection:'Col. part.'};
       html+='<div class="oc-id">'+typeEmoji(o.type)+' '+(o.num||'')+' · '+(TL[o.type]||o.type)+(o.technique?' · '+o.technique:'')+stars+(oTotalAvecBase?' · ⏱ '+fmtMin(oTotalAvecBase):'')
@@ -3050,7 +3050,7 @@ function renderOeuvres(){
           var tm=exTotalMin(e);
           var tmAvecBase = tm + (e.avantBase||0);
           var exStatut=e.statut||e.venteStatus||e.status||'encours';
-          var exRestantMin=e.estMin?Math.max(0,e.estMin-tmAvecBase):null;
+          var exRestantMin=e.estMin?e.estMin:null; // estMin = restant saisi directement
           html+='<div class="ex-row" onclick="openDetail(\'' + e._id + '\')">'; 
           var fondLbl=(exStatut==='fonderie'&&e.fonderie)?' 🔥'+e.fonderie:'';
           var exStatutLabel=exStatut==='fonderie'?(e.fonderie||'Fonderie'):exStatut==='range'?(e.rangement||'Rangé'):(VSL[exStatut]||exStatut);
@@ -3709,8 +3709,7 @@ function openDetail(eid){
   document.getElementById('det-img-z').innerHTML=e.photo?`<img src="${e.photo}" class="det-img">`:`<div class="det-ph">🖼️</div>`;
   document.getElementById('det-title').textContent=(o?.nom||'?')+' — '+decSuf(e.exId);
   const tm=exTotalMin(e);
-  const pct=e.estMin&&tm?Math.min(100,Math.round(tm/e.estMin*100)):0;
-  const restant=e.estMin?Math.max(0,e.estMin-tm):null;
+  const restant=e.estMin?e.estMin:null; // estMin = restant saisi directement
   const marge=restant&&e.prix&&e.frais?Math.round(((e.prix||0)-(e.enc||0)-(e.frais||0))/(restant/60)):null;
   document.getElementById('det-grid').innerHTML=`
     <div class="det-badges">
@@ -3722,8 +3721,7 @@ function openDetail(eid){
     ${e.mat?`<div class="df"><label>Matière</label><p>${e.mat} · ${shortSuf(e.num)}</p></div>`:''}
     ${e.prix?`<div class="df"><label>Prix</label><p style="color:var(--gold)">${e.prix.toLocaleString('fr-FR')} €${e.enc?` <small style="color:var(--faint)">(encaissé : ${e.enc.toLocaleString('fr-FR')} €)</small>`:''}</p></div>`:''}
     ${e.frais?`<div class="df"><label>Frais</label><p>${e.frais.toLocaleString('fr-FR')} €</p></div>`:''}
-    <div class="df"><label>Temps travaillé</label><p>${fmtMin(tm)}${e.estMin?' / '+fmtMin(e.estMin)+' ('+pct+'%)':''}</p>
-      ${e.estMin?`<div class="tb-wrap"><div class="tb" style="width:${pct}%"></div></div>`:''}
+    <div class="df"><label>Temps travaillé</label><p>${fmtMin(tm)}</p>
     </div>
     ${restant?`<div class="df"><label>Temps restant</label><p>${fmtMin(restant)}${marge?` · <span style="color:var(--gold)">${marge} €/h</span>`:''}</p></div>`:''}
     ${e.debut?`<div class="df"><label>Début</label><p>${fmtShort(e.debut)}</p></div>`:''}
@@ -7173,14 +7171,10 @@ function persistPlanEvts(){ sbUpsert('config','planEvts',planEvts).catch(functio
 
 // Calcule les heures restantes d'un élément (oeuvre, exemplaire ou projet)
 function planHeuresRestantes(item){
+  // estMin est maintenant le temps RESTANT saisi manuellement (pas de calcul)
   var estMin = item.estMin || 0;
   if(!estMin) return 0;
-  var avantBase = item.avantBase || 0;
-  var _id = item._id;
-  var sessMin = sessions.filter(function(s){ return s.exId===_id; })
-    .reduce(function(a,s){ return a+(s.dur||0); }, 0);
-  var restant = estMin - avantBase - sessMin;
-  return Math.max(0, Math.round(restant / 60 * 100) / 100); // en heures décimales
+  return Math.round(estMin / 60 * 100) / 100; // en heures décimales
 }
 
 // Construit la file d'attente triée
