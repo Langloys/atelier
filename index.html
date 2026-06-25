@@ -840,7 +840,6 @@ if(sessionStorage.getItem('at-pin-ok')==='1'){document.getElementById('pin-scree
           <th style="text-align:right;width:90px;">Avant base (h)</th>
           <th style="text-align:right;width:80px;">Restant (h)</th>
           <th style="text-align:right;width:70px;color:var(--faint);" title="Temps passé + restant estimé">Total</th>
-          <th id="th-restant" style="text-align:right;width:75px;">⏳ Restant</th>
         </tr>
       </thead>
       <tbody id="temps-tbody"></tbody>
@@ -6841,14 +6840,12 @@ function renderTemps(){
   var html='';
 
   function makeRow(item, indent){
-    var restantH = item.restantMin!==null ? item.restantMin : null;
     var faitH    = item.faitMin ? (item.faitMin/60).toFixed(1) : '0';
     var estH     = item.estMin  ? (item.estMin/60).toFixed(1).replace(/\.0$/,'') : '';
     var avantH   = item.avantBase ? (item.avantBase/60).toFixed(1) : '0';
     // Total projeté = sessions passées + avant base + restant estimé
     var totalProj = (item.faitMin||0) + (item.estMin||0);
     var totalProjH = totalProj > 0 ? (totalProj<60 ? totalProj+'min' : (totalProj/60).toFixed(1).replace(/\.0$/,'')+'h') : '—';
-    var restCol  = restantH===0?'color:var(--green);font-weight:600;':restantH===null?'color:var(--faint);':'';
     var bg       = indent ? 'background:var(--off);' : '';
     var pad      = indent ? 'padding-left:24px;' : '';
     var statuts  = item.type==='ex' ? STATUTS_E : STATUTS_O;
@@ -6884,11 +6881,7 @@ function renderTemps(){
     r+='<td style="text-align:right;"><input type="number" class="temps-input" min="0" step="0.5" value="'+avantH+'" onchange="saveTempsField(\''+item._id+'\',\''+item.type+'\',\'avantBase\',this.value)"></td>';
     r+='<td style="text-align:right;"><input type="number" class="temps-input" min="0" step="0.1" value="'+estH+'" onchange="saveTempsField(\''+item._id+'\',\''+item.type+'\',\'estMin\',this.value)"></td>';
     r+='<td data-col="total" style="text-align:right;color:var(--faint);font-size:.78rem;">'+totalProjH+'</td>';
-    r+='<td data-col="restant" style="text-align:right;'+restCol+'">';
-    if(restantH===null) r+='<span style="color:var(--faint);">—</span>';
-    else if(restantH===0) r+='✓';
-    else r+=(restantH<60 ? restantH+'min' : Math.ceil(restantH/60)+'h');
-    r+='</td></tr>';
+    r+='</tr>';
     return r;
   }
 
@@ -6993,7 +6986,7 @@ function renderTemps(){
     var count = rows.length;
     // Ligne d'en-tête du groupe (cliquable)
     html += '<tr class="temps-group-header" onclick="toggleTempsGroup(\''+type+'\')" style="cursor:pointer;background:var(--light);user-select:none;">';
-    html += '<td colspan="9" style="padding:6px 12px;font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;font-weight:600;color:var(--mid);">';
+    html += '<td colspan="8" style="padding:6px 12px;font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;font-weight:600;color:var(--mid);">';
     html += (isOpen ? '▾ ' : '▸ ') + label + ' <span style="font-size:.65rem;color:var(--faint);font-weight:400;">'+count+' élément'+(count>1?'s':'')+'</span>';
     html += '</td></tr>';
     // Lignes du groupe (visibles seulement si ouvert)
@@ -7002,7 +6995,7 @@ function renderTemps(){
     }
   });
 
-  if(!html) html='<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--faint);">Aucun élément.</td></tr>';
+  if(!html) html='<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--faint);">Aucun élément.</td></tr>';
   document.getElementById('temps-tbody').innerHTML=html;
 }
 
@@ -7137,15 +7130,6 @@ function updateTempsRestant(id, type){
   if(tdTotal){
     var totalProj=(faitMin||0)+(estMin||0);
     tdTotal.textContent=totalProj>0?(totalProj<60?totalProj+'min':(totalProj/60).toFixed(1).replace(/\.0$/,'')+'h'):'—';
-  }
-  // Mettre à jour "Restant"
-  var tdRestant=row.querySelector('td[data-col="restant"]');
-  if(tdRestant){
-    if(restantMin===null) tdRestant.innerHTML='<span style="color:var(--faint);">—</span>';
-    else if(restantMin===0) tdRestant.innerHTML='<span style="color:var(--green);font-weight:600;">✓</span>';
-    else tdRestant.textContent=(restantMin<60?restantMin+'min':Math.ceil(restantMin/60)+'h');
-    tdRestant.style.color=restantMin===0?'var(--green)':restantMin===null?'var(--faint)':'';
-    tdRestant.style.fontWeight=restantMin===0?'600':'';
   }
 }
 
