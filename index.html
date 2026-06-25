@@ -393,6 +393,7 @@ textarea{resize:vertical;min-height:58px;line-height:1.5;}
 .temps-table th:hover{color:var(--ink);}
 .temps-table td{padding:7px 10px;border-bottom:1px solid var(--border);vertical-align:middle;font-size:.82rem;}
 .temps-table tr:hover td{background:var(--off);}
+.temps-group-header:hover td{background:var(--border) !important;}
 .temps-input{width:70px;border:1px solid var(--border);border-radius:var(--r);padding:3px 6px;font-size:.8rem;text-align:right;background:var(--w);}
 .temps-input:focus{outline:none;border-color:var(--gold);}
 .temps-badge{font-size:.6rem;padding:2px 6px;border-radius:10px;white-space:nowrap;}
@@ -831,14 +832,14 @@ if(sessionStorage.getItem('at-pin-ok')==='1'){document.getElementById('pin-scree
     <table class="temps-table">
       <thead>
         <tr>
-          <th onclick="sortTemps('type')" id="th-type" style="width:60px;">Type</th>
-          <th onclick="sortTemps('nom')" id="th-nom">Nom / Numéro</th>
+          <th id="th-type" style="width:60px;">Type</th>
+          <th id="th-nom">Nom / Numéro</th>
           <th id="th-statut" style="text-align:center;width:90px;">Statut</th>
-          <th onclick="sortTemps('prio')" id="th-prio" style="text-align:center;width:100px;">Priorité</th>
-          <th onclick="sortTemps('fait')" id="th-fait" style="text-align:right;width:75px;">Déjà fait</th>
+          <th id="th-prio" style="text-align:center;width:100px;">Priorité</th>
+          <th id="th-fait" style="text-align:right;width:75px;">Déjà fait</th>
           <th style="text-align:right;width:90px;">Avant base (h)</th>
           <th style="text-align:right;width:80px;">Restant (h)</th>
-          <th onclick="sortTemps('restant')" id="th-restant" style="text-align:right;width:75px;">⏳ Restant</th>
+          <th id="th-restant" style="text-align:right;width:75px;">⏳ Restant</th>
         </tr>
       </thead>
       <tbody id="temps-tbody"></tbody>
@@ -6813,11 +6814,11 @@ renderToday();
 })();
 
 // ══ TEMPS ══
-var tempsSortCol = 'restant', tempsSortDir = 1;
+// Groupes ouverts/fermés dans l'onglet Temps (clé = type ou '__projet__')
+var tempsGroupOpen = {};  // {} = tout fermé par défaut
 
-function sortTemps(col){
-  if(tempsSortCol===col) tempsSortDir*=-1;
-  else { tempsSortCol=col; tempsSortDir=1; }
+function toggleTempsGroup(key){
+  tempsGroupOpen[key] = !tempsGroupOpen[key];
   renderTemps();
 }
 
@@ -6886,145 +6887,114 @@ function renderTemps(){
     return r;
   }
 
-  if(isCatalogue && (!filter || filter==='oeuvre' || filter==='ex')){
-    // Mode catalogue : groupé par oeuvre avec exemplaires indentés
-    // Index exemplaires par oeuvreId pour éviter O(n²)
-    var exByOeuvre = {};
-    exemplaires.forEach(function(e){ var k=e.oeuvreId; if(!exByOeuvre[k])exByOeuvre[k]=[]; exByOeuvre[k].push(e); });
-    var oList = oeuvres.slice().sort(function(a,b){
-      var td=typeSort(a.type,b.type); return td!==0?td:numRang(b)-numRang(a);
-    });
-    if(filter==='ex') oList=[]; // si filtre exemplaires uniquement, pas d'oeuvres
-    oList.forEach(function(o){
-      if(typeFilter==='__projet__') return;
-      if(typeFilter && o.type!==typeFilter) return;
-      var sessMin = oeuvreSess(o).reduce(function(a,s){return a+(s.dur||0);},0);
-      var faitMin = sessMin + (o.avantBase||0);
-      var estMin  = o.estMin || 0;
-      var restantMin = estMin ? Math.max(0, estMin-faitMin) : null;
-      var item={_id:o._id,type:'oeuvre',label:typeEmoji(o.type)+' '+o.num,nom:o.nom||o.num||'',
-        statut:o.statut||'encours',prio:o.prio||null,faitMin:faitMin,fonderie:o.fonderie||null,rangement:o.rangement||null,galerie:o.galerie||null,avantBase:o.avantBase||0,estMin:estMin,restantMin:restantMin};
-      if(matchSearch(item.nom+' '+item.label)) html+=makeRow(item, false);
-      // Exemplaires de cette oeuvre
-      (exByOeuvre[o._id]||[]).slice().sort(function(a,b){return parseInt(a.num||0,10)-parseInt(b.num||0,10);}).forEach(function(e){
-        var st=e.statut||e.venteStatus||e.status||'encours';
-        var faitMin2=exTotalMin(e)+(e.avantBase||0);
-        var estMin2=e.estMin||0;
-        var restantMin2=estMin2?Math.max(0,estMin2-faitMin2):null;
-        var item2={_id:e._id,type:'ex',label:matEmoji(e.mat)+' '+shortSuf(e.num),nom:e.exId,
-          statut:st,prio:e.prio||null,faitMin:faitMin2,fonderie:e.fonderie||null,rangement:e.rangement||null,galerie:e.galerie||null,avantBase:e.avantBase||0,estMin:estMin2,restantMin:restantMin2};
-        if(matchSearch(item2.nom+' '+o.nom)) html+=makeRow(item2, true);
-      });
-    });
-    if(filter==='ex'){
-      exemplaires.filter(function(e){ if(typeFilter==='__projet__') return false; if(!typeFilter) return true; var o=oeuvres.find(function(x){return x._id===e.oeuvreId;}); return o&&o.type===typeFilter; }).slice().sort(function(a,b){
-        var oa=oeuvres.find(function(x){return x._id===a.oeuvreId;});
-        var ob=oeuvres.find(function(x){return x._id===b.oeuvreId;});
-        var td=typeSort(oa?oa.type:'',ob?ob.type:''); if(td!==0)return td;
-        var nd=numRang(ob)-numRang(oa); if(nd!==0)return nd;
-        return parseInt(a.num||0,10)-parseInt(b.num||0,10);
-      }).forEach(function(e){
-        var st=e.statut||e.venteStatus||e.status||'encours';
-        var faitMin2=exTotalMin(e)+(e.avantBase||0);
-        var estMin2=e.estMin||0;
-        var restantMin2=estMin2?Math.max(0,estMin2-faitMin2):null;
-        var item2={_id:e._id,type:'ex',label:matEmoji(e.mat)+' '+e.exId,nom:(oeuvres.find(function(x){return x._id===e.oeuvreId;})||{nom:''}).nom||'',
-          statut:st,prio:e.prio||null,faitMin:faitMin2,fonderie:e.fonderie||null,rangement:e.rangement||null,galerie:e.galerie||null,avantBase:e.avantBase||0,estMin:estMin2,restantMin:restantMin2};
-        if(matchSearch(item2.nom+' '+(oeuvres.find(function(x){return x._id===e.oeuvreId;})||{nom:''}).nom)) html+=makeRow(item2, false);
-      });
-    }
-    if((filter==='projet'||!filter) && (!typeFilter||typeFilter==='__projet__')){
-      (projets||[]).forEach(function(p){
-        var projExIds2=[];
-        (p.oeuvreIds||[]).forEach(function(oid){exemplaires.filter(function(e){return e.oeuvreId===oid;}).forEach(function(e){projExIds2.push(e._id);});});
-        var projSess2=sessions.filter(function(s){return projExIds2.indexOf(s.exId)>=0||s.projetId===p._id||s.exId==='proj-'+p._id||(s.exId==='projet'&&s.projetId===p._id);});
-        var projFait=projSess2.reduce(function(a,s){return a+(s.dur||0);},0)+(p.avantBase||0);
-        var item={_id:p._id,type:'projet',label:'📁',nom:p.titre||'',
-          statut:p.status||'encours',prio:p.prio||null,faitMin:projFait,avantBase:p.avantBase||0,estMin:p.estMin||0,restantMin:p.estMin?Math.max(0,p.estMin-projFait):null};
-        if(matchSearch(item.nom)) html+=makeRow(item,false);
-      });
-    }
-  } else {
-    // Mode en cours : groupé par oeuvre (numéro décroissant) avec exemplaires indentés
-    var oEncours = oeuvres.filter(function(o){
-      if(o.statut!=='encours') return false;
-      if(typeFilter==='__projet__') return false;
-      if(typeFilter && o.type!==typeFilter) return false;
-      if(filter==='oeuvre') return true;
-      if(filter==='ex') return false;
-      return true;
-    }).sort(function(a,b){
-      var td=typeSort(a.type,b.type); return td!==0?td:numRang(b)-numRang(a);
-    });
+  // ── Construction des items à afficher ──
+  var exByOeuvre = {};
+  exemplaires.forEach(function(e){ var k=e.oeuvreId; if(!exByOeuvre[k])exByOeuvre[k]=[]; exByOeuvre[k].push(e); });
 
-    oEncours.forEach(function(o){
-      var sessMin=oeuvreSess(o).reduce(function(a,s){return a+(s.dur||0);},0);
-      var faitMin=sessMin+(o.avantBase||0); var estMin=o.estMin||0;
-      var item={_id:o._id,type:'oeuvre',label:typeEmoji(o.type)+' '+o.num,nom:o.nom||o.num||'',
-        statut:o.statut||'encours',prio:o.prio||null,faitMin:faitMin,fonderie:o.fonderie||null,rangement:o.rangement||null,galerie:o.galerie||null,avantBase:o.avantBase||0,estMin:estMin,
-        restantMin:estMin?Math.max(0,estMin-faitMin):null};
-      if((!filter||filter==='oeuvre') && matchSearch(item.nom+' '+item.label)) html+=makeRow(item,false);
-      // Exemplaires en cours de cette oeuvre
-      if(!filter||filter==='ex'){
-        exemplaires.filter(function(e){
-          var st=e.statut||e.venteStatus||e.status||'encours';
-          return e.oeuvreId===o._id&&(st==='encours'||st==='fonderie');
-        }).sort(function(a,b){ var na=parseInt(a.num||0,10),nb=parseInt(b.num||0,10);return na-nb; }).forEach(function(e){
-          var faitMin2=exTotalMin(e)+(e.avantBase||0); var estMin2=e.estMin||0;
-          var item2={_id:e._id,type:'ex',label:matEmoji(e.mat)+' '+shortSuf(e.num),nom:e.exId,
-            statut:e.statut||e.venteStatus||'encours',prio:e.prio||null,faitMin:faitMin2,fonderie:e.fonderie||null,rangement:e.rangement||null,galerie:e.galerie||null,
-            avantBase:e.avantBase||0,estMin:estMin2,restantMin:estMin2?Math.max(0,estMin2-faitMin2):null};
-          if(matchSearch(item2.nom+' '+o.nom)) html+=makeRow(item2,true);
-        });
-      }
-    });
+  // Collecte des oeuvres à afficher
+  var oList = oeuvres.filter(function(o){
+    if(typeFilter==='__projet__') return false;
+    if(typeFilter && o.type!==typeFilter) return false;
+    if(!isCatalogue && o.statut!=='encours') return false;
+    if(filter==='ex') return false;
+    return true;
+  }).sort(function(a,b){
+    var td=typeSort(a.type,b.type); return td!==0?td:numRang(b)-numRang(a);
+  });
 
-    // Exemplaires en cours ou fonderie dont l'oeuvre parente n'est plus en cours
-    if(!filter||filter==='ex'){
-      exemplaires.filter(function(e){
-        var st=e.statut||e.venteStatus||e.status||'encours';
-        if(st!=='encours'&&st!=='fonderie') return false;
-        var o=oeuvres.find(function(x){return x._id===e.oeuvreId;});
-        if(typeFilter==='__projet__') return false;
-        if(typeFilter && o && o.type!==typeFilter) return false;
-        return !o || o.statut!=='encours';
-      }).sort(function(a,b){
-        var oa=oeuvres.find(function(x){return x._id===a.oeuvreId;});
-        var ob=oeuvres.find(function(x){return x._id===b.oeuvreId;});
-        var td=typeSort(oa?oa.type:'',ob?ob.type:'');
-        if(td!==0) return td;
-        var nd=numRang(ob)-numRang(oa);
-        if(nd!==0) return nd;
-        var na=parseInt(a.num||0,10),nb=parseInt(b.num||0,10);return na-nb;
-      }).forEach(function(e){
-        var o=oeuvres.find(function(x){return x._id===e.oeuvreId;});
-        var faitMin2=exTotalMin(e)+(e.avantBase||0); var estMin2=e.estMin||0;
-        var item2={_id:e._id,type:'ex',label:matEmoji(e.mat)+' '+e.exId,nom:o?(o.nom||o.num||'?'):'?',
-          statut:e.statut||e.venteStatus||'encours',prio:e.prio||null,faitMin:faitMin2,fonderie:e.fonderie||null,rangement:e.rangement||null,galerie:e.galerie||null,
-          avantBase:e.avantBase||0,estMin:estMin2,restantMin:estMin2?Math.max(0,estMin2-faitMin2):null};
-        if(matchSearch(item2.nom+' '+(o?o.nom:''))) html+=makeRow(item2,false);
-      });
-    }
+  // Grouper par type
+  var _tGroups = {}; // type → [items]
+  var _tOrder  = []; // ordre d'apparition des types
 
-    // Projets en cours
-    if((!filter||filter==='projet') && (!typeFilter||typeFilter==='__projet__')){
-      (projets||[]).filter(function(p){return p.status==='encours';}).forEach(function(p){
-        var projExIds2=[];
-        (p.oeuvreIds||[]).forEach(function(oid){exemplaires.filter(function(e){return e.oeuvreId===oid;}).forEach(function(e){projExIds2.push(e._id);});});
-        var projSess2=sessions.filter(function(s){return projExIds2.indexOf(s.exId)>=0||s.projetId===p._id||s.exId==='proj-'+p._id||(s.exId==='projet'&&s.projetId===p._id);});
-        var projFait=projSess2.reduce(function(a,s){return a+(s.dur||0);},0)+(p.avantBase||0);
-        var item={_id:p._id,type:'projet',label:'📁',nom:p.titre||'',statut:p.status||'encours',
-          prio:p.prio||null,faitMin:projFait,avantBase:p.avantBase||0,estMin:p.estMin||0,restantMin:p.estMin?Math.max(0,p.estMin-projFait):null};
-        if(matchSearch(item.nom)) html+=makeRow(item,false);
-      });
-    }
+  function _addGroup(type, rowHtml){
+    if(!_tGroups[type]){ _tGroups[type]=[]; _tOrder.push(type); }
+    _tGroups[type].push(rowHtml);
   }
 
-  ['type','nom','prio','fait','restant'].forEach(function(c){
-    var th=document.getElementById('th-'+c); if(!th)return;
-    th.classList.toggle('active',tempsSortCol===c);
-    th.textContent=th.textContent.replace(/ [▲▼]$/,'');
-    if(tempsSortCol===c) th.textContent+=(tempsSortDir===1?' ▲':' ▼');
+  // Oeuvres + leurs exemplaires indentés
+  oList.forEach(function(o){
+    var sessMin=oeuvreSess(o).reduce(function(a,s){return a+(s.dur||0);},0);
+    var faitMin=sessMin+(o.avantBase||0); var estMin=o.estMin||0;
+    var item={_id:o._id,type:'oeuvre',label:typeEmoji(o.type)+' '+o.num,nom:o.nom||o.num||'',
+      statut:o.statut||'encours',prio:o.prio||null,faitMin:faitMin,fonderie:o.fonderie||null,rangement:o.rangement||null,galerie:o.galerie||null,avantBase:o.avantBase||0,estMin:estMin,
+      restantMin:estMin?estMin:null};
+    if(matchSearch(item.nom+' '+item.label)) {
+      var rowHtml = makeRow(item,false);
+      // Exemplaires indentés
+      if(!filter||filter==='ex'||isCatalogue){
+        (exByOeuvre[o._id]||[]).filter(function(e){
+          if(isCatalogue) return true;
+          var st=e.statut||e.venteStatus||e.status||'encours';
+          return st==='encours'||st==='fonderie';
+        }).sort(function(a,b){return parseInt(a.num||0,10)-parseInt(b.num||0,10);}).forEach(function(e){
+          var st=e.statut||e.venteStatus||e.status||'encours';
+          var faitMin2=exTotalMin(e)+(e.avantBase||0); var estMin2=e.estMin||0;
+          var item2={_id:e._id,type:'ex',label:matEmoji(e.mat)+' '+shortSuf(e.num),nom:e.exId,
+            statut:st,prio:e.prio||null,faitMin:faitMin2,fonderie:e.fonderie||null,rangement:e.rangement||null,galerie:e.galerie||null,
+            avantBase:e.avantBase||0,estMin:estMin2,restantMin:estMin2?estMin2:null};
+          if(matchSearch(item2.nom+' '+o.nom)) rowHtml+=makeRow(item2,true);
+        });
+      }
+      _addGroup(o.type, rowHtml);
+    }
+  });
+
+  // Exemplaires en cours dont l'oeuvre n'est pas en cours (mode encours seulement)
+  if(!isCatalogue && (!filter||filter==='ex')){
+    exemplaires.filter(function(e){
+      var st=e.statut||e.venteStatus||e.status||'encours';
+      if(st!=='encours'&&st!=='fonderie') return false;
+      var o=oeuvres.find(function(x){return x._id===e.oeuvreId;});
+      if(typeFilter==='__projet__') return false;
+      if(typeFilter && o && o.type!==typeFilter) return false;
+      return !o || o.statut!=='encours';
+    }).sort(function(a,b){
+      var oa=oeuvres.find(function(x){return x._id===a.oeuvreId;});
+      var ob=oeuvres.find(function(x){return x._id===b.oeuvreId;});
+      var td=typeSort(oa?oa.type:'',ob?ob.type:''); if(td!==0) return td;
+      var nd=numRang(ob)-numRang(oa); if(nd!==0) return nd;
+      return parseInt(a.num||0,10)-parseInt(b.num||0,10);
+    }).forEach(function(e){
+      var o=oeuvres.find(function(x){return x._id===e.oeuvreId;});
+      var faitMin2=exTotalMin(e)+(e.avantBase||0); var estMin2=e.estMin||0;
+      var item2={_id:e._id,type:'ex',label:matEmoji(e.mat)+' '+e.exId,nom:o?(o.nom||o.num||'?'):'?',
+        statut:e.statut||e.venteStatus||'encours',prio:e.prio||null,faitMin:faitMin2,fonderie:e.fonderie||null,rangement:e.rangement||null,galerie:e.galerie||null,
+        avantBase:e.avantBase||0,estMin:estMin2,restantMin:estMin2?estMin2:null};
+      if(matchSearch(item2.nom+' '+(o?o.nom:''))) _addGroup(o?o.type:'?', makeRow(item2,false));
+    });
+  }
+
+  // Projets
+  if((!filter||filter==='projet') && (!typeFilter||typeFilter==='__projet__')){
+    var projFilter = isCatalogue ? (projets||[]) : (projets||[]).filter(function(p){return p.status==='encours';});
+    projFilter.forEach(function(p){
+      var projExIds2=[];
+      (p.oeuvreIds||[]).forEach(function(oid){exemplaires.filter(function(e){return e.oeuvreId===oid;}).forEach(function(e){projExIds2.push(e._id);});});
+      var projSess2=sessions.filter(function(s){return projExIds2.indexOf(s.exId)>=0||s.projetId===p._id||s.exId==='proj-'+p._id||(s.exId==='projet'&&s.projetId===p._id);});
+      var projFait=projSess2.reduce(function(a,s){return a+(s.dur||0);},0)+(p.avantBase||0);
+      var item={_id:p._id,type:'projet',label:'📁',nom:p.titre||'',statut:p.status||'encours',
+        prio:p.prio||null,faitMin:projFait,avantBase:p.avantBase||0,estMin:p.estMin||0,restantMin:p.estMin?p.estMin:null};
+      if(matchSearch(item.nom)) _addGroup('__projet__', makeRow(item,false));
+    });
+  }
+
+  // ── Rendu des groupes repliables ──
+  var _tLabels = {BUSTE:'Bustes',CORPS:'Corps',JOYAU:'Joyaux',VOYAGE:'Voyages',DESSIN:'Dessins',GAYA:'Gaya',ANIMAL:'Animaux','BAS-RELIEF':'Bas-reliefs',HARMONY:'Harmonies','__projet__':'Projets'};
+  _tOrder.forEach(function(type){
+    var rows = _tGroups[type];
+    if(!rows || !rows.length) return;
+    var isOpen = !!tempsGroupOpen[type];
+    var label = _tLabels[type] || (typeEmoji(type)+' '+type);
+    var count = rows.length;
+    // Ligne d'en-tête du groupe (cliquable)
+    html += '<tr class="temps-group-header" onclick="toggleTempsGroup(''+type+'')" style="cursor:pointer;background:var(--light);user-select:none;">';
+    html += '<td colspan="8" style="padding:6px 12px;font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;font-weight:600;color:var(--mid);">';
+    html += (isOpen ? '▾ ' : '▸ ') + label + ' <span style="font-size:.65rem;color:var(--faint);font-weight:400;">'+count+' élément'+(count>1?'s':'')+'</span>';
+    html += '</td></tr>';
+    // Lignes du groupe (visibles seulement si ouvert)
+    if(isOpen){
+      rows.forEach(function(r){ html+=r; });
+    }
   });
 
   if(!html) html='<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--faint);">Aucun élément.</td></tr>';
