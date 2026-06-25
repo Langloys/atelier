@@ -2197,8 +2197,8 @@ function addSessionToday(){
     });
     document.getElementById('j-dur').value='';
     document.getElementById('j-com').value='';
-    // Uncheck all
-    document.querySelectorAll('#multi-sel-list input:checked').forEach(function(cb){cb.checked=false;});
+    // La sélection reste active pour pouvoir enchaîner une autre action sur les mêmes éléments
+    updateMultiLabel();
     updateCounts();renderToday();
     return;
   }
