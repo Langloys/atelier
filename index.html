@@ -4560,19 +4560,21 @@ function saveProjet(){
   var titre=document.getElementById('proj-titre').value.trim();
   if(!titre){alert('Titre obligatoire');return;}
   var existing=editProjetId?projets.find(function(p){return p._id===editProjetId;}):null;
-  var p={
+  var estVal = document.getElementById('proj-est').value;
+  var estMin = (estVal!==''&&estVal!==null) ? (Math.round(parseFloat(estVal)*60)||null) : null;
+  var p=Object.assign({}, existing||{}, {
     _id:editProjetId||'p-'+Date.now(),
     titre:titre,
     status:document.getElementById('proj-status').value,
     debut:document.getElementById('proj-debut').value||null,
     fin:document.getElementById('proj-fin').value||null,
     budget:parseFloat(document.getElementById('proj-budget').value)||null,
-    estMin:Math.round((parseFloat(document.getElementById('proj-est').value)||0)*60)||null,
+    estMin:estMin,
     desc:document.getElementById('proj-desc').value.trim(),
     oeuvreIds:tmpProjOeuvres.slice(),
     clientIds:existing?existing.clientIds||[]:[],
     echanges:existing?existing.echanges||{}:{}
-  };
+  });
   if(editProjetId){var i=projets.findIndex(function(x){return x._id===editProjetId;});projets[i]=p;}
   else projets.push(p);
   sbSaveProjet(p);closeM('mo-projet');updateCounts();renderProjets();refreshJExSel();
@@ -6839,7 +6841,7 @@ renderToday();
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260626 - v37 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260626 - v38 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
