@@ -6514,7 +6514,12 @@ function findOrphanSessions(){
     if(exId==='projet'&&s.projetId&&projets.find(function(p){return p._id===s.projetId;}))isKnown=true;
     if(exId.indexOf('proj-')===0){var pid=exId.replace('proj-','');if(projets.find(function(p){return p._id===pid;}))isKnown=true;}
     // Check activite
-    if(exId.indexOf('activ-')===0){var aid=exId.replace('activ-','');if((activites||[]).find(function(a){return a.id===aid;}))isKnown=true;}
+    if(exId.indexOf('activ-')===0){
+      var aid=exId.replace('activ-','');
+      // Si activites pas encore chargé (tableau vide), ne pas marquer comme orpheline
+      if(!(activites&&activites.length)){isKnown=true;}
+      else if((activites||[]).find(function(a){return a.id===aid;}))isKnown=true;
+    }
     // Old DIVERS — now orphan
     if(exId==='DIVERS')isKnown=false;
     if(!isKnown){
@@ -6832,7 +6837,7 @@ renderToday();
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260625 - v35 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260626 - v36 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
