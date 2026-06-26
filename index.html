@@ -4560,24 +4560,22 @@ function saveProjet(){
   var titre=document.getElementById('proj-titre').value.trim();
   if(!titre){alert('Titre obligatoire');return;}
   var existing=editProjetId?projets.find(function(p){return p._id===editProjetId;}):null;
-  var estVal = document.getElementById('proj-est').value;
-  var estMin = (estVal!==''&&estVal!==null) ? (Math.round(parseFloat(estVal)*60)||null) : null;
-  var p=Object.assign({}, existing||{}, {
+  var p={
     _id:editProjetId||'p-'+Date.now(),
     titre:titre,
     status:document.getElementById('proj-status').value,
     debut:document.getElementById('proj-debut').value||null,
     fin:document.getElementById('proj-fin').value||null,
     budget:parseFloat(document.getElementById('proj-budget').value)||null,
-    estMin:estMin,
+    estMin:Math.round((parseFloat(document.getElementById('proj-est').value)||0)*60)||null,
     desc:document.getElementById('proj-desc').value.trim(),
     oeuvreIds:tmpProjOeuvres.slice(),
     clientIds:existing?existing.clientIds||[]:[],
     echanges:existing?existing.echanges||{}:{}
-  });
+  };
   if(editProjetId){var i=projets.findIndex(function(x){return x._id===editProjetId;});projets[i]=p;}
   else projets.push(p);
-  console.log('[saveProjet] estMin=', p.estMin, 'obj=', JSON.stringify(p)); sbSaveProjet(p);closeM('mo-projet');updateCounts();renderProjets();refreshJExSel();
+  sbSaveProjet(p);closeM('mo-projet');updateCounts();renderProjets();refreshJExSel();
 }
 
 function editProjFromDetail(){
@@ -4722,7 +4720,8 @@ function confirmerTransfert(){
     if(idx2>=0){
       sessions[idx2].exId = newExId;
       sessions[idx2].projetId = null;
-      sbSaveSession(sessions[idx2]); // sauvegarde dans Supabase
+      // Sauvegarder dans Supabase
+      sbSaveSession(sessions[idx2]);
     }
 
     destRemaining -= (s.dur||0);
@@ -4732,8 +4731,8 @@ function confirmerTransfert(){
     }
   });
 
-  // Supprimer le projet localement ET dans Supabase
-  sbDelete('projets', transfertPid).catch(function(e){console.error('transfert delProjet:',e);});
+  // Supprimer le projet dans Supabase puis en local
+  sbDelete('projets', transfertPid).catch(function(e){console.error('delProjet transfert Supabase:',e);});
   projets = projets.filter(function(p){return p._id!==transfertPid;});
 
   closeM('mo-transfert');
@@ -4744,26 +4743,6 @@ function confirmerTransfert(){
   refreshJExSel();
 }
 
-
-// ══ NETTOYAGE SESSIONS ORPHELINES D'UN PROJET ══
-function cleanOrphanSessProjet(pid){
-  if(!confirm('Supprimer le lien vers ce projet pour les sessions déjà transférées sur des sculptures ?')) return;
-  var p = projets.find(function(x){return x._id===pid;});
-  var projExIds=[];
-  if(p)(p.oeuvreIds||[]).forEach(function(oid){
-    exemplaires.filter(function(e){return e.oeuvreId===oid;}).forEach(function(e){projExIds.push(e._id);});
-  });
-  var count=0;
-  sessions.forEach(function(s,idx){
-    if(s.projetId===pid && projExIds.indexOf(s.exId)<0 && s.exId!=='proj-'+pid && s.exId!=='projet'){
-      sessions[idx].projetId=null;
-      sbSaveSession(sessions[idx]);
-      count++;
-    }
-  });
-  alert(count+' session(s) nettoyée(s).');
-  openProjetDetail(pid);
-}
 
 // ══ PATINE ══
 var DEFAULT_PIGMENTS = [
@@ -5026,15 +5005,18 @@ function openProjetDetail(pid){
     return false;
   });
   var totalMinProjet=projSessions.reduce(function(a,s){return a+(s.dur||0);},0);
-  if(totalMinProjet>0||projExIds.length){
-    html+='<div style="padding:10px 22px 0;">';
-    html+='<div style="display:flex;align-items:center;justify-content:space-between;">';
-    html+='<div class="section-title">Temps passé</div>';
-    html+='<div style="display:flex;gap:6px;">';
-    html+='<button class="btn btn-sm btn-primary" onclick="openAddSessionProjet(\'' + pid + '\')">' + '+ Session</button>';
+  // Toujours afficher la section Temps passé avec les boutons
+  html+='<div style="padding:10px 22px 0;">';
+  html+='<div style="display:flex;align-items:center;justify-content:space-between;">';
+  html+='<div class="section-title" style="font-style:italic;">Temps passé</div>';
+  html+='<div style="display:flex;gap:6px;">';
+  html+='<button class="btn btn-sm btn-primary" onclick="openAddSessionProjet(\'' + pid + '\')">' + '+ Session</button>';
+  if(totalMinProjet>0){
     html+='<button class="btn btn-sm" style="background:var(--gold);color:white;border-color:var(--gold);" onclick="openTransfertTemps(\'' + pid + '\')">' + '⇄ Transférer</button>';
-    html+='</div>';
-    html+='</div>';
+  }
+  html+='</div>';
+  html+='</div>';
+  if(totalMinProjet>0){
     // Par action
     var byAction={};
     projSessions.forEach(function(s){
@@ -5042,15 +5024,7 @@ function openProjetDetail(pid){
       if(!byAction[k])byAction[k]=0;
       byAction[k]+=s.dur||0;
     });
-    // Par exemplaire/source
-    var byEx={};
-    projSessions.forEach(function(s){
-      var k=s.exId||'projet';
-      if(!byEx[k])byEx[k]=0;
-      byEx[k]+=s.dur||0;
-    });
     html+='<div style="margin-bottom:12px;">';
-    // Show by action first
     var actionKeys=Object.keys(byAction).sort(function(a,b){return byAction[b]-byAction[a];});
     actionKeys.forEach(function(k){
       html+='<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:.82rem;">';
@@ -5062,39 +5036,15 @@ function openProjetDetail(pid){
     html+='<span>Total projet</span>';
     html+='<span style="color:var(--gold);">'+fmtMin(totalMinProjet)+'</span>';
     html+='</div>';
-    if(p.estMin){
-      var restantProj=p.estMin-totalMinProjet;
-      var pctProj=totalMinProjet?Math.min(100,Math.round(totalMinProjet/p.estMin*100)):0;
-      var restantColor=restantProj<0?'var(--red)':restantProj<p.estMin*0.2?'var(--gold)':'var(--green)';
-      html+='<div style="display:flex;justify-content:space-between;padding:5px 0 2px;font-size:.8rem;color:var(--mid);">'+
-        '<span>Estimation totale · '+pctProj+'%</span>'+
-        '<span style="color:'+restantColor+';font-weight:500;">'+(restantProj>=0?'Il reste '+fmtMin(restantProj):'Dépassé de '+fmtMin(Math.abs(restantProj)))+' / '+fmtMin(p.estMin)+'</span>'+
-        '</div>';
-    }
     html+='</div>';
     if(p.budget&&totalMinProjet){
       var tauxH=Math.round(p.budget/(totalMinProjet/60));
       html+='<div style="font-size:.75rem;color:var(--mid);margin-bottom:12px;padding:8px;background:var(--off);border-radius:var(--r);">💶 Budget '+p.budget.toLocaleString('fr-FR')+' € · '+fmtMin(totalMinProjet)+' travaillées → <strong>'+tauxH+' €/h</strong></div>';
     }
-    html+='</div>';
   } else {
-    html+='<div style="padding:6px 22px 12px;display:flex;align-items:center;justify-content:space-between;">';
-    html+='<span style="font-size:.78rem;color:var(--faint);font-style:italic;">Aucune session enregistrée</span>';
-    html+='<button class="btn btn-sm btn-primary" onclick="openAddSessionProjet(\'' + pid + '\')">' + '+ Session</button>';
-    html+='</div>';
+    html+='<div style="padding:4px 0 12px;font-size:.78rem;color:var(--faint);font-style:italic;">Aucune session enregistrée</div>';
   }
-
-  // Alerte sessions orphelines
-  var orphanSess=sessions.filter(function(s){
-    return s.projetId===pid && projExIds.indexOf(s.exId)<0 && s.exId!=='proj-'+pid && s.exId!=='projet';
-  });
-  if(orphanSess.length){
-    html+='<div style="padding:0 22px 10px;">';
-    html+='<div style="font-size:.75rem;color:var(--red);background:rgba(220,50,50,.07);padding:8px 12px;border-radius:6px;display:flex;align-items:center;justify-content:space-between;gap:8px;">';
-    html+='<span>⚠ '+orphanSess.length+' session(s) encore liées à ce projet (déjà transférées sur sculptures)</span>';
-    html+='<button class="btn btn-sm" style="background:var(--red);color:white;border-color:var(--red);white-space:nowrap;" onclick="cleanOrphanSessProjet(\''+pid+'\')">Nettoyer</button>';
-    html+='</div></div>';
-  }
+  html+='</div>';
 
   // Tâches liées au projet
     var projTachesAll=(taches||[]).filter(function(t){return t.projetId===pid;});
@@ -6559,12 +6509,7 @@ function findOrphanSessions(){
     if(exId==='projet'&&s.projetId&&projets.find(function(p){return p._id===s.projetId;}))isKnown=true;
     if(exId.indexOf('proj-')===0){var pid=exId.replace('proj-','');if(projets.find(function(p){return p._id===pid;}))isKnown=true;}
     // Check activite
-    if(exId.indexOf('activ-')===0){
-      var aid=exId.replace('activ-','');
-      // Si activites pas encore chargé (tableau vide), ne pas marquer comme orpheline
-      if(!(activites&&activites.length)){isKnown=true;}
-      else if((activites||[]).find(function(a){return a.id===aid;}))isKnown=true;
-    }
+    if(exId.indexOf('activ-')===0){var aid=exId.replace('activ-','');if((activites||[]).find(function(a){return a.id===aid;}))isKnown=true;}
     // Old DIVERS — now orphan
     if(exId==='DIVERS')isKnown=false;
     if(!isKnown){
@@ -6882,7 +6827,7 @@ renderToday();
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260626 - v40 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260626 - v36 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
