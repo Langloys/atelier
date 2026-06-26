@@ -4745,6 +4745,26 @@ function confirmerTransfert(){
 }
 
 
+// ══ NETTOYAGE SESSIONS ORPHELINES D'UN PROJET ══
+function cleanOrphanSessProjet(pid){
+  if(!confirm('Supprimer le lien vers ce projet pour les sessions déjà transférées sur des sculptures ?')) return;
+  var p = projets.find(function(x){return x._id===pid;});
+  var projExIds=[];
+  if(p)(p.oeuvreIds||[]).forEach(function(oid){
+    exemplaires.filter(function(e){return e.oeuvreId===oid;}).forEach(function(e){projExIds.push(e._id);});
+  });
+  var count=0;
+  sessions.forEach(function(s,idx){
+    if(s.projetId===pid && projExIds.indexOf(s.exId)<0 && s.exId!=='proj-'+pid && s.exId!=='projet'){
+      sessions[idx].projetId=null;
+      sbSaveSession(sessions[idx]);
+      count++;
+    }
+  });
+  alert(count+' session(s) nettoyée(s).');
+  openProjetDetail(pid);
+}
+
 // ══ PATINE ══
 var DEFAULT_PIGMENTS = [
   'Terre de Sienne brûlée','Terre de Sienne naturelle','Terre d\'ombre brûlée','Terre d\'ombre naturelle',
@@ -5044,10 +5064,11 @@ function openProjetDetail(pid){
     html+='</div>';
     if(p.estMin){
       var restantProj=p.estMin-totalMinProjet;
+      var pctProj=totalMinProjet?Math.min(100,Math.round(totalMinProjet/p.estMin*100)):0;
       var restantColor=restantProj<0?'var(--red)':restantProj<p.estMin*0.2?'var(--gold)':'var(--green)';
-      html+='<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:.8rem;color:var(--mid);">'+
-        '<span>Temps restant estimé</span>'+
-        '<span style="color:'+restantColor+';font-weight:500;">'+(restantProj>=0?'':'-')+fmtMin(Math.abs(restantProj))+' / '+fmtMin(p.estMin)+'</span>'+
+      html+='<div style="display:flex;justify-content:space-between;padding:5px 0 2px;font-size:.8rem;color:var(--mid);">'+
+        '<span>Estimation totale · '+pctProj+'%</span>'+
+        '<span style="color:'+restantColor+';font-weight:500;">'+(restantProj>=0?'Il reste '+fmtMin(restantProj):'Dépassé de '+fmtMin(Math.abs(restantProj)))+' / '+fmtMin(p.estMin)+'</span>'+
         '</div>';
     }
     html+='</div>';
@@ -5061,6 +5082,18 @@ function openProjetDetail(pid){
     html+='<span style="font-size:.78rem;color:var(--faint);font-style:italic;">Aucune session enregistrée</span>';
     html+='<button class="btn btn-sm btn-primary" onclick="openAddSessionProjet(\'' + pid + '\')">' + '+ Session</button>';
     html+='</div>';
+  }
+
+  // Alerte sessions orphelines
+  var orphanSess=sessions.filter(function(s){
+    return s.projetId===pid && projExIds.indexOf(s.exId)<0 && s.exId!=='proj-'+pid && s.exId!=='projet';
+  });
+  if(orphanSess.length){
+    html+='<div style="padding:0 22px 10px;">';
+    html+='<div style="font-size:.75rem;color:var(--red);background:rgba(220,50,50,.07);padding:8px 12px;border-radius:6px;display:flex;align-items:center;justify-content:space-between;gap:8px;">';
+    html+='<span>⚠ '+orphanSess.length+' session(s) encore liées à ce projet (déjà transférées sur sculptures)</span>';
+    html+='<button class="btn btn-sm" style="background:var(--red);color:white;border-color:var(--red);white-space:nowrap;" onclick="cleanOrphanSessProjet(\''+pid+'\')">Nettoyer</button>';
+    html+='</div></div>';
   }
 
   // Tâches liées au projet
@@ -6849,7 +6882,7 @@ renderToday();
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260626 - v39 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260626 - v40 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
