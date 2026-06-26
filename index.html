@@ -4720,6 +4720,7 @@ function confirmerTransfert(){
     if(idx2>=0){
       sessions[idx2].exId = newExId;
       sessions[idx2].projetId = null;
+      sbSaveSession(sessions[idx2]); // sauvegarde dans Supabase
     }
 
     destRemaining -= (s.dur||0);
@@ -4729,7 +4730,8 @@ function confirmerTransfert(){
     }
   });
 
-  // Supprimer le projet
+  // Supprimer le projet localement ET dans Supabase
+  sbDelete('projets', transfertPid).catch(function(e){console.error('transfert delProjet:',e);});
   projets = projets.filter(function(p){return p._id!==transfertPid;});
 
   closeM('mo-transfert');
@@ -6837,7 +6839,7 @@ renderToday();
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260626 - v36 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260626 - v37 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
