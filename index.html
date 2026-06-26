@@ -4577,7 +4577,7 @@ function saveProjet(){
   });
   if(editProjetId){var i=projets.findIndex(function(x){return x._id===editProjetId;});projets[i]=p;}
   else projets.push(p);
-  sbSaveProjet(p);closeM('mo-projet');updateCounts();renderProjets();refreshJExSel();
+  console.log('[saveProjet] estMin=', p.estMin, 'obj=', JSON.stringify(p)); sbSaveProjet(p);closeM('mo-projet');updateCounts();renderProjets();refreshJExSel();
 }
 
 function editProjFromDetail(){
@@ -5042,6 +5042,14 @@ function openProjetDetail(pid){
     html+='<span>Total projet</span>';
     html+='<span style="color:var(--gold);">'+fmtMin(totalMinProjet)+'</span>';
     html+='</div>';
+    if(p.estMin){
+      var restantProj=p.estMin-totalMinProjet;
+      var restantColor=restantProj<0?'var(--red)':restantProj<p.estMin*0.2?'var(--gold)':'var(--green)';
+      html+='<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:.8rem;color:var(--mid);">'+
+        '<span>Temps restant estimé</span>'+
+        '<span style="color:'+restantColor+';font-weight:500;">'+(restantProj>=0?'':'-')+fmtMin(Math.abs(restantProj))+' / '+fmtMin(p.estMin)+'</span>'+
+        '</div>';
+    }
     html+='</div>';
     if(p.budget&&totalMinProjet){
       var tauxH=Math.round(p.budget/(totalMinProjet/60));
@@ -6841,7 +6849,7 @@ renderToday();
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260626 - v38 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260626 - v39 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
