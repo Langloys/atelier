@@ -3073,7 +3073,9 @@ function renderOeuvres(){
           var tmAvecBase = tm + (e.avantBase||0);
           var exStatut=e.statut||e.venteStatus||e.status||'encours';
           var exRestantMin=e.estMin?e.estMin:null; // estMin = restant saisi directement
-          html+='<div class="ex-row" onclick="openDetail(\'' + e._id + '\')">'; 
+          var exNumInt=parseInt(e.num||0,10);
+          var exRowBg=exNumInt>=97?'background:#f0f0ee;':exNumInt>=1&&exNumInt<=12?'background:#fdf0f0;':'';
+          html+='<div class="ex-row" onclick="openDetail(\'' + e._id + '\')" style="'+exRowBg+'">'; 
           var fondLbl=(exStatut==='fonderie'&&e.fonderie)?' 🔥'+e.fonderie:'';
           var exStatutLabel=exStatut==='fonderie'?(e.fonderie||'Fonderie'):exStatut==='range'?(e.rangement||'Rangé'):(VSL[exStatut]||exStatut);
           var exStatusClass=exStatut==='encours'?'encours':exStatut==='range'?'range':exStatut==='vendu'||exStatut==='collection'?'archive':'termine';
@@ -6827,7 +6829,7 @@ renderToday();
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260626 - v36 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260626 - v37 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
