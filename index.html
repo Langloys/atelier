@@ -6867,7 +6867,7 @@ renderToday();
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260627 - v50 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260627 - v52 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -7561,11 +7561,19 @@ function renderPlanning(){
   var today0 = TODAY;
   lignes.forEach(function(l, li){
     if(!l.segments.length) return;
-    // Ne pas afficher une ligne dont tous les segments sont dans le passé ET qui n'a plus de travail futur
-    var dernierSegDate = l.segments[l.segments.length-1].dateStr;
-    // Masquer si le dernier segment est dans le passé et qu'il n'y a pas de segment futur
-    var aSegmentFutur = l.segments.some(function(seg){ return seg.dateStr >= today0; });
-    if(!aSegmentFutur) return;
+    // Masquer si aucun segment dans la fenêtre affichée
+    var datesAffichees = new Set(jourstAfficher.map(function(j){ return j.dateStr; }));
+    var aSegmentVisible = l.segments.some(function(seg){ return datesAffichees.has(seg.dateStr); });
+    if(!aSegmentVisible) return;
+    // Premier et dernier segment de cette ligne (parmi les dates affichées)
+    var premierSegDate = null;
+    var dernierSegDateLigne = null;
+    l.segments.forEach(function(seg){
+      if(jourstAfficher.some(function(j){ return j.dateStr===seg.dateStr; })){
+        if(!premierSegDate || seg.dateStr < premierSegDate) premierSegDate = seg.dateStr;
+        if(!dernierSegDateLigne || seg.dateStr > dernierSegDateLigne) dernierSegDateLigne = seg.dateStr;
+      }
+    });
     html+='<tr>';
     var segmentDates = {};
     l.segments.forEach(function(seg){ segmentDates[seg.dateStr]=seg; });
@@ -7595,6 +7603,11 @@ function renderPlanning(){
     var sepCompteur = 0;
     var prevSegColor = null;
     jourstAfficher.forEach(function(jour, jourIdx){
+      // Ne rien afficher avant le premier segment de cette ligne
+      if(premierSegDate && jour.dateStr < premierSegDate){
+        html+='<td class="plan-cell vide"></td>';
+        return;
+      }
       var seg = segmentDates[jour.dateStr];
       if(seg){
         var segKey = seg.color+'|'+seg.label;
