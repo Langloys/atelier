@@ -6867,7 +6867,7 @@ renderToday();
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260627 - v53 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260627 - v54 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -7562,8 +7562,18 @@ function renderPlanning(){
   jourstAfficher.forEach(function(){ html+='<td style="background:var(--w);border-top:2px solid var(--border);height:4px;"></td>'; });
   html+='</tr>';
 
-  // Lignes de travail
+  // Lignes de travail — trier : segments présents/passés d'abord, futurs après
   var today0 = TODAY;
+  var datesAfficheesTri = new Set(jourstAfficher.map(function(j){ return j.dateStr; }));
+  lignes.sort(function(a, b){
+    var premA = null, premB = null;
+    a.segments.forEach(function(s){ if(datesAfficheesTri.has(s.dateStr) && (!premA||s.dateStr<premA)) premA=s.dateStr; });
+    b.segments.forEach(function(s){ if(datesAfficheesTri.has(s.dateStr) && (!premB||s.dateStr<premB)) premB=s.dateStr; });
+    if(!premA && !premB) return 0;
+    if(!premA) return 1;
+    if(!premB) return -1;
+    return premA.localeCompare(premB);
+  });
   lignes.forEach(function(l, li){
     if(!l.segments.length) return;
     // Masquer si aucun segment dans la fenêtre affichée
@@ -7608,9 +7618,9 @@ function renderPlanning(){
     var sepCompteur = 0;
     var prevSegColor = null;
     jourstAfficher.forEach(function(jour, jourIdx){
-      // Ne rien afficher avant le premier segment de cette ligne
+      // Cellule invisible avant le premier segment de cette ligne
       if(premierSegDate && jour.dateStr < premierSegDate){
-        html+='<td class="plan-cell vide"></td>';
+        html+='<td style="min-width:36px;max-width:36px;height:0;padding:0;border:none;"></td>';
         return;
       }
       var seg = segmentDates[jour.dateStr];
