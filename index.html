@@ -6867,7 +6867,7 @@ renderToday();
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260627 - v39 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260627 - v42 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -7271,7 +7271,7 @@ function planCalcul(){
   if(!queue.length) return {lignes:[], jours:[], maxJours:365*2};
 
   var SEP = 5; // jours de séparation entre deux projets sur une même ligne
-  var MAX_ACTIFS = 8; // max de slots travaillant en même temps
+  var MAX_ACTIFS = 96; // max de slots simultanés (96 = 8h × créneaux de 5min)
   var totalH = queue.reduce(function(a,i){ return a+i.heures; },0);
   var maxJours = Math.max(365*2, totalH*2 + 200);
 
@@ -7311,10 +7311,13 @@ function planCalcul(){
       candidats.sort(function(a,b){ return a.heuresRestantes-b.heuresRestantes; });
 
       // Distribuer jusqu'à dispo heures, en plaçant autant de slots que possible
+      // Règle : max 1h par projet par jour, mais on remplit jusqu'aux 8h disponibles
+      // Ex: 48 projets de 10min → 480min total → tiennent tous dans 8h
       var heuresPosees = 0;
       for(var k=0; k<candidats.length && heuresPosees < dispo; k++){
-        // Chaque slot prend 1h max (ou ce qu'il reste si < 1h)
+        // Ce slot prend au max 1h (ou ce qu'il reste, ou ce qu'il reste de dispo)
         var hPrise = Math.min(1, candidats[k].heuresRestantes, dispo - heuresPosees);
+        if(hPrise <= 0) break;
         candidats[k].segments.push({dateStr:ds, color:candidats[k].item.color, label:candidats[k].item.label, _id:candidats[k].item._id, itype:candidats[k].item.type, heuresRestantes:candidats[k].heuresRestantes});
         candidats[k].heuresRestantes = Math.round((candidats[k].heuresRestantes - hPrise) * 100) / 100;
         heuresPosees += hPrise;
