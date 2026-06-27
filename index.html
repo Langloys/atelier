@@ -493,6 +493,26 @@ async function loadFromSupabase() {
         if(row.key === 'planEvts' && row.data) planEvts = row.data;
       });
     }
+    // ── Migration : sessions pointant vers une activité disparue → remap par label ──
+    var activIdSet=new Set((activites||[]).map(function(a){return 'activ-'+a.id;}));
+    var labelToActivExId={};
+    (activites||[]).forEach(function(a){labelToActivExId[a.label]='activ-'+a.id;});
+    var sessionsMigrees=0;
+    sessions.forEach(function(s){
+      var exId=s.exId||'';
+      if(exId.indexOf('activ-')!==0)return;
+      if(activIdSet.has(exId))return;
+      var candidat=s.label?labelToActivExId[s.label]:null;
+      if(!candidat&&s.label){
+        var lSrc=s.label.replace(/^[^a-zA-ZÀ-ɏ]+/,'').trim();
+        Object.keys(labelToActivExId).forEach(function(lbl){
+          if(!candidat&&lbl.replace(/^[^a-zA-ZÀ-ɏ]+/,'').trim()===lSrc)candidat=labelToActivExId[lbl];
+        });
+      }
+      if(candidat){s.exId=candidat;s.activId=candidat.replace('activ-','');sbUpsert('sessions',String(s._id),s).catch(function(){});sessionsMigrees++;}
+    });
+    if(sessionsMigrees)console.log('Migration activites:',sessionsMigrees,'session(s) corrigee(s)');
+    // ──────────────────────────────────────────────────────────────────────────
     console.log('Chargé depuis Supabase:', oeuvres.length, 'oeuvres,', sessions.length, 'sessions');
     return true;
   } catch(e) {
@@ -6829,7 +6849,7 @@ renderToday();
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260626 - v37 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260627 - v38 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
