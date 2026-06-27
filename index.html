@@ -1401,6 +1401,12 @@ if(sessionStorage.getItem('at-pin-ok')==='1'){document.getElementById('pin-scree
           <label>Technique</label>
           <select id="ow-technique"></select>
         </div>
+        <div class="fg" style="justify-content:flex-end;align-items:center;min-width:auto;">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.82rem;color:var(--mid);white-space:nowrap;">
+            <input type="checkbox" id="ow-certificat" style="width:14px;height:14px;cursor:pointer;accent-color:var(--green);">
+            📜 Certificat fait
+          </label>
+        </div>
       </div>
     </div>
     <!-- Zone patine oeuvre -->
@@ -1516,6 +1522,12 @@ if(sessionStorage.getItem('at-pin-ok')==='1'){document.getElementById('pin-scree
         <div class="fg"><label>Fin</label><input type="date" id="ex-fin"></div>
       </div>
       <div class="fg"><label>Notes</label><textarea id="ex-notes" placeholder="Remarques…"></textarea></div>
+      <div class="fr" style="align-items:center;">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.82rem;color:var(--mid);">
+          <input type="checkbox" id="ex-certificat" style="width:14px;height:14px;cursor:pointer;accent-color:var(--green);">
+          📜 Certificat fait
+        </label>
+      </div>
       <div class="fg">
         <label>Photo</label>
         <div class="upload-zone" onclick="document.getElementById('ex-photo-f').click()">
@@ -3075,7 +3087,7 @@ function renderOeuvres(){
       var oRestantMin=o.estMin?o.estMin:null; // estMin = restant saisi directement
       var oStatut=o.statut||((o.actif===false||o.actif==='false')?'stock':'encours');
       var VSL_OW={encours:'En cours',stock:'En stock',commande:'Sur commande',vendu:'Vendu',collection:'Col. part.'};
-      html+='<div class="oc-id">'+typeEmoji(o.type)+' '+(o.num||'')+' · '+(TL[o.type]||o.type)+(o.technique?' · '+o.technique:'')+stars+(oTotalAvecBase?' · ⏱ '+fmtMin(oTotalAvecBase):'')
+      html+='<div class="oc-id">'+typeEmoji(o.type)+' '+(o.num||'')+' · '+(TL[o.type]||o.type)+(o.technique?' · '+o.technique:'')+stars+(oTotalAvecBase?' · ⏱ '+fmtMin(oTotalAvecBase):'')+(o.certificat?' <span title="Certificat fait" style="color:var(--green);">📜</span>':'')
         +(oStatut!=='encours'?' · <span style="color:var(--faint);font-size:.7em;">'+(VSL_OW[oStatut]||oStatut)+'</span>':'')
         +(o.lieu?' · 📍'+o.lieu:'')
       +'</div>';
@@ -3100,7 +3112,7 @@ function renderOeuvres(){
           var exStatutLabel=exStatut==='fonderie'?(e.fonderie||'Fonderie'):exStatut==='range'?(e.rangement||'Rangé'):(VSL[exStatut]||exStatut);
           var exStatusClass=exStatut==='encours'?'encours':exStatut==='range'?'range':exStatut==='vendu'||exStatut==='collection'?'archive':'termine';
           html+='<div style="flex:1;min-width:0;overflow:hidden;">';
-          html+='<span class="ex-mat">'+(e.mat||'—')+'</span> <span class="ex-num">'+shortSuf(e.num)+' · '+(e.exId||'')+(e.lieu?' 📍'+e.lieu:'')+fondLbl+'</span>';
+          html+='<span class="ex-mat">'+(e.mat||'—')+'</span> <span class="ex-num">'+shortSuf(e.num)+' · '+(e.exId||'')+(e.lieu?' 📍'+e.lieu:'')+fondLbl+(e.certificat?' <span title="Certificat fait" style="color:var(--green);font-size:.7rem;">📜</span>':'')+'</span>';
           html+='<div style="display:flex;align-items:center;gap:6px;margin-top:2px;">';
           html+='<span class="ex-status s-'+exStatusClass+'">'+exStatutLabel+'</span>';
           if(tmAvecBase) html+='<span class="ex-time">'+fmtMin(tmAvecBase)+'</span>';
@@ -3285,6 +3297,7 @@ function openEditOeuvre(oid){
   document.getElementById('ow-del-btn').style.display='inline-block';
   document.getElementById('ow-num').style.background='';
   document.getElementById('ow-num-hint').style.display='none';
+  document.getElementById('ow-certificat').checked=!!(o&&o.certificat);
 
   // Patine
   initPatineZoneOw(oid && oeuvres.find(function(x){return x._id===oid;}) ? oeuvres.find(function(x){return x._id===oid;}).patine||null : null);
@@ -3332,6 +3345,7 @@ function openAddOeuvre(){
   document.getElementById('ow-actif').value='encours';
   document.getElementById('ow-prix').value='';
   document.getElementById('ow-del-btn').style.display='none';
+  document.getElementById('ow-certificat').checked=false;
   tmpPhotoOw=null;
   document.getElementById('ow-prev').style.display='none';
   fillTypeSelects();
@@ -3380,7 +3394,8 @@ function saveOeuvre(){
     prix:parseFloat(document.getElementById('ow-prix').value)||null,
     dim:document.getElementById('ow-dim').value.trim(),
     photo:tmpPhotoOw||null,
-    technique:document.getElementById('ow-technique')?document.getElementById('ow-technique').value:''
+    technique:document.getElementById('ow-technique')?document.getElementById('ow-technique').value:'',
+    certificat:document.getElementById('ow-certificat').checked||false
   };
 
   // Si le numéro a changé sur une oeuvre existante → cascade sur exemplaires et sessions
@@ -3451,6 +3466,7 @@ function openAddEx(){
   document.getElementById('ex-prio').value='';document.getElementById('ex-id').value='';
   document.getElementById('ex-prev').style.display='none';
   document.getElementById('ex-del-btn').style.display='none';
+  document.getElementById('ex-certificat').checked=false;
   updateExParent(); // reconstruire le select avec toutes les oeuvres à jour
   document.getElementById('ex-parent').value='';
   openM('mo-ex');
@@ -3487,6 +3503,7 @@ function openEditEx(eid){
   document.getElementById('ex-notes').value=e.notes||'';
   document.getElementById('ex-debut').value=e.debut||'';
   document.getElementById('ex-fin').value=e.fin||'';
+  document.getElementById('ex-certificat').checked=!!(e&&e.certificat);
   document.getElementById('ex-id').value=e.exId||'';
   if(e.photo){document.getElementById('ex-prev').src=e.photo;document.getElementById('ex-prev').style.display='block';var b=document.getElementById('ex-photo-del');if(b)b.style.display='block';}
   else document.getElementById('ex-prev').style.display='none';
@@ -3722,7 +3739,8 @@ function saveEx(){
     notes:document.getElementById('ex-notes').value.trim(),
     debut:document.getElementById('ex-debut').value||null,
     fin:document.getElementById('ex-fin').value||null,
-    photo:tmpPhoto||(photoExDeleted?null:(editExId?exemplaires.find(x=>x._id===editExId)?.photo:null))
+    photo:tmpPhoto||(photoExDeleted?null:(editExId?exemplaires.find(x=>x._id===editExId)?.photo:null)),
+    certificat:document.getElementById('ex-certificat').checked||false
   };
   // Sauvegarder patine dans e avant insertion
   var patineData = getPatineFromForm();
@@ -6849,7 +6867,7 @@ renderToday();
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260627 - v38 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260627 - v39 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
