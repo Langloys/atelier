@@ -6867,7 +6867,7 @@ renderToday();
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260627 - v52 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260627 - v53 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -7491,6 +7491,11 @@ function renderPlanning(){
   // Lignes événements perso en premier
   _planEvtTips = {}; // réinitialiser les tooltips
   evtLignes.forEach(function(ligne){
+    // Ne pas afficher une ligne d'événements sans aucun événement dans la fenêtre affichée
+    var ligneVisible = ligne.some(function(evt){
+      return jourstAfficher.some(function(j){ return j.dateStr >= evt.debut && j.dateStr <= evt.fin; });
+    });
+    if(!ligneVisible) return;
     html+='<tr>';
     var evtSegmentDates = {};
     ligne.forEach(function(evt){
