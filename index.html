@@ -6867,7 +6867,7 @@ renderToday();
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260627 - v44 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260627 - v46 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -7271,7 +7271,6 @@ function planCalcul(){
   if(!queue.length) return {lignes:[], jours:[], maxJours:365*2};
 
   var SEP = 5; // jours de séparation entre deux projets sur une même ligne
-  var MAX_ACTIFS = 8; // max de lignes de travail simultanées visibles
   var totalH = queue.reduce(function(a,i){ return a+i.heures; },0);
   var maxJours = Math.max(365*2, totalH*2 + 200);
 
@@ -7280,20 +7279,22 @@ function planCalcul(){
   var fileAttente = queue.slice();
   var queueIdx = 0;
 
-  // Pré-remplir les premiers slots
-  function remplirSlots(ds){
-    // Compter les slots qui peuvent travailler aujourd'hui
-    var peutTravailler = slots.filter(function(s){
-      return s.heuresRestantes > 0.001 && s.sepRestante===0 && (!s._pasAvant||ds>=s._pasAvant);
-    }).length;
-    // Ajouter des slots si on peut en avoir plus
-    while(peutTravailler < MAX_ACTIFS && queueIdx < fileAttente.length){
+  // Charger des slots jusqu'à remplir les heures dispo de la journée
+  function remplirSlots(ds, heuresDejaPosees, dispo){
+    // On charge des slots tant qu'il reste des heures disponibles et des projets en attente
+    while(queueIdx < fileAttente.length){
+      // Vérifier s'il reste de la capacité (en heures) pour un slot de plus
+      var hActive = slots.filter(function(s){
+        return s.heuresRestantes > 0 && s.sepRestante===0 && (!s._pasAvant||ds>=s._pasAvant);
+      }).reduce(function(sum,s){ return sum + Math.min(1, s.heuresRestantes); }, 0);
+      if(heuresDejaPosees + hActive >= dispo && dispo > 0) break; // journée pleine
       var item = fileAttente[queueIdx++];
       slots.push({item:item, heuresRestantes:item.heures, sepRestante:0, segments:[], _pasAvant:item.pasAvant||null});
-      if(!item.pasAvant || ds >= item.pasAvant) peutTravailler++;
     }
   }
-  remplirSlots(TODAY);
+  // Pré-charger pour le premier jour (estimation)
+  var dispoPremierJour = planHeuresdispo(TODAY);
+  remplirSlots(TODAY, 0, dispoPremierJour);
 
   var jours = [];
   var d = new Date(TODAY+'T00:00:00');
@@ -7313,46 +7314,24 @@ function planCalcul(){
       // Distribuer jusqu'à dispo heures, en plaçant autant de slots que possible
       // Règle : max 1h par projet par jour, mais on remplit jusqu'aux 8h disponibles
       // Ex: 48 projets de 10min → 480min total → tiennent tous dans 8h
-      // Chaque slot ne peut avoir qu'UN segment par jour (pour l'espace label)
-      // Mais si un slot finit (< 1h restante), son slot peut être réutilisé le même jour
-      // pour un nouveau projet — sur la MÊME ligne visuelle
+      // Distribuer jusqu'à dispo heures — max 1h par slot par jour
+      // D'abord charger assez de slots pour remplir la journée
+      remplirSlots(ds, 0, dispo);
+      // Reconstruire candidats après chargement
+      candidats = slots.filter(function(s){
+        return s.heuresRestantes > 0 && s.sepRestante === 0 && (!s._pasAvant || ds >= s._pasAvant);
+      });
+      candidats.sort(function(a,b){ return a.heuresRestantes-b.heuresRestantes; });
       var heuresPosees = 0;
-      // Marquer les slots déjà utilisés aujourd'hui
-      slots.forEach(function(s){ s._utiliseCeJour = false; });
-      var sansProcres = false;
-      while(heuresPosees < dispo && !sansProcres){
-        var candidatsTour = slots.filter(function(s){
-          return s.heuresRestantes > 0 && s.sepRestante === 0
-            && !s._utiliseCeJour
-            && (!s._pasAvant || ds >= s._pasAvant);
-        });
-        candidatsTour.sort(function(a,b){ return a.heuresRestantes - b.heuresRestantes; });
-        if(!candidatsTour.length) break;
-        sansProcres = true;
-        for(var k=0; k<candidatsTour.length && heuresPosees < dispo; k++){
-          var hPrise = Math.min(1, candidatsTour[k].heuresRestantes, dispo - heuresPosees);
-          if(hPrise <= 0) continue;
-          candidatsTour[k].segments.push({dateStr:ds, color:candidatsTour[k].item.color, label:candidatsTour[k].item.label, _id:candidatsTour[k].item._id, itype:candidatsTour[k].item.type, heuresRestantes:candidatsTour[k].heuresRestantes});
-          candidatsTour[k].heuresRestantes = Math.round((candidatsTour[k].heuresRestantes - hPrise) * 100) / 100;
-          heuresPosees += hPrise;
-          sansProcres = false;
-          if(candidatsTour[k].heuresRestantes <= 0){
-            candidatsTour[k].heuresRestantes = 0;
-            // Recharger immédiatement ce slot pour le même jour si un projet attend
-            if(queueIdx < fileAttente.length){
-              var next = fileAttente[queueIdx++];
-              candidatsTour[k].item = next;
-              candidatsTour[k].heuresRestantes = next.heures;
-              candidatsTour[k].sepRestante = 0;
-              candidatsTour[k]._pasAvant = next.pasAvant||null;
-              // PAS marqué _utiliseCeJour → disponible au prochain tour de while
-            } else {
-              candidatsTour[k].sepRestante = SEP;
-              candidatsTour[k]._utiliseCeJour = true;
-            }
-          } else {
-            candidatsTour[k]._utiliseCeJour = true; // slot utilisé, pas rechargeable ce jour
-          }
+      for(var k=0; k<candidats.length && heuresPosees < dispo; k++){
+        var hPrise = Math.min(1, candidats[k].heuresRestantes, dispo - heuresPosees);
+        if(hPrise <= 0) continue;
+        candidats[k].segments.push({dateStr:ds, color:candidats[k].item.color, label:candidats[k].item.label, _id:candidats[k].item._id, itype:candidats[k].item.type, heuresRestantes:candidats[k].heuresRestantes});
+        candidats[k].heuresRestantes = Math.round((candidats[k].heuresRestantes - hPrise) * 100) / 100;
+        heuresPosees += hPrise;
+        if(candidats[k].heuresRestantes <= 0){
+          candidats[k].heuresRestantes = 0;
+          candidats[k].sepRestante = SEP;
         }
       }
 
@@ -7370,8 +7349,8 @@ function planCalcul(){
         }
       });
 
-      // Essayer d'ajouter de nouveaux slots si on a moins de MAX_ACTIFS actifs
-      remplirSlots(ds);
+      // Charger de nouveaux slots si besoin pour le lendemain
+      remplirSlots(ds, heuresPosees, dispo);
     } else {
       // Jour chômé : décrémenter quand même les séparations
       slots.forEach(function(s){
