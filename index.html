@@ -6867,7 +6867,7 @@ renderToday();
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260627 - v46 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260627 - v47 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -7292,9 +7292,7 @@ function planCalcul(){
       slots.push({item:item, heuresRestantes:item.heures, sepRestante:0, segments:[], _pasAvant:item.pasAvant||null});
     }
   }
-  // Pré-charger pour le premier jour (estimation)
-  var dispoPremierJour = planHeuresdispo(TODAY);
-  remplirSlots(TODAY, 0, dispoPremierJour);
+  // Pas de pré-chargement : les slots sont chargés dynamiquement jour par jour
 
   var jours = [];
   var d = new Date(TODAY+'T00:00:00');
