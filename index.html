@@ -6867,7 +6867,7 @@ renderToday();
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260627 - v54 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260630 - v55 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -6920,7 +6920,10 @@ function renderTemps(){
     // Champs contextuels selon statut
     if(item.type==='ex'||item.type==='oeuvre'){
       if(item.statut==='fonderie'){
-        r+='<br><input type="text" class="temps-input" style="width:90px;margin-top:3px;" list="fonderies-list" placeholder="Fonderie…" value="'+(item.fonderie||'')+'" onchange="saveTempsFounderie2(\''+item._id+'\',\''+item.type+'\',this.value)">';
+        r+='<br><select class="temps-input" style="width:90px;margin-top:3px;" onchange="saveTempsFounderie2(\''+item._id+'\',\''+item.type+'\',this.value)">';
+        r+='<option value=""'+(!item.fonderie?' selected':'')+'>—</option>';
+        (fonderies||[]).forEach(function(f){ r+='<option value="'+f+'"'+(item.fonderie===f?' selected':'')+'>'+f+'</option>'; });
+        r+='</select>';
       } else if(item.statut==='range'){
         r+='<br><input type="text" class="temps-input" style="width:90px;margin-top:3px;" list="rangements-list" placeholder="Emplacement…" value="'+(item.rangement||'')+'" onchange="saveTempsRangement2(\''+item._id+'\',\''+item.type+'\',this.value)">';
       } else if(item.statut==='galerie'){
@@ -7107,7 +7110,22 @@ function saveTempsStatut(id, type, val, sel){
       inp.setAttribute('onchange',saveFn+'(\''+id+'\',\''+type+'\',this.value)');
       td.appendChild(br); td.appendChild(inp);
     };
-    if(val==='fonderie') addCtxField('fonderies-list','Fonderie…','saveTempsFounderie2',item2&&item2.fonderie);
+    var addCtxSelect=function(options,saveFn,curVal){
+      var br=document.createElement('br');
+      var sel2=document.createElement('select');
+      sel2.className='temps-input'; sel2.style.width='90px'; sel2.style.marginTop='3px';
+      var optEmpty=document.createElement('option'); optEmpty.value=''; optEmpty.textContent='—';
+      if(!curVal) optEmpty.selected=true;
+      sel2.appendChild(optEmpty);
+      (options||[]).forEach(function(o){
+        var opt=document.createElement('option'); opt.value=o; opt.textContent=o;
+        if(curVal===o) opt.selected=true;
+        sel2.appendChild(opt);
+      });
+      sel2.setAttribute('onchange',saveFn+'(\''+id+'\',\''+type+'\',this.value)');
+      td.appendChild(br); td.appendChild(sel2);
+    };
+    if(val==='fonderie') addCtxSelect(fonderies, 'saveTempsFounderie2', item2&&item2.fonderie);
     else if(val==='range') addCtxField('rangements-list','Emplacement…','saveTempsRangement2',item2&&item2.rangement);
     else if(val==='galerie') addCtxField('galeries-list','Galerie…','saveTempsGalerie2',item2&&item2.galerie);
   }
