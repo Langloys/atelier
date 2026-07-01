@@ -986,6 +986,14 @@ if(sessionStorage.getItem('at-pin-ok')==='1'){document.getElementById('pin-scree
           Afficher les dimensions
         </label>
         <label style="font-size:.78rem;color:var(--mid);display:flex;align-items:center;gap:6px;cursor:pointer;">
+          <input type="checkbox" id="export-show-poids" style="accent-color:var(--gold);">
+          Afficher le poids
+        </label>
+        <label style="font-size:.78rem;color:var(--mid);display:flex;align-items:center;gap:6px;cursor:pointer;">
+          <input type="checkbox" id="export-show-cire" style="accent-color:var(--gold);">
+          Afficher le poids de cire
+        </label>
+        <label style="font-size:.78rem;color:var(--mid);display:flex;align-items:center;gap:6px;cursor:pointer;">
           <input type="checkbox" id="export-show-prix" style="accent-color:var(--gold);">
           Afficher le prix
         </label>
@@ -1454,6 +1462,8 @@ if(sessionStorage.getItem('at-pin-ok')==='1'){document.getElementById('pin-scree
       </div>
       <div class="fr">
         <div class="fg"><label>Dimensions (cm)</label><input type="text" id="ow-dim" placeholder="H×L×P"></div>
+        <div class="fg"><label>Poids (kg)</label><input type="number" id="ow-poids" placeholder="0.0" min="0" step="0.01"></div>
+        <div class="fg"><label>Poids cire (kg)</label><input type="number" id="ow-poids-cire" placeholder="0.0" min="0" step="0.01"></div>
         <div class="fg" id="ow-technique-zone" style="display:none;">
           <label>Technique</label>
           <select id="ow-technique"></select>
@@ -1580,6 +1590,7 @@ if(sessionStorage.getItem('at-pin-ok')==='1'){document.getElementById('pin-scree
       </div>
       <div class="fr">
         <div class="fg"><label>Dimensions (cm)</label><input type="text" id="ex-dim" placeholder="H×L×P" title="Hérité de l'œuvre — modifiable si différent"></div>
+        <div class="fg"><label>Poids (kg)</label><input type="number" id="ex-poids" placeholder="0.0" min="0" step="0.01" title="Poids propre à cet exemplaire"></div>
       </div>
       <div class="fg"><label>Notes</label><textarea id="ex-notes" placeholder="Remarques…"></textarea></div>
       <div class="fr" style="align-items:center;">
@@ -3350,6 +3361,8 @@ function openEditOeuvre(oid){
   document.getElementById('ow-est').value=o.estMin?(o.estMin/60).toFixed(1).replace(/\.0$/,''):'';
   document.getElementById('ow-avant-base').value=o.avantBase?(o.avantBase/60).toFixed(1).replace(/\.0$/,''):'';
   document.getElementById('ow-dim').value=o.dim||'';
+  document.getElementById('ow-poids').value=o.poids||'';
+  document.getElementById('ow-poids-cire').value=o.poidsCire||'';
   tmpPhotoOw=o.photo||null;
   if(o.photo){document.getElementById('ow-prev').src=o.photo;document.getElementById('ow-prev').style.display='block';var b=document.getElementById('ow-photo-del');if(b)b.style.display='block';}
   else{document.getElementById('ow-prev').style.display='none';var b=document.getElementById('ow-photo-del');if(b)b.style.display='none';}
@@ -3401,7 +3414,7 @@ function openAddOeuvre(){
   initPatineZoneOw(null); renderCouchesPatineOwDirect();
   var owStats2=document.getElementById('ow-stats-bloc'); if(owStats2){owStats2.style.display='none';owStats2.innerHTML='';}
   document.getElementById('mo-oeuvre-title').textContent='Nouvelle œuvre';
-  ['ow-nom','ow-num','ow-desc','ow-dim','ow-lieu','ow-est','ow-avant-base','ow-rangement','ow-galerie-nom','ow-fonderie','ow-depot','ow-retour'].forEach(function(i){document.getElementById(i).value='';});
+  ['ow-nom','ow-num','ow-desc','ow-dim','ow-poids','ow-poids-cire','ow-lieu','ow-est','ow-avant-base','ow-rangement','ow-galerie-nom','ow-fonderie','ow-depot','ow-retour'].forEach(function(i){document.getElementById(i).value='';});
   document.getElementById('ow-type').value='BUSTE';
   document.getElementById('ow-prio').value='';
   document.getElementById('ow-actif').value='encours';
@@ -3455,6 +3468,8 @@ function saveOeuvre(){
     desc:document.getElementById('ow-desc').value.trim(),
     prix:parseFloat(document.getElementById('ow-prix').value)||null,
     dim:document.getElementById('ow-dim').value.trim(),
+    poids:parseFloat(document.getElementById('ow-poids').value)||null,
+    poidsCire:parseFloat(document.getElementById('ow-poids-cire').value)||null,
     photo:tmpPhotoOw||null,
     technique:document.getElementById('ow-technique')?document.getElementById('ow-technique').value:'',
     certificat:document.getElementById('ow-certificat').checked||false
@@ -3465,6 +3480,7 @@ function saveOeuvre(){
     var ancienne = oeuvres.find(function(x){return x._id===editOeuvreId;});
     var ancienNum = ancienne ? ancienne.num : null;
     var ancienDim = ancienne ? ancienne.dim : null;
+    var ancienPoidsCire = ancienne ? ancienne.poidsCire : null;
     if(ancienNum && ancienNum !== newNum){
       exemplaires.filter(function(e){return e.oeuvreId===editOeuvreId;}).forEach(function(e){
         if(e.exId && e.exId.startsWith(ancienNum)) e.exId = newNum + e.exId.slice(ancienNum.length);
@@ -3473,10 +3489,13 @@ function saveOeuvre(){
         if(s.label && s.label.includes(ancienNum)) s.label = s.label.replace(ancienNum, newNum);
       });
     }
-    // Propager les dimensions à tous les exemplaires si elles ont changé
-    if(o.dim !== ancienDim){
+    // Propager les dimensions et le poids de cire à tous les exemplaires si changés
+    var dimChanged = o.dim !== ancienDim;
+    var cireChanged = o.poidsCire !== ancienPoidsCire;
+    if(dimChanged || cireChanged){
       exemplaires.filter(function(e){return e.oeuvreId===editOeuvreId;}).forEach(function(e){
-        e.dim = o.dim||null;
+        if(dimChanged) e.dim = o.dim||null;
+        if(cireChanged) e.poidsCire = o.poidsCire||null;
         sbSaveEx(e);
       });
     }
@@ -3528,7 +3547,7 @@ function openAddEx(){
   var exSB=document.getElementById('ex-stats-bloc');if(exSB){exSB.style.display='none';exSB.innerHTML='';}
   initPatineZone(null);
   document.getElementById('mo-ex-title').textContent='Nouvel exemplaire';
-  ['ex-prix','ex-enc','ex-frais','ex-est','ex-avant-base','ex-notes','ex-debut','ex-fin','ex-fonderie','ex-depot','ex-retour','ex-rangement','ex-galerie-nom','ex-dim'].forEach(i=>document.getElementById(i).value='');
+  ['ex-prix','ex-enc','ex-frais','ex-est','ex-avant-base','ex-notes','ex-debut','ex-fin','ex-fonderie','ex-depot','ex-retour','ex-rangement','ex-galerie-nom','ex-dim','ex-poids'].forEach(i=>document.getElementById(i).value='');
   document.getElementById('ex-vente').value='encours';
   document.getElementById('ex-fonderie-zone').style.display='none';
   fillMatiereSelect('');
@@ -3549,6 +3568,7 @@ function openAddExFor(oid){
   // Pré-remplir les dimensions depuis l'oeuvre parente
   var oParent=oeuvres.find(function(x){return x._id===oid;});
   if(oParent&&oParent.dim) document.getElementById('ex-dim').value=oParent.dim;
+  if(oParent&&oParent.poidsCire) document.getElementById('ex-poids').value=oParent.poidsCire;
 }
 function openEditEx(eid){
   const e=exemplaires.find(x=>x._id===eid);if(!e)return;
@@ -3579,6 +3599,7 @@ function openEditEx(eid){
   // Dimensions : propres à l'exemplaire si présentes, sinon celles de l'oeuvre parente
   var oParent2=oeuvres.find(function(x){return x._id===e.oeuvreId;});
   document.getElementById('ex-dim').value=e.dim||(oParent2&&oParent2.dim)||'';
+  document.getElementById('ex-poids').value=e.poids||'';
   document.getElementById('ex-certificat').checked=!!(e&&e.certificat);
   document.getElementById('ex-id').value=e.exId||'';
   if(e.photo){document.getElementById('ex-prev').src=e.photo;document.getElementById('ex-prev').style.display='block';var b=document.getElementById('ex-photo-del');if(b)b.style.display='block';}
@@ -3816,6 +3837,7 @@ function saveEx(){
     debut:document.getElementById('ex-debut').value||null,
     fin:document.getElementById('ex-fin').value||null,
     dim:document.getElementById('ex-dim').value.trim()||null,
+    poids:parseFloat(document.getElementById('ex-poids').value)||null,
     photo:tmpPhoto||(photoExDeleted?null:(editExId?exemplaires.find(x=>x._id===editExId)?.photo:null)),
     certificat:document.getElementById('ex-certificat').checked||false
   };
@@ -7008,9 +7030,11 @@ function genererPlanchePDF(){
   var sel = oeuvres.filter(function(o){ return _exportSel.has(o._id); });
   if(!sel.length){ alert('Sélectionne au moins une œuvre.'); return; }
 
-  var showNum  = document.getElementById('export-show-num').checked;
-  var showDim  = document.getElementById('export-show-dim').checked;
-  var showPrix = document.getElementById('export-show-prix').checked;
+  var showNum   = document.getElementById('export-show-num').checked;
+  var showDim   = document.getElementById('export-show-dim').checked;
+  var showPoids = document.getElementById('export-show-poids').checked;
+  var showCire  = document.getElementById('export-show-cire').checked;
+  var showPrix  = document.getElementById('export-show-prix').checked;
 
   var status = document.getElementById('export-status');
   status.style.display = 'block';
@@ -7103,6 +7127,24 @@ function genererPlanchePDF(){
           ty += 3.5;
         }
 
+        // Poids
+        if(showPoids && o.poids){
+          doc.setFont('helvetica','normal');
+          doc.setFontSize(7);
+          doc.setTextColor(138,130,120);
+          doc.text(o.poids + ' kg', cx + (colW-4)/2, ty, {align:'center'});
+          ty += 3.5;
+        }
+
+        // Poids de cire
+        if(showCire && o.poidsCire){
+          doc.setFont('helvetica','normal');
+          doc.setFontSize(7);
+          doc.setTextColor(160,140,100);
+          doc.text('Cire : ' + o.poidsCire + ' kg', cx + (colW-4)/2, ty, {align:'center'});
+          ty += 3.5;
+        }
+
         // Prix
         if(showPrix && o.prix){
           doc.setFont('helvetica','normal');
@@ -7183,7 +7225,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260701 - v58 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260701 - v59 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
