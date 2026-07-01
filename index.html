@@ -1463,7 +1463,7 @@ if(sessionStorage.getItem('at-pin-ok')==='1'){document.getElementById('pin-scree
       <div class="fr">
         <div class="fg"><label>Dimensions (cm)</label><input type="text" id="ow-dim" placeholder="H×L×P"></div>
         <div class="fg"><label>Poids (kg)</label><input type="number" id="ow-poids" placeholder="0.0" min="0" step="0.01"></div>
-        <div class="fg"><label>Poids cire (kg)</label><input type="number" id="ow-poids-cire" placeholder="0.0" min="0" step="0.01"></div>
+        <div class="fg"><label>Poids cire (g)</label><input type="number" id="ow-poids-cire" placeholder="0" min="0" step="1"></div>
         <div class="fg" id="ow-technique-zone" style="display:none;">
           <label>Technique</label>
           <select id="ow-technique"></select>
@@ -7141,7 +7141,7 @@ function genererPlanchePDF(){
           doc.setFont('helvetica','normal');
           doc.setFontSize(7);
           doc.setTextColor(160,140,100);
-          doc.text('Cire : ' + o.poidsCire + ' kg', cx + (colW-4)/2, ty, {align:'center'});
+          doc.text('Cire : ' + o.poidsCire + ' g', cx + (colW-4)/2, ty, {align:'center'});
           ty += 3.5;
         }
 
@@ -7225,7 +7225,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260701 - v59 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260701 - v60 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
