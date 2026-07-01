@@ -1521,6 +1521,9 @@ if(sessionStorage.getItem('at-pin-ok')==='1'){document.getElementById('pin-scree
         <div class="fg"><label>Début</label><input type="date" id="ex-debut"></div>
         <div class="fg"><label>Fin</label><input type="date" id="ex-fin"></div>
       </div>
+      <div class="fr">
+        <div class="fg"><label>Dimensions (cm)</label><input type="text" id="ex-dim" placeholder="H×L×P" title="Hérité de l'œuvre — modifiable si différent"></div>
+      </div>
       <div class="fg"><label>Notes</label><textarea id="ex-notes" placeholder="Remarques…"></textarea></div>
       <div class="fr" style="align-items:center;">
         <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.82rem;color:var(--mid);">
@@ -3402,12 +3405,20 @@ function saveOeuvre(){
   if(editOeuvreId){
     var ancienne = oeuvres.find(function(x){return x._id===editOeuvreId;});
     var ancienNum = ancienne ? ancienne.num : null;
+    var ancienDim = ancienne ? ancienne.dim : null;
     if(ancienNum && ancienNum !== newNum){
       exemplaires.filter(function(e){return e.oeuvreId===editOeuvreId;}).forEach(function(e){
         if(e.exId && e.exId.startsWith(ancienNum)) e.exId = newNum + e.exId.slice(ancienNum.length);
       });
       sessions.filter(function(s){return s.exId===editOeuvreId;}).forEach(function(s){
         if(s.label && s.label.includes(ancienNum)) s.label = s.label.replace(ancienNum, newNum);
+      });
+    }
+    // Propager les dimensions à tous les exemplaires si elles ont changé
+    if(o.dim !== ancienDim){
+      exemplaires.filter(function(e){return e.oeuvreId===editOeuvreId;}).forEach(function(e){
+        e.dim = o.dim||null;
+        sbSaveEx(e);
       });
     }
     const i=oeuvres.findIndex(x=>x._id===editOeuvreId);oeuvres[i]=o;
@@ -3458,7 +3469,7 @@ function openAddEx(){
   var exSB=document.getElementById('ex-stats-bloc');if(exSB){exSB.style.display='none';exSB.innerHTML='';}
   initPatineZone(null);
   document.getElementById('mo-ex-title').textContent='Nouvel exemplaire';
-  ['ex-prix','ex-enc','ex-frais','ex-est','ex-avant-base','ex-notes','ex-debut','ex-fin','ex-fonderie','ex-depot','ex-retour','ex-rangement','ex-galerie-nom'].forEach(i=>document.getElementById(i).value='');
+  ['ex-prix','ex-enc','ex-frais','ex-est','ex-avant-base','ex-notes','ex-debut','ex-fin','ex-fonderie','ex-depot','ex-retour','ex-rangement','ex-galerie-nom','ex-dim'].forEach(i=>document.getElementById(i).value='');
   document.getElementById('ex-vente').value='encours';
   document.getElementById('ex-fonderie-zone').style.display='none';
   fillMatiereSelect('');
@@ -3476,6 +3487,9 @@ function openAddExFor(oid){
   document.getElementById('ex-parent').value=oid;
   fillMatiereSelect('');
   updateExId();
+  // Pré-remplir les dimensions depuis l'oeuvre parente
+  var oParent=oeuvres.find(function(x){return x._id===oid;});
+  if(oParent&&oParent.dim) document.getElementById('ex-dim').value=oParent.dim;
 }
 function openEditEx(eid){
   const e=exemplaires.find(x=>x._id===eid);if(!e)return;
@@ -3503,6 +3517,9 @@ function openEditEx(eid){
   document.getElementById('ex-notes').value=e.notes||'';
   document.getElementById('ex-debut').value=e.debut||'';
   document.getElementById('ex-fin').value=e.fin||'';
+  // Dimensions : propres à l'exemplaire si présentes, sinon celles de l'oeuvre parente
+  var oParent2=oeuvres.find(function(x){return x._id===e.oeuvreId;});
+  document.getElementById('ex-dim').value=e.dim||(oParent2&&oParent2.dim)||'';
   document.getElementById('ex-certificat').checked=!!(e&&e.certificat);
   document.getElementById('ex-id').value=e.exId||'';
   if(e.photo){document.getElementById('ex-prev').src=e.photo;document.getElementById('ex-prev').style.display='block';var b=document.getElementById('ex-photo-del');if(b)b.style.display='block';}
@@ -3739,6 +3756,7 @@ function saveEx(){
     notes:document.getElementById('ex-notes').value.trim(),
     debut:document.getElementById('ex-debut').value||null,
     fin:document.getElementById('ex-fin').value||null,
+    dim:document.getElementById('ex-dim').value.trim()||null,
     photo:tmpPhoto||(photoExDeleted?null:(editExId?exemplaires.find(x=>x._id===editExId)?.photo:null)),
     certificat:document.getElementById('ex-certificat').checked||false
   };
@@ -6867,7 +6885,7 @@ renderToday();
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260630 - v56 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260701 - v57 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
