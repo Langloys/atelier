@@ -3009,6 +3009,7 @@ function renderFonderies(){
         if(o2){var tm2=oeuvreSess(o2).reduce(function(a,s){return a+(s.dur||0);},0)+(o2.avantBase||0);if(tm2>0)tempsPasse=' · ⏱ '+fmtMin(tm2);}
       }
       html+='<div class="stock-row" onclick="'+onclick+'" style="margin-bottom:4px;cursor:pointer;">';
+      html+='<input type="checkbox" class="fond-chk" checked value="'+item._id+'" data-isoeuvre="'+(item.isOeuvre?'1':'0')+'" onclick="event.stopPropagation()" style="width:16px;height:16px;flex-shrink:0;accent-color:var(--gold);margin-right:2px;">';
       html+='<div class="stock-thumb">'+(item.photo?'<img src="'+item.photo+'">':'🏺')+'</div>';
       html+='<div class="stock-info"><div class="stock-code">'+item.label+tempsPasse+'</div>';
       html+='<div class="stock-nom">'+item.nom+'</div>';
@@ -3021,9 +3022,74 @@ function renderFonderies(){
       html+='</select>';
       html+='</div></div>';
     });
+    // ── Bloc "session groupée" pour toute la fonderie ──
+    var actUnion=[];
+    items.forEach(function(it){
+      getActionsListForId(it._id).forEach(function(a){ if(actUnion.indexOf(a)<0) actUnion.push(a); });
+    });
+    var defaultAct = actUnion.indexOf('Cire')>=0 ? 'Cire' : (actUnion[0]||'');
+    html+='<div id="fond-batch-'+safeId+'" style="margin-top:10px;padding:10px 12px;border-top:1px dashed var(--border);background:var(--off);border-radius:6px;">';
+    html+='<div style="font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);font-weight:600;margin-bottom:8px;">⏱ Ajouter une session groupée <span style="text-transform:none;font-weight:400;">(répartie sur les pièces cochées ci-dessus)</span></div>';
+    html+='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">';
+    html+='<div class="fg"><label style="font-size:.65rem;">Date</label><input type="date" id="fond-batch-date-'+safeId+'" value="'+today+'" style="width:130px;"></div>';
+    html+='<div class="fg"><label style="font-size:.65rem;">Action</label><select id="fond-batch-action-'+safeId+'" style="width:130px;">';
+    actUnion.forEach(function(a){ html+='<option value="'+a+'"'+(a===defaultAct?' selected':'')+'>'+a+'</option>'; });
+    html+='</select></div>';
+    html+='<div class="fg"><label style="font-size:.65rem;">Durée totale (min)</label><input type="number" id="fond-batch-dur-'+safeId+'" min="1" placeholder="30" style="width:90px;"></div>';
+    html+='<div class="fg" style="flex:1;min-width:140px;"><label style="font-size:.65rem;">Commentaire</label><input type="text" id="fond-batch-com-'+safeId+'" placeholder="Note (optionnel)…" style="width:100%;"></div>';
+    html+='<div style="display:flex;gap:6px;">';
+    html+='<button type="button" class="btn btn-sm" onclick="event.stopPropagation();fondBatchToggleAll(\''+safeId+'\',true)">Tout cocher</button>';
+    html+='<button type="button" class="btn btn-sm" onclick="event.stopPropagation();fondBatchToggleAll(\''+safeId+'\',false)">Tout décocher</button>';
+    html+='<button type="button" class="btn btn-primary btn-sm" onclick="event.stopPropagation();addFonderieGroupSession(\''+safeId+'\',\''+fondNom.replace(/\'/g,"\\\'")+'\')">+ Ajouter</button>';
+    html+='</div></div></div>';
     html+='</div></div>';
   });
   zone.innerHTML=html;
+}
+
+function fondBatchToggleAll(safeId, val){
+  var wrap=document.getElementById('fond-batch-'+safeId);
+  if(!wrap) return;
+  var group=wrap.closest('.fond-group');
+  if(!group) return;
+  group.querySelectorAll('.fond-chk').forEach(function(cb){ cb.checked=val; });
+}
+
+function addFonderieGroupSession(safeId, fondNom){
+  var wrap=document.getElementById('fond-batch-'+safeId);
+  if(!wrap) return;
+  var group=wrap.closest('.fond-group');
+  var checked=group?Array.from(group.querySelectorAll('.fond-chk:checked')):[];
+  if(!checked.length){ alert('Coche au moins une pièce.'); return; }
+  var dur=parseInt(document.getElementById('fond-batch-dur-'+safeId).value)||0;
+  if(!dur){ alert('Indique une durée totale.'); return; }
+  var action=document.getElementById('fond-batch-action-'+safeId).value;
+  if(!action){ alert('Choisis une action.'); return; }
+  var date=document.getElementById('fond-batch-date-'+safeId).value||TODAY;
+  var com=(document.getElementById('fond-batch-com-'+safeId)||{value:''}).value.trim();
+  var durPerItem=Math.round(dur/checked.length);
+  checked.forEach(function(cb,idx){
+    var id=cb.value;
+    var isOeuvre=cb.getAttribute('data-isoeuvre')==='1';
+    var label=id;
+    if(isOeuvre){
+      var o=oeuvres.find(function(x){return x._id===id;});
+      if(o) label=o.num+' — '+(o.nom||o.num);
+    } else {
+      var e=exemplaires.find(function(x){return x._id===id;});
+      if(e){
+        var o2=oeuvres.find(function(x){return x._id===e.oeuvreId;});
+        label=e.exId+' — '+(o2?(o2.nom||o2.num):'?')+(e.fonderie?' ['+e.fonderie+']':'');
+      }
+    }
+    var itemDur=(idx===checked.length-1) ? dur - durPerItem*(checked.length-1) : durPerItem;
+    var _ns={_id:Date.now()+idx,date:date,exId:id,projetId:null,activId:null,label:label,action:action,dur:itemDur,com:com,createdAt:(function(){var n=new Date();return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0')+' '+String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');})()};
+    sessions.push(_ns);
+    sbSaveSession(_ns);
+  });
+  updateCounts();
+  renderFonderies();
+  alert(checked.length+' session(s) ajoutée(s) pour '+fondNom+' — '+fmtMin(dur)+' réparties.');
 }
 
 function toggleFondGroup(header){
@@ -7225,7 +7291,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260701 - v60 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260709 - v61 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
