@@ -7360,7 +7360,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260709 - v80 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260709 - v81 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -7733,7 +7733,6 @@ function dpSyncEvtBlock(evtId){
   } else {
     dayPlan.blocks.push({id:bId, type:'rdv', label:evt.label, start:start, dur:dur, fixed:isFixed, color:evt.color||'#7a8ba6', done:false, refId:evtId});
   }
-  dpResolveOverlaps();
   dpSaveRemote();
 }
 
@@ -8049,7 +8048,6 @@ function renderPlanningJour(){
     dayPlan = dpBuildAuto();
     dpSaveRemote();
   }
-  dpResolveOverlaps();
   var totalPx = ((DP_END-DP_START)/DP_SLOT)*DP_PXSLOT;
 
   var html = '<div>';
@@ -8129,7 +8127,6 @@ function dpToggleFixed(id){
   var b = dayPlan.blocks.find(function(x){return x.id===id;});
   if(!b) return;
   b.fixed = !b.fixed;
-  dpResolveOverlaps();
   dpSaveRemote();
   renderPlanningJour();
 }
@@ -8170,7 +8167,6 @@ function dpStartDrag(ev, id){
   function onUp(){
     document.removeEventListener('pointermove', onMove);
     document.removeEventListener('pointerup', onUp);
-    dpResolveOverlaps();
     dpSyncRdvToEvt(b);
     dpSaveRemote();
     renderPlanningJour();
@@ -8298,7 +8294,6 @@ function dpConfirmQuickAdd(){
     return;
   }
   dayPlan.blocks.push(block);
-  dpResolveOverlaps();
   dpSaveRemote();
   closeM('mo-dp-quickadd');
   renderPlanningJour();
