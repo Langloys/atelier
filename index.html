@@ -1070,7 +1070,10 @@ function doLogout(){
   <div class="modal" style="max-width:340px;">
     <div class="mh"><h2>Ajouter à <span id="dp-qa-heure"></span></h2><button class="mc" onclick="closeM('mo-dp-quickadd')">×</button></div>
     <div class="mb">
-      <div class="fg"><label>Quoi ?</label><input type="text" id="dp-qa-label" placeholder="Pause déjeuner, Trajet fonderie, Appel client…"></div>
+      <div class="fg"><label>Quoi ?</label>
+        <select id="dp-qa-select" onchange="dpQaSelectChange()"></select>
+        <input type="text" id="dp-qa-label" placeholder="Précise ce que c'est…" style="margin-top:6px;display:none;">
+      </div>
       <div class="fg"><label>Durée (min)</label><input type="number" id="dp-qa-dur" value="30" min="5" step="5"></div>
     </div>
     <div class="mfoot" style="display:flex;justify-content:flex-end;gap:8px;">
@@ -7352,7 +7355,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260709 - v67 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260709 - v69 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -8001,7 +8004,9 @@ function renderPlanningJour(){
     if(!b.fixed && !b.done) html += '<div class="dp-resize" data-id="'+b.id+'" style="position:absolute;left:0;right:0;bottom:0;height:6px;cursor:ns-resize;"></div>';
     html += '</div>';
   });
-  html += '</div></div>';
+  html += '</div>';
+  html += '<div style="text-align:center;margin-top:10px;"><button class="btn btn-sm" onclick="dpResetAuto()" style="color:var(--faint);">↺ Réinitialiser la journée</button></div>';
+  html += '</div>';
 
   html += '<div style="width:190px;flex-shrink:0;">';
   html += '<div style="font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);font-weight:600;margin-bottom:8px;">🗂 À caser</div>';
@@ -8014,8 +8019,6 @@ function renderPlanningJour(){
   poolTasks.forEach(function(t){
     html += '<div class="dp-pool-chip" data-taskid="'+t._id+'" data-label="'+t.texte.replace(/"/g,'&quot;')+'" style="background:var(--w);border:1px solid var(--border);border-left:3px solid #c9a876;border-radius:4px;padding:6px 8px;margin-bottom:6px;font-size:.72rem;cursor:grab;">'+t.texte+(t.echeance?'<div style="font-size:.62rem;color:var(--faint);margin-top:2px;">📅 '+fmtShort(t.echeance)+'</div>':'')+'</div>';
   });
-  html += '<button class="btn btn-sm" style="width:100%;margin-top:8px;" onclick="dpAddCustomBlock()">+ Bloc libre</button>';
-  html += '<button class="btn btn-sm" style="width:100%;margin-top:6px;" onclick="dpResetAuto()">↺ Réinitialiser</button>';
   html += '</div></div>';
 
   wrap.innerHTML = html;
@@ -8130,32 +8133,93 @@ function dpGridClick(ev){
   start = Math.max(DP_START, Math.min(start, DP_END-15));
   dpOpenQuickAdd(start);
 }
+function dpTodayScheduledItems(){
+  // Œuvres / exemplaires / projets que l'algo de planning a programmés aujourd'hui
+  try{
+    var result = planCalcul();
+    var out = [], seen = {};
+    (result.lignes||[]).forEach(function(l){
+      (l.segments||[]).forEach(function(seg){
+        if(seg.dateStr===TODAY && !seen[seg.itype+'|'+seg._id]){
+          seen[seg.itype+'|'+seg._id]=true;
+          out.push({id:seg._id, itype:seg.itype, label:seg.label});
+        }
+      });
+    });
+    return out;
+  }catch(e){ return []; }
+}
+function dpBuildQaOptions(){
+  var sel = document.getElementById('dp-qa-select');
+  if(!sel) return;
+  var html = '<option value="trajet">🚗 Trajet</option>';
+  var todayItems = dpTodayScheduledItems();
+  if(todayItems.length){
+    html += '<optgroup label="Programmé aujourd\'hui">';
+    todayItems.forEach(function(it){
+      html += '<option value="item|'+it.itype+'|'+it.id+'">'+it.label+'</option>';
+    });
+    html += '</optgroup>';
+  }
+  var freeTasks = (taches||[]).filter(function(t){ return !t.done && !t.echeance; });
+  if(freeTasks.length){
+    html += '<optgroup label="Tâches sans date">';
+    freeTasks.forEach(function(t){
+      html += '<option value="tache|'+t._id+'">'+t.texte.replace(/</g,'&lt;')+'</option>';
+    });
+    html += '</optgroup>';
+  }
+  html += '<option value="autre">✏️ Autre…</option>';
+  sel.innerHTML = html;
+  sel.value = 'trajet';
+  dpQaSelectChange();
+}
+function dpQaSelectChange(){
+  var sel = document.getElementById('dp-qa-select');
+  var txt = document.getElementById('dp-qa-label');
+  if(!sel || !txt) return;
+  if(sel.value==='autre'){ txt.style.display=''; txt.value=''; setTimeout(function(){txt.focus();},60); }
+  else { txt.style.display='none'; }
+}
 function dpOpenQuickAdd(start){
   _dpQuickAddStart = start;
   document.getElementById('dp-qa-heure').textContent = dpMinToStr(start);
-  document.getElementById('dp-qa-label').value='';
   document.getElementById('dp-qa-dur').value='30';
+  dpBuildQaOptions();
   openM('mo-dp-quickadd');
-  setTimeout(function(){ var el=document.getElementById('dp-qa-label'); if(el) el.focus(); }, 60);
 }
 function dpConfirmQuickAdd(){
-  var label = document.getElementById('dp-qa-label').value.trim();
-  if(!label){ alert('Indique un nom pour ce créneau.'); return; }
+  var sel = document.getElementById('dp-qa-select');
+  var val = sel.value;
   var dur = parseInt(document.getElementById('dp-qa-dur').value)||30;
   var start = (_dpQuickAddStart!==null) ? _dpQuickAddStart : DP_START;
   start = Math.min(start, DP_END-dur);
-  dayPlan.blocks.push({id:'custom-'+Date.now(), type:'custom', label:label, start:start, dur:dur, fixed:false, color:'#a89bc9', done:false, refId:null});
+  var block;
+  if(val==='trajet'){
+    block = {id:'custom-'+Date.now(), type:'custom', label:'🚗 Trajet', start:start, dur:dur, fixed:false, color:'#a89bc9', done:false, refId:null};
+  } else if(val==='autre'){
+    var label = document.getElementById('dp-qa-label').value.trim();
+    if(!label){ alert('Indique un nom pour ce créneau.'); return; }
+    block = {id:'custom-'+Date.now(), type:'custom', label:label, start:start, dur:dur, fixed:false, color:'#a89bc9', done:false, refId:null};
+  } else if(val.indexOf('tache|')===0){
+    var tid = val.slice(6);
+    var t = (taches||[]).find(function(x){return x._id===tid;});
+    block = {id:'tache-'+tid+'-'+Date.now(), type:'tache', label:t?t.texte:'Tâche', start:start, dur:dur, fixed:false, color:'#c9a876', done:false, refId:tid};
+  } else if(val.indexOf('item|')===0){
+    var parts = val.split('|'), itype=parts[1], id=parts[2];
+    var opt = sel.options[sel.selectedIndex];
+    var label = opt ? opt.textContent : id;
+    var color = itype==='projet' ? '#8fae9e' : (itype==='oeuvre' ? '#c9a876' : '#6b8cba');
+    block = {id:'item-'+id+'-'+Date.now(), type:'item', itemType:itype, label:label, start:start, dur:dur, fixed:false, color:color, done:false, refId:id};
+  } else {
+    return;
+  }
+  dayPlan.blocks.push(block);
   dpResolveOverlaps();
   dpSaveRemote();
   closeM('mo-dp-quickadd');
   renderPlanningJour();
 }
-function dpAddCustomBlock(){
-  var lastEnd = DP_START;
-  dayPlan.blocks.forEach(function(b){ lastEnd = Math.max(lastEnd, b.start+b.dur); });
-  dpOpenQuickAdd(Math.min(lastEnd, DP_END-15));
-}
-
 function dpResetAuto(){
   if(!confirm('Réinitialiser le planning du jour avec le pré-remplissage automatique ? Les blocs ajoutés manuellement seront perdus.')) return;
   dayPlan = dpBuildAuto();
@@ -8171,7 +8235,13 @@ function openDpLog(id){
   document.getElementById('dp-log-dur').value = b.dur;
   document.getElementById('dp-log-heure').value = dpMinToStr(b.start);
   document.getElementById('dp-log-com').value = '';
-  var acts = (actionsConfig['COMMUN']||[]);
+  var acts;
+  if(b.type==='item'){
+    var realId = b.itemType==='projet' ? 'proj-'+b.refId : b.refId;
+    acts = getActionsListForId(realId);
+  } else {
+    acts = (actionsConfig['COMMUN']||[]);
+  }
   var sel = document.getElementById('dp-log-action');
   sel.innerHTML='';
   acts.forEach(function(a){ sel.innerHTML += '<option value="'+a+'">'+a+'</option>'; });
@@ -8191,6 +8261,14 @@ function confirmDpLog(){
       var p = (projets||[]).find(function(x){return x._id===t.projetId;});
       projetId = t.projetId; exId = 'proj-'+t.projetId; activId=null;
       label = '📁 '+(p?p.titre:label);
+    }
+  } else if(b.type==='item'){
+    if(b.itemType==='projet'){
+      var p2 = (projets||[]).find(function(x){return x._id===b.refId;});
+      projetId = b.refId; exId = 'proj-'+b.refId; activId=null;
+      label = p2 ? '📁 '+p2.titre : label;
+    } else {
+      exId = b.refId; projetId=null; activId=null;
     }
   }
   var _ns={_id:Date.now(),date:TODAY,exId:exId,projetId:projetId,activId:activId,label:label,action:action,dur:dur,com:com,createdAt:(function(){var n=new Date();return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0')+' '+String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');})()};
