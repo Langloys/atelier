@@ -7360,7 +7360,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260709 - v74 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260709 - v75 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -8000,7 +8000,12 @@ function renderPlanningJour(){
     var bg=b.color||'#c9a876';
     html += '<div class="dp-block" data-id="'+b.id+'" title="'+dpMinToStr(b.start)+'–'+dpMinToStr(b.start+b.dur)+'" style="position:absolute;left:4px;right:4px;top:'+top+'px;height:'+height+'px;background:'+(b.done?'var(--off)':bg+'26')+';border-left:3px solid '+bg+';border-radius:4px;opacity:'+(b.done?'.55':'1')+';overflow:hidden;display:flex;align-items:center;justify-content:space-between;gap:4px;padding:0 6px;">';
     if(!b.done) html += '<button onclick="event.stopPropagation();dpDeleteBlock(\''+b.id+'\')" title="Supprimer ce bloc" style="flex-shrink:0;border:none;background:none;color:var(--red);padding:0;cursor:pointer;font-size:.72rem;line-height:1;">✕</button>';
-    if(!b.done) html += '<button onclick="event.stopPropagation();dpToggleFixed(\''+b.id+'\')" title="'+(b.fixed?'Fixe — cliquer pour rendre flexible':'Flexible — cliquer pour figer')+'" style="flex-shrink:0;border:none;background:none;padding:0;cursor:pointer;font-size:.72rem;line-height:1;">'+(b.fixed?'🔒':'🔓')+'</button>';
+    if(!b.done){
+      var lockSvg = b.fixed
+        ? '<svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>'
+        : '<svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 7.75-1.5"></path></svg>';
+      html += '<button onclick="event.stopPropagation();dpToggleFixed(\''+b.id+'\')" title="'+(b.fixed?'Fixe — cliquer pour rendre flexible':'Flexible — cliquer pour figer')+'" style="flex-shrink:0;border:none;padding:0;cursor:pointer;width:15px;height:15px;border-radius:50%;background:'+(b.fixed?'var(--red)':'var(--green)')+';display:flex;align-items:center;justify-content:center;">'+lockSvg+'</button>';
+    }
     html += '<div class="dp-block-drag" data-id="'+b.id+'" style="flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:.7rem;font-weight:600;color:var(--ink);'+(b.fixed?'':'cursor:grab;')+'">'+b.label+(b.done?' <span style="font-weight:400;color:var(--faint);">· fait '+fmtMin(b.realDur||b.dur)+'</span>':'')+'</div>';
     if(!b.done) html += '<button onclick="event.stopPropagation();openDpLog(\''+b.id+'\')" style="flex-shrink:0;border:none;background:var(--ink);color:var(--w);font-size:.62rem;padding:3px 7px;border-radius:10px;cursor:pointer;">✓ '+fmtMin(b.dur)+'</button>';
     else html += '<button onclick="event.stopPropagation();dpUndoLog(\''+b.id+'\')" title="Annuler cette session" style="flex-shrink:0;border:none;background:none;color:var(--faint);font-size:.85rem;cursor:pointer;padding:0;">✓</button>';
