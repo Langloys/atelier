@@ -1060,6 +1060,21 @@ function doLogout(){
 
 </div><!-- /wrap -->
 
+<!-- MODAL AJOUT RAPIDE — VUE JOURNÉE (clic sur un créneau) -->
+<div class="mo" id="mo-dp-quickadd">
+  <div class="modal" style="max-width:340px;">
+    <div class="mh"><h2>Ajouter à <span id="dp-qa-heure"></span></h2><button class="mc" onclick="closeM('mo-dp-quickadd')">×</button></div>
+    <div class="mb">
+      <div class="fg"><label>Quoi ?</label><input type="text" id="dp-qa-label" placeholder="Pause déjeuner, Trajet fonderie, Appel client…"></div>
+      <div class="fg"><label>Durée (min)</label><input type="number" id="dp-qa-dur" value="30" min="5" step="5"></div>
+    </div>
+    <div class="mfoot" style="display:flex;justify-content:flex-end;gap:8px;">
+      <button class="btn" onclick="closeM('mo-dp-quickadd')">Annuler</button>
+      <button class="btn btn-primary" onclick="dpConfirmQuickAdd()">Ajouter</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL LOG SESSION — VUE JOURNÉE -->
 <div class="mo" id="mo-dp-log">
   <div class="modal" style="max-width:380px;">
@@ -7332,7 +7347,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260709 - v65 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260709 - v66 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -7956,7 +7971,7 @@ function renderPlanningJour(){
 
   var html = '<div style="display:flex;gap:16px;align-items:flex-start;">';
   html += '<div style="flex:1;min-width:0;">';
-  html += '<div id="dp-grid" style="position:relative;height:'+totalPx+'px;border:1px solid var(--border);border-radius:var(--r);background:var(--w);background-image:repeating-linear-gradient(to bottom, var(--border) 0, var(--border) 1px, transparent 1px, transparent '+DP_PXSLOT+'px);margin-left:52px;">';
+  html += '<div id="dp-grid" onclick="dpGridClick(event)" style="position:relative;height:'+totalPx+'px;border:1px solid var(--border);border-radius:var(--r);background:var(--w);background-image:repeating-linear-gradient(to bottom, var(--border) 0, var(--border) 1px, transparent 1px, transparent '+DP_PXSLOT+'px);margin-left:52px;cursor:copy;">';
   for(var h=Math.ceil(DP_START/60); h*60<=DP_END; h++){
     var top=((h*60-DP_START)/DP_SLOT)*DP_PXSLOT;
     html += '<div style="position:absolute;left:-52px;top:'+(top-7)+'px;width:44px;text-align:right;font-size:.68rem;color:var(--faint);">'+String(h).padStart(2,'0')+':00</div>';
@@ -8099,17 +8114,41 @@ function dpStartPoolDrag(ev, taskId, label){
   document.addEventListener('pointerup', onUp);
 }
 
-function dpAddCustomBlock(){
-  var label = prompt('Nom du bloc (ex: Pause déjeuner, Trajet fonderie…) :');
-  if(!label || !label.trim()) return;
-  var dur = parseInt(prompt('Durée en minutes :', '30'))||30;
-  var lastEnd = DP_START;
-  dayPlan.blocks.forEach(function(b){ lastEnd = Math.max(lastEnd, b.start+b.dur); });
-  var start = Math.min(lastEnd, DP_END-dur);
-  dayPlan.blocks.push({id:'custom-'+Date.now(), type:'custom', label:label.trim(), start:start, dur:dur, fixed:false, color:'#a89bc9', done:false, refId:null});
+var _dpQuickAddStart = null;
+function dpGridClick(ev){
+  if(ev.target.closest('.dp-block')) return; // clic sur un bloc existant : on ignore
+  var grid = document.getElementById('dp-grid');
+  var rect = grid.getBoundingClientRect();
+  var y = ev.clientY - rect.top;
+  var slotIdx = Math.round(y/DP_PXSLOT);
+  var start = DP_START + slotIdx*DP_SLOT;
+  start = Math.max(DP_START, Math.min(start, DP_END-15));
+  dpOpenQuickAdd(start);
+}
+function dpOpenQuickAdd(start){
+  _dpQuickAddStart = start;
+  document.getElementById('dp-qa-heure').textContent = dpMinToStr(start);
+  document.getElementById('dp-qa-label').value='';
+  document.getElementById('dp-qa-dur').value='30';
+  openM('mo-dp-quickadd');
+  setTimeout(function(){ var el=document.getElementById('dp-qa-label'); if(el) el.focus(); }, 60);
+}
+function dpConfirmQuickAdd(){
+  var label = document.getElementById('dp-qa-label').value.trim();
+  if(!label){ alert('Indique un nom pour ce créneau.'); return; }
+  var dur = parseInt(document.getElementById('dp-qa-dur').value)||30;
+  var start = (_dpQuickAddStart!==null) ? _dpQuickAddStart : DP_START;
+  start = Math.min(start, DP_END-dur);
+  dayPlan.blocks.push({id:'custom-'+Date.now(), type:'custom', label:label, start:start, dur:dur, fixed:false, color:'#a89bc9', done:false, refId:null});
   dpResolveOverlaps();
   dpSaveRemote();
+  closeM('mo-dp-quickadd');
   renderPlanningJour();
+}
+function dpAddCustomBlock(){
+  var lastEnd = DP_START;
+  dayPlan.blocks.forEach(function(b){ lastEnd = Math.max(lastEnd, b.start+b.dur); });
+  dpOpenQuickAdd(Math.min(lastEnd, DP_END-15));
 }
 
 function dpResetAuto(){
