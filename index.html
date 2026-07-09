@@ -7360,7 +7360,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260709 - v78 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260709 - v79 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -8117,6 +8117,15 @@ function dpQuickRedraw(){
   });
 }
 
+function dpSyncRdvToEvt(b){
+  if(!b || b.type!=='rdv' || !b.refId) return;
+  var evt = (planEvts||[]).find(function(e){return e._id===b.refId;});
+  if(!evt) return;
+  evt.heureDebut = dpMinToStr(b.start);
+  evt.heureFin = dpMinToStr(b.start+b.dur);
+  sbSaveConfig('planEvts');
+}
+
 function dpStartDrag(ev, id){
   ev.preventDefault();
   var b = dayPlan.blocks.find(function(x){return x.id===id;});
@@ -8134,6 +8143,7 @@ function dpStartDrag(ev, id){
     document.removeEventListener('pointermove', onMove);
     document.removeEventListener('pointerup', onUp);
     dpResolveOverlaps();
+    dpSyncRdvToEvt(b);
     dpSaveRemote();
     renderPlanningJour();
   }
@@ -8158,6 +8168,7 @@ function dpStartResize(ev, id){
     document.removeEventListener('pointermove', onMove);
     document.removeEventListener('pointerup', onUp);
     dpResolveOverlaps();
+    dpSyncRdvToEvt(b);
     dpSaveRemote();
     renderPlanningJour();
   }
