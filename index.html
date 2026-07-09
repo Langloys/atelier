@@ -7360,7 +7360,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260709 - v73 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260709 - v74 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -7999,6 +7999,7 @@ function renderPlanningJour(){
     var height=Math.max((b.dur/DP_SLOT)*DP_PXSLOT-2, 16);
     var bg=b.color||'#c9a876';
     html += '<div class="dp-block" data-id="'+b.id+'" title="'+dpMinToStr(b.start)+'–'+dpMinToStr(b.start+b.dur)+'" style="position:absolute;left:4px;right:4px;top:'+top+'px;height:'+height+'px;background:'+(b.done?'var(--off)':bg+'26')+';border-left:3px solid '+bg+';border-radius:4px;opacity:'+(b.done?'.55':'1')+';overflow:hidden;display:flex;align-items:center;justify-content:space-between;gap:4px;padding:0 6px;">';
+    if(!b.done) html += '<button onclick="event.stopPropagation();dpDeleteBlock(\''+b.id+'\')" title="Supprimer ce bloc" style="flex-shrink:0;border:none;background:none;color:var(--red);padding:0;cursor:pointer;font-size:.72rem;line-height:1;">✕</button>';
     if(!b.done) html += '<button onclick="event.stopPropagation();dpToggleFixed(\''+b.id+'\')" title="'+(b.fixed?'Fixe — cliquer pour rendre flexible':'Flexible — cliquer pour figer')+'" style="flex-shrink:0;border:none;background:none;padding:0;cursor:pointer;font-size:.72rem;line-height:1;">'+(b.fixed?'🔒':'🔓')+'</button>';
     html += '<div class="dp-block-drag" data-id="'+b.id+'" style="flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:.7rem;font-weight:600;color:var(--ink);'+(b.fixed?'':'cursor:grab;')+'">'+b.label+(b.done?' <span style="font-weight:400;color:var(--faint);">· fait '+fmtMin(b.realDur||b.dur)+'</span>':'')+'</div>';
     if(!b.done) html += '<button onclick="event.stopPropagation();openDpLog(\''+b.id+'\')" style="flex-shrink:0;border:none;background:var(--ink);color:var(--w);font-size:.62rem;padding:3px 7px;border-radius:10px;cursor:pointer;">✓ '+fmtMin(b.dur)+'</button>';
@@ -8025,6 +8026,15 @@ function dpAttachHandlers(){
   grid.querySelectorAll('.dp-resize').forEach(function(el){
     el.addEventListener('pointerdown', function(ev){ dpStartResize(ev, el.dataset.id); });
   });
+}
+
+function dpDeleteBlock(id){
+  var b = dayPlan.blocks.find(function(x){return x.id===id;});
+  if(!b || b.done) return;
+  if(!confirm('Supprimer ce bloc de la journée ?')) return;
+  dayPlan.blocks = dayPlan.blocks.filter(function(x){return x.id!==id;});
+  dpSaveRemote();
+  renderPlanningJour();
 }
 
 function dpToggleFixed(id){
