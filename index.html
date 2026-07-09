@@ -7360,7 +7360,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260709 - v75 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260709 - v76 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -7941,6 +7941,13 @@ function dpNextFreeSlot(fromMin, dur, blocks){
   }
   return pos;
 }
+function dpTodayInfoEvts(){
+  // Événements perso du jour purement informatifs (0h retirée ou pas d'heure) —
+  // affichés en bannière, ne créent pas de bloc bloquant dans la grille.
+  return (planEvts||[]).filter(function(evt){
+    return evt.debut<=TODAY && TODAY<=evt.fin && (parseInt(evt.heures)||0) <= 0;
+  });
+}
 function dpBuildAuto(){
   var blocks = [];
   (planEvts||[]).forEach(function(evt){
@@ -7983,6 +7990,15 @@ function renderPlanningJour(){
   var totalPx = ((DP_END-DP_START)/DP_SLOT)*DP_PXSLOT;
 
   var html = '<div>';
+  var infoEvts = dpTodayInfoEvts();
+  if(infoEvts.length){
+    html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">';
+    infoEvts.forEach(function(evt){
+      var c = evt.color||'#9a9a9a';
+      html += '<div title="Info — ne bloque pas de créneau" style="background:'+c+'22;border-left:3px solid '+c+';border-radius:4px;padding:5px 10px;font-size:.72rem;color:var(--ink);">'+evt.label+(evt.heureDebut?' <span style="color:var(--faint);">· '+evt.heureDebut+(evt.heureFin?'–'+evt.heureFin:'')+'</span>':'')+'</div>';
+    });
+    html += '</div>';
+  }
   html += '<div id="dp-grid" onclick="dpGridClick(event)" style="position:relative;height:'+totalPx+'px;border:1px solid var(--border);border-radius:var(--r);background:var(--w);background-image:repeating-linear-gradient(to bottom, var(--border) 0, var(--border) 1px, transparent 1px, transparent '+DP_PXSLOT+'px);margin-left:52px;cursor:copy;">';
   for(var h=Math.ceil(DP_START/60); h*60<=DP_END; h++){
     var top=((h*60-DP_START)/DP_SLOT)*DP_PXSLOT;
