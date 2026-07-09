@@ -7360,7 +7360,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260709 - v77 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260709 - v78 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -7980,6 +7980,40 @@ function dpResolveOverlaps(){
   }
 }
 
+function dpComputeLayout(blocks){
+  // Regroupe les blocs qui se chevauchent en clusters, puis leur assigne
+  // une colonne (algorithme classique de calendrier), pour les afficher
+  // côte à côte plutôt que superposés.
+  var sorted = blocks.slice().sort(function(a,b){ return a.start-b.start; });
+  var clusters = [];
+  sorted.forEach(function(b){
+    if(clusters.length && b.start < clusters[clusters.length-1].end){
+      var cl = clusters[clusters.length-1];
+      cl.blocks.push(b);
+      cl.end = Math.max(cl.end, b.start+b.dur);
+    } else {
+      clusters.push({blocks:[b], end:b.start+b.dur});
+    }
+  });
+  var layout = {};
+  clusters.forEach(function(cl){
+    if(cl.blocks.length===1){
+      layout[cl.blocks[0].id] = {col:0, cols:1};
+      return;
+    }
+    var colsEnd = [];
+    cl.blocks.forEach(function(b){
+      var placed=false;
+      for(var c=0;c<colsEnd.length;c++){
+        if(colsEnd[c] <= b.start){ colsEnd[c]=b.start+b.dur; layout[b.id]={col:c}; placed=true; break; }
+      }
+      if(!placed){ colsEnd.push(b.start+b.dur); layout[b.id]={col:colsEnd.length-1}; }
+    });
+    var totalCols = colsEnd.length;
+    cl.blocks.forEach(function(b){ layout[b.id].cols = totalCols; });
+  });
+  return layout;
+}
 function renderPlanningJour(){
   var wrap = document.getElementById('planning-jour-content');
   if(!wrap) return;
@@ -8011,11 +8045,15 @@ function renderPlanningJour(){
     var nowTop=((nowMin-DP_START)/DP_SLOT)*DP_PXSLOT;
     html += '<div style="position:absolute;left:0;right:0;top:'+nowTop+'px;height:2px;background:var(--red);z-index:5;pointer-events:none;"></div>';
   }
+  var dpLayout = dpComputeLayout(dayPlan.blocks);
   dayPlan.blocks.forEach(function(b){
     var top=((b.start-DP_START)/DP_SLOT)*DP_PXSLOT;
     var height=Math.max((b.dur/DP_SLOT)*DP_PXSLOT-2, 16);
     var bg=b.color||'#c9a876';
-    html += '<div class="dp-block" data-id="'+b.id+'" title="'+dpMinToStr(b.start)+'–'+dpMinToStr(b.start+b.dur)+'" style="position:absolute;left:4px;right:4px;top:'+top+'px;height:'+height+'px;background:'+(b.done?'var(--off)':bg+'26')+';border-left:3px solid '+bg+';border-radius:4px;opacity:'+(b.done?'.55':'1')+';overflow:hidden;display:flex;align-items:center;justify-content:space-between;gap:4px;padding:0 6px;">';
+    var lay = dpLayout[b.id] || {col:0, cols:1};
+    var leftPct = (lay.col/lay.cols*100);
+    var widthPct = (100/lay.cols);
+    html += '<div class="dp-block" data-id="'+b.id+'" title="'+dpMinToStr(b.start)+'–'+dpMinToStr(b.start+b.dur)+'" style="position:absolute;left:calc('+leftPct+'% + 2px);width:calc('+widthPct+'% - 4px);top:'+top+'px;height:'+height+'px;background:'+(b.done?'var(--off)':bg+'26')+';border-left:3px solid '+bg+';border-radius:4px;opacity:'+(b.done?'.55':'1')+';overflow:hidden;display:flex;align-items:center;justify-content:space-between;gap:4px;padding:0 6px;">';
     if(!b.done) html += '<button onclick="event.stopPropagation();dpDeleteBlock(\''+b.id+'\')" title="Supprimer ce bloc" style="flex-shrink:0;border:none;background:none;color:var(--red);padding:0;cursor:pointer;font-size:.72rem;line-height:1;">✕</button>';
     if(!b.done){
       var lockSvg = b.fixed
