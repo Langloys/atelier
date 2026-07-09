@@ -7355,7 +7355,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260709 - v70 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260709 - v71 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -7993,12 +7993,9 @@ function renderPlanningJour(){
     var top=((b.start-DP_START)/DP_SLOT)*DP_PXSLOT;
     var height=Math.max((b.dur/DP_SLOT)*DP_PXSLOT-2, 16);
     var bg=b.color||'#c9a876';
-    html += '<div class="dp-block" data-id="'+b.id+'" style="position:absolute;left:4px;right:4px;top:'+top+'px;height:'+height+'px;background:'+(b.done?'var(--off)':bg+'26')+';border-left:3px solid '+bg+';border-radius:4px;opacity:'+(b.done?'.55':'1')+';overflow:hidden;display:flex;align-items:center;justify-content:space-between;gap:4px;padding:0 6px;">';
+    html += '<div class="dp-block" data-id="'+b.id+'" title="'+dpMinToStr(b.start)+'–'+dpMinToStr(b.start+b.dur)+'" style="position:absolute;left:4px;right:4px;top:'+top+'px;height:'+height+'px;background:'+(b.done?'var(--off)':bg+'26')+';border-left:3px solid '+bg+';border-radius:4px;opacity:'+(b.done?'.55':'1')+';overflow:hidden;display:flex;align-items:center;justify-content:space-between;gap:4px;padding:0 6px;">';
     if(!b.done) html += '<button onclick="event.stopPropagation();dpToggleFixed(\''+b.id+'\')" title="'+(b.fixed?'Fixe — cliquer pour rendre flexible':'Flexible — cliquer pour figer')+'" style="flex-shrink:0;border:none;background:none;padding:0;cursor:pointer;font-size:.72rem;line-height:1;">'+(b.fixed?'🔒':'🔓')+'</button>';
-    html += '<div class="dp-block-drag" data-id="'+b.id+'" style="flex:1;min-width:0;overflow:hidden;'+(b.fixed?'':'cursor:grab;')+'">';
-    html += '<div style="font-size:.68rem;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+b.label+'</div>';
-    html += '<div style="font-size:.6rem;color:var(--faint);">'+dpMinToStr(b.start)+'–'+dpMinToStr(b.start+b.dur)+(b.done?' · fait '+fmtMin(b.realDur||b.dur):'')+'</div>';
-    html += '</div>';
+    html += '<div class="dp-block-drag" data-id="'+b.id+'" style="flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:.7rem;font-weight:600;color:var(--ink);'+(b.fixed?'':'cursor:grab;')+'">'+b.label+(b.done?' <span style="font-weight:400;color:var(--faint);">· fait '+fmtMin(b.realDur||b.dur)+'</span>':'')+'</div>';
     if(!b.done) html += '<button onclick="event.stopPropagation();openDpLog(\''+b.id+'\')" style="flex-shrink:0;border:none;background:var(--ink);color:var(--w);font-size:.62rem;padding:3px 7px;border-radius:10px;cursor:pointer;">✓ '+fmtMin(b.dur)+'</button>';
     else html += '<span style="flex-shrink:0;font-size:.85rem;">✓</span>';
     if(!b.fixed && !b.done) html += '<div class="dp-resize" data-id="'+b.id+'" style="position:absolute;left:0;right:0;bottom:0;height:6px;cursor:ns-resize;"></div>';
