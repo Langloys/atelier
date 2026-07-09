@@ -7330,7 +7330,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260709 - v63 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260709 - v64 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -7923,7 +7923,7 @@ function dpNextFreeSlot(fromMin, dur, blocks){
 function dpBuildAuto(){
   var blocks = [];
   (planEvts||[]).forEach(function(evt){
-    if(evt.debut<=TODAY && TODAY<=evt.fin && evt.heureDebut){
+    if(evt.debut<=TODAY && TODAY<=evt.fin && evt.heureDebut && (parseInt(evt.heures)||0) > 0){
       var hd=evt.heureDebut.split(':'); var start=parseInt(hd[0])*60+parseInt(hd[1]);
       var dur=30;
       if(evt.heureFin){ var hf=evt.heureFin.split(':'); var end=parseInt(hf[0])*60+parseInt(hf[1]); if(end>start) dur=end-start; }
