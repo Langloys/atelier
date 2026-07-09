@@ -877,13 +877,22 @@ function doLogout(){
   <!-- ══ PLANNING ══ -->
   <div id="zone-planning" style="display:none;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
-      <div style="font-family:'Playfair Display',serif;font-size:1.1rem;font-style:italic;color:var(--mid);">Planning</div>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <div style="font-family:'Playfair Display',serif;font-size:1.1rem;font-style:italic;color:var(--mid);">Planning</div>
+        <div style="display:flex;gap:4px;background:var(--off);border-radius:20px;padding:3px;">
+          <button class="btn btn-sm btn-primary" id="pm-btn-jour" onclick="setPlanningMode('jour')" style="border-radius:16px;">📆 Vue Journée</button>
+          <button class="btn btn-sm" id="pm-btn-algo" onclick="setPlanningMode('algo')" style="border-radius:16px;">📊 Vue Algorithme</button>
+        </div>
+      </div>
       <div style="display:flex;gap:8px;">
         <button class="btn" onclick="openAddEvtPlanning()">+ Événement perso</button>
-        <button class="btn btn-primary" onclick="refreshPlanning(this)">↺ Recalculer</button>
+        <button class="btn btn-primary" id="pm-btn-recalc" onclick="refreshPlanning(this)" style="display:none;">↺ Recalculer</button>
       </div>
     </div>
-    <div class="planning-wrap" id="planning-wrap">
+    <div id="planning-jour-wrap">
+      <div id="planning-jour-content"></div>
+    </div>
+    <div class="planning-wrap" id="planning-wrap" style="display:none;">
       <div id="planning-content"></div>
     </div>
   </div>
@@ -1049,6 +1058,23 @@ function doLogout(){
   </div>
 
 </div><!-- /wrap -->
+
+<!-- MODAL LOG SESSION — VUE JOURNÉE -->
+<div class="mo" id="mo-dp-log">
+  <div class="modal" style="max-width:380px;">
+    <div class="mh"><h2 id="dp-log-title">Session</h2><button class="mc" onclick="closeM('mo-dp-log')">×</button></div>
+    <div class="mb">
+      <div class="fg"><label>Heure de début</label><input type="text" id="dp-log-heure" readonly style="background:var(--off);"></div>
+      <div class="fg"><label>Durée réelle (min)</label><input type="number" id="dp-log-dur" min="1"></div>
+      <div class="fg"><label>Action</label><select id="dp-log-action"></select></div>
+      <div class="fg"><label>Commentaire</label><input type="text" id="dp-log-com" placeholder="Note (optionnel)…"></div>
+    </div>
+    <div class="mfoot" style="display:flex;justify-content:flex-end;gap:8px;">
+      <button class="btn" onclick="closeM('mo-dp-log')">Annuler</button>
+      <button class="btn btn-primary" onclick="confirmDpLog()">Valider la session</button>
+    </div>
+  </div>
+</div>
 
 <!-- MODAL ÉVÉNEMENT PLANNING -->
 <div class="mo" id="mo-planning-evt">
@@ -1903,7 +1929,7 @@ function setTab(t){
   else if(t==='stats'){renderStatsPeriodSel();renderStats2();}
   else if(t==='taches')renderTaches();
   else if(t==='temps')renderTemps();
-  else if(t==='planning')renderPlanning();
+  else if(t==='planning'){ if(planningMode==='jour') renderPlanningJour(); else renderPlanning(); }
   else if(t==='finances')renderFinances();
   else if(t==='export')renderExport();
   else render();
@@ -7304,7 +7330,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260709 - v62 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260709 - v63 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -7840,6 +7866,305 @@ async function refreshPlanning(btn){
   btn.innerHTML = orig;
   btn.disabled = false;
   renderPlanning();
+}
+
+// ═══════════════════════════════════════════════════════════
+// ══ PLANNING — VUE JOURNÉE (créneaux 1/4h, glisser-déposer) ══
+// ═══════════════════════════════════════════════════════════
+var DP_START = 7*60;    // 07:00 en minutes depuis minuit
+var DP_END   = 21*60;   // 21:00
+var DP_SLOT  = 15;      // minutes par créneau
+var DP_PXSLOT= 20;      // pixels par créneau de 15 min
+var planningMode = 'jour';
+var dayPlan = null;     // {date:'YYYY-MM-DD', blocks:[...]}
+var _dpLogId = null;
+
+function setPlanningMode(mode){
+  planningMode = mode;
+  var bj=document.getElementById('pm-btn-jour'), ba=document.getElementById('pm-btn-algo');
+  var wj=document.getElementById('planning-jour-wrap'), wa=document.getElementById('planning-wrap');
+  var rc=document.getElementById('pm-btn-recalc');
+  if(mode==='jour'){
+    wj.style.display=''; wa.style.display='none'; rc.style.display='none';
+    bj.classList.add('btn-primary'); ba.classList.remove('btn-primary');
+    renderPlanningJour();
+  } else {
+    wj.style.display='none'; wa.style.display=''; rc.style.display='';
+    ba.classList.add('btn-primary'); bj.classList.remove('btn-primary');
+    renderPlanning();
+  }
+}
+
+function dpLoadStorage(){
+  try{
+    var raw = localStorage.getItem('atelier_dayplan');
+    if(!raw) return null;
+    var data = JSON.parse(raw);
+    if(data.date !== TODAY) return null; // écrasé automatiquement le lendemain
+    return data;
+  }catch(e){ return null; }
+}
+function dpSaveStorage(){
+  try{ localStorage.setItem('atelier_dayplan', JSON.stringify(dayPlan)); }catch(e){}
+}
+function dpMinToStr(min){
+  var h=Math.floor(min/60), m=min%60;
+  return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');
+}
+function dpNextFreeSlot(fromMin, dur, blocks){
+  var pos=fromMin, maxIter=300;
+  while(maxIter-->0){
+    var conflict = blocks.find(function(b){ return b.fixed && pos < b.start+b.dur && pos+dur > b.start; });
+    if(!conflict) return pos;
+    pos = conflict.start+conflict.dur;
+  }
+  return pos;
+}
+function dpBuildAuto(){
+  var blocks = [];
+  (planEvts||[]).forEach(function(evt){
+    if(evt.debut<=TODAY && TODAY<=evt.fin && evt.heureDebut){
+      var hd=evt.heureDebut.split(':'); var start=parseInt(hd[0])*60+parseInt(hd[1]);
+      var dur=30;
+      if(evt.heureFin){ var hf=evt.heureFin.split(':'); var end=parseInt(hf[0])*60+parseInt(hf[1]); if(end>start) dur=end-start; }
+      blocks.push({id:'rdv-'+evt._id, type:'rdv', label:evt.label, start:start, dur:dur, fixed:true, color:evt.color||'#7a8ba6', done:false, refId:evt._id});
+    }
+  });
+  var cursor = DP_START;
+  (taches||[]).filter(function(t){ return !t.done && t.echeance===TODAY; }).forEach(function(t){
+    var start = dpNextFreeSlot(cursor, 30, blocks);
+    blocks.push({id:'tache-'+t._id+'-'+Date.now()+Math.random().toString(36).slice(2,6), type:'tache', label:t.texte, start:start, dur:30, fixed:false, color:'#c9a876', done:false, refId:t._id});
+    cursor = start+30;
+  });
+  return {date:TODAY, blocks:blocks};
+}
+function dpResolveOverlaps(){
+  var blocks = dayPlan.blocks;
+  for(var pass=0; pass<3; pass++){
+    blocks.sort(function(a,b){return a.start-b.start;});
+    var cursor=null;
+    blocks.forEach(function(b){
+      if(b.fixed){ cursor=b.start+b.dur; return; }
+      if(cursor!==null && b.start<cursor) b.start=cursor;
+      cursor=b.start+b.dur;
+    });
+  }
+}
+
+function renderPlanningJour(){
+  var wrap = document.getElementById('planning-jour-content');
+  if(!wrap) return;
+  if(!dayPlan || dayPlan.date !== TODAY){
+    dayPlan = dpLoadStorage() || dpBuildAuto();
+    dpSaveStorage();
+  }
+  dpResolveOverlaps();
+  var totalPx = ((DP_END-DP_START)/DP_SLOT)*DP_PXSLOT;
+
+  var html = '<div style="display:flex;gap:16px;align-items:flex-start;">';
+  html += '<div style="flex:1;min-width:0;">';
+  html += '<div id="dp-grid" style="position:relative;height:'+totalPx+'px;border:1px solid var(--border);border-radius:var(--r);background:var(--w);background-image:repeating-linear-gradient(to bottom, var(--border) 0, var(--border) 1px, transparent 1px, transparent '+DP_PXSLOT+'px);margin-left:52px;">';
+  for(var h=Math.ceil(DP_START/60); h*60<=DP_END; h++){
+    var top=((h*60-DP_START)/DP_SLOT)*DP_PXSLOT;
+    html += '<div style="position:absolute;left:-52px;top:'+(top-7)+'px;width:44px;text-align:right;font-size:.68rem;color:var(--faint);">'+String(h).padStart(2,'0')+':00</div>';
+    html += '<div style="position:absolute;left:0;right:0;top:'+top+'px;height:1px;background:var(--bd);"></div>';
+  }
+  var now=new Date(), nowMin=now.getHours()*60+now.getMinutes();
+  if(TODAY===(function(){var n=new Date();return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0');})() && nowMin>=DP_START && nowMin<=DP_END){
+    var nowTop=((nowMin-DP_START)/DP_SLOT)*DP_PXSLOT;
+    html += '<div style="position:absolute;left:0;right:0;top:'+nowTop+'px;height:2px;background:var(--red);z-index:5;pointer-events:none;"></div>';
+  }
+  dayPlan.blocks.forEach(function(b){
+    var top=((b.start-DP_START)/DP_SLOT)*DP_PXSLOT;
+    var height=Math.max((b.dur/DP_SLOT)*DP_PXSLOT-2, 16);
+    var bg=b.color||'#c9a876';
+    html += '<div class="dp-block" data-id="'+b.id+'" style="position:absolute;left:4px;right:4px;top:'+top+'px;height:'+height+'px;background:'+(b.done?'var(--off)':bg+'26')+';border-left:3px solid '+bg+';border-radius:4px;opacity:'+(b.done?'.55':'1')+';overflow:hidden;display:flex;align-items:center;justify-content:space-between;gap:4px;padding:0 6px;">';
+    html += '<div class="dp-block-drag" data-id="'+b.id+'" style="flex:1;min-width:0;overflow:hidden;'+(b.fixed?'':'cursor:grab;')+'">';
+    html += '<div style="font-size:.68rem;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+(b.fixed?'🔒 ':'')+b.label+'</div>';
+    html += '<div style="font-size:.6rem;color:var(--faint);">'+dpMinToStr(b.start)+'–'+dpMinToStr(b.start+b.dur)+(b.done?' · fait '+fmtMin(b.realDur||b.dur):'')+'</div>';
+    html += '</div>';
+    if(!b.done) html += '<button onclick="event.stopPropagation();openDpLog(\''+b.id+'\')" style="flex-shrink:0;border:none;background:var(--ink);color:var(--w);font-size:.62rem;padding:3px 7px;border-radius:10px;cursor:pointer;">✓ '+fmtMin(b.dur)+'</button>';
+    else html += '<span style="flex-shrink:0;font-size:.85rem;">✓</span>';
+    if(!b.fixed && !b.done) html += '<div class="dp-resize" data-id="'+b.id+'" style="position:absolute;left:0;right:0;bottom:0;height:6px;cursor:ns-resize;"></div>';
+    html += '</div>';
+  });
+  html += '</div></div>';
+
+  html += '<div style="width:190px;flex-shrink:0;">';
+  html += '<div style="font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);font-weight:600;margin-bottom:8px;">🗂 À caser</div>';
+  var poolTasks = (taches||[]).filter(function(t){
+    if(t.done) return false;
+    if(dayPlan.blocks.some(function(b){return b.type==='tache' && b.refId===t._id;})) return false;
+    return true;
+  });
+  if(!poolTasks.length) html += '<div style="font-size:.72rem;color:var(--faint);font-style:italic;">Rien à caser.</div>';
+  poolTasks.forEach(function(t){
+    html += '<div class="dp-pool-chip" data-taskid="'+t._id+'" data-label="'+t.texte.replace(/"/g,'&quot;')+'" style="background:var(--w);border:1px solid var(--border);border-left:3px solid #c9a876;border-radius:4px;padding:6px 8px;margin-bottom:6px;font-size:.72rem;cursor:grab;">'+t.texte+(t.echeance?'<div style="font-size:.62rem;color:var(--faint);margin-top:2px;">📅 '+fmtShort(t.echeance)+'</div>':'')+'</div>';
+  });
+  html += '<button class="btn btn-sm" style="width:100%;margin-top:8px;" onclick="dpAddCustomBlock()">+ Bloc libre</button>';
+  html += '<button class="btn btn-sm" style="width:100%;margin-top:6px;" onclick="dpResetAuto()">↺ Réinitialiser</button>';
+  html += '</div></div>';
+
+  wrap.innerHTML = html;
+  dpAttachHandlers();
+}
+
+function dpAttachHandlers(){
+  var grid = document.getElementById('dp-grid');
+  if(!grid) return;
+  grid.querySelectorAll('.dp-block-drag').forEach(function(el){
+    var b = dayPlan.blocks.find(function(x){return x.id===el.dataset.id;});
+    if(b && b.fixed) return;
+    el.addEventListener('pointerdown', function(ev){ dpStartDrag(ev, el.dataset.id); });
+  });
+  grid.querySelectorAll('.dp-resize').forEach(function(el){
+    el.addEventListener('pointerdown', function(ev){ dpStartResize(ev, el.dataset.id); });
+  });
+  document.querySelectorAll('.dp-pool-chip').forEach(function(el){
+    el.addEventListener('pointerdown', function(ev){ dpStartPoolDrag(ev, el.dataset.taskid, el.dataset.label); });
+  });
+}
+
+function dpQuickRedraw(){
+  var grid = document.getElementById('dp-grid');
+  if(!grid) return;
+  dayPlan.blocks.forEach(function(b){
+    var el = grid.querySelector('.dp-block[data-id="'+b.id+'"]');
+    if(!el) return;
+    el.style.top = (((b.start-DP_START)/DP_SLOT)*DP_PXSLOT)+'px';
+    el.style.height = Math.max((b.dur/DP_SLOT)*DP_PXSLOT-2, 16)+'px';
+  });
+}
+
+function dpStartDrag(ev, id){
+  ev.preventDefault();
+  var b = dayPlan.blocks.find(function(x){return x.id===id;});
+  if(!b) return;
+  var startY = ev.clientY, origStart = b.start;
+  function onMove(e){
+    var dy = e.clientY - startY;
+    var deltaSlots = Math.round(dy/DP_PXSLOT);
+    var newStart = origStart + deltaSlots*DP_SLOT;
+    newStart = Math.max(DP_START, Math.min(newStart, DP_END-b.dur));
+    b.start = newStart;
+    dpQuickRedraw();
+  }
+  function onUp(){
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    dpResolveOverlaps();
+    dpSaveStorage();
+    renderPlanningJour();
+  }
+  document.addEventListener('pointermove', onMove);
+  document.addEventListener('pointerup', onUp);
+}
+
+function dpStartResize(ev, id){
+  ev.preventDefault(); ev.stopPropagation();
+  var b = dayPlan.blocks.find(function(x){return x.id===id;});
+  if(!b) return;
+  var startY = ev.clientY, origDur = b.dur;
+  function onMove(e){
+    var dy = e.clientY - startY;
+    var deltaSlots = Math.round(dy/DP_PXSLOT);
+    var newDur = Math.max(DP_SLOT, origDur + deltaSlots*DP_SLOT);
+    newDur = Math.min(newDur, DP_END-b.start);
+    b.dur = newDur;
+    dpQuickRedraw();
+  }
+  function onUp(){
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    dpResolveOverlaps();
+    dpSaveStorage();
+    renderPlanningJour();
+  }
+  document.addEventListener('pointermove', onMove);
+  document.addEventListener('pointerup', onUp);
+}
+
+function dpStartPoolDrag(ev, taskId, label){
+  ev.preventDefault();
+  var grid = document.getElementById('dp-grid');
+  function onMove(){}
+  function onUp(e){
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    var gridRect = grid.getBoundingClientRect();
+    if(e.clientX<gridRect.left || e.clientX>gridRect.right || e.clientY<gridRect.top || e.clientY>gridRect.bottom) return;
+    var y = e.clientY - gridRect.top;
+    var slotIdx = Math.round(y/DP_PXSLOT);
+    var start = DP_START + slotIdx*DP_SLOT;
+    start = Math.max(DP_START, Math.min(start, DP_END-30));
+    dayPlan.blocks.push({id:'tache-'+taskId+'-'+Date.now(), type:'tache', label:label, start:start, dur:30, fixed:false, color:'#c9a876', done:false, refId:taskId});
+    dpResolveOverlaps();
+    dpSaveStorage();
+    renderPlanningJour();
+  }
+  document.addEventListener('pointermove', onMove);
+  document.addEventListener('pointerup', onUp);
+}
+
+function dpAddCustomBlock(){
+  var label = prompt('Nom du bloc (ex: Pause déjeuner, Trajet fonderie…) :');
+  if(!label || !label.trim()) return;
+  var dur = parseInt(prompt('Durée en minutes :', '30'))||30;
+  var lastEnd = DP_START;
+  dayPlan.blocks.forEach(function(b){ lastEnd = Math.max(lastEnd, b.start+b.dur); });
+  var start = Math.min(lastEnd, DP_END-dur);
+  dayPlan.blocks.push({id:'custom-'+Date.now(), type:'custom', label:label.trim(), start:start, dur:dur, fixed:false, color:'#a89bc9', done:false, refId:null});
+  dpResolveOverlaps();
+  dpSaveStorage();
+  renderPlanningJour();
+}
+
+function dpResetAuto(){
+  if(!confirm('Réinitialiser le planning du jour avec le pré-remplissage automatique ? Les blocs ajoutés manuellement seront perdus.')) return;
+  dayPlan = dpBuildAuto();
+  dpSaveStorage();
+  renderPlanningJour();
+}
+
+function openDpLog(id){
+  var b = dayPlan.blocks.find(function(x){return x.id===id;});
+  if(!b) return;
+  _dpLogId = id;
+  document.getElementById('dp-log-title').textContent = b.label;
+  document.getElementById('dp-log-dur').value = b.dur;
+  document.getElementById('dp-log-heure').value = dpMinToStr(b.start);
+  document.getElementById('dp-log-com').value = '';
+  var acts = (actionsConfig['COMMUN']||[]);
+  var sel = document.getElementById('dp-log-action');
+  sel.innerHTML='';
+  acts.forEach(function(a){ sel.innerHTML += '<option value="'+a+'">'+a+'</option>'; });
+  openM('mo-dp-log');
+}
+
+function confirmDpLog(){
+  var b = dayPlan.blocks.find(function(x){return x.id===_dpLogId;});
+  if(!b) return;
+  var dur = parseInt(document.getElementById('dp-log-dur').value)||b.dur;
+  var action = document.getElementById('dp-log-action').value;
+  var com = document.getElementById('dp-log-com').value.trim();
+  var exId='activ-admin', projetId=null, activId='admin', label=b.label;
+  if(b.type==='tache'){
+    var t = (taches||[]).find(function(x){return x._id===b.refId;});
+    if(t && t.projetId){
+      var p = (projets||[]).find(function(x){return x._id===t.projetId;});
+      projetId = t.projetId; exId = 'proj-'+t.projetId; activId=null;
+      label = '📁 '+(p?p.titre:label);
+    }
+  }
+  var _ns={_id:Date.now(),date:TODAY,exId:exId,projetId:projetId,activId:activId,label:label,action:action,dur:dur,com:com,createdAt:(function(){var n=new Date();return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0')+' '+String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');})()};
+  sessions.push(_ns);
+  sbSaveSession(_ns);
+  b.done = true;
+  b.realDur = dur;
+  dpSaveStorage();
+  closeM('mo-dp-log');
+  updateCounts();
+  renderPlanningJour();
 }
 
 function renderPlanning(){
