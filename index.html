@@ -7360,7 +7360,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260709 - v72 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260709 - v73 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -8002,7 +8002,7 @@ function renderPlanningJour(){
     if(!b.done) html += '<button onclick="event.stopPropagation();dpToggleFixed(\''+b.id+'\')" title="'+(b.fixed?'Fixe — cliquer pour rendre flexible':'Flexible — cliquer pour figer')+'" style="flex-shrink:0;border:none;background:none;padding:0;cursor:pointer;font-size:.72rem;line-height:1;">'+(b.fixed?'🔒':'🔓')+'</button>';
     html += '<div class="dp-block-drag" data-id="'+b.id+'" style="flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:.7rem;font-weight:600;color:var(--ink);'+(b.fixed?'':'cursor:grab;')+'">'+b.label+(b.done?' <span style="font-weight:400;color:var(--faint);">· fait '+fmtMin(b.realDur||b.dur)+'</span>':'')+'</div>';
     if(!b.done) html += '<button onclick="event.stopPropagation();openDpLog(\''+b.id+'\')" style="flex-shrink:0;border:none;background:var(--ink);color:var(--w);font-size:.62rem;padding:3px 7px;border-radius:10px;cursor:pointer;">✓ '+fmtMin(b.dur)+'</button>';
-    else html += '<span style="flex-shrink:0;font-size:.85rem;">✓</span>';
+    else html += '<button onclick="event.stopPropagation();dpUndoLog(\''+b.id+'\')" title="Annuler cette session" style="flex-shrink:0;border:none;background:none;color:var(--faint);font-size:.85rem;cursor:pointer;padding:0;">✓</button>';
     if(!b.fixed && !b.done) html += '<div class="dp-resize" data-id="'+b.id+'" style="position:absolute;left:0;right:0;bottom:0;height:6px;cursor:ns-resize;"></div>';
     html += '</div>';
   });
@@ -8284,8 +8284,25 @@ function confirmDpLog(){
   sbSaveSession(_ns);
   b.done = true;
   b.realDur = dur;
+  b.sessionId = _ns._id;
   dpSaveRemote();
   closeM('mo-dp-log');
+  updateCounts();
+  renderPlanningJour();
+}
+
+function dpUndoLog(id){
+  var b = dayPlan.blocks.find(function(x){return x.id===id;});
+  if(!b || !b.done) return;
+  if(!confirm('Annuler cette session ? Elle sera supprimée du Journal.')) return;
+  if(b.sessionId){
+    sessions = sessions.filter(function(s){return s._id!=b.sessionId;});
+    sbDelete('sessions', String(b.sessionId)).catch(function(e){console.error('dpUndoLog delete session',e);});
+  }
+  b.done = false;
+  b.realDur = null;
+  delete b.sessionId;
+  dpSaveRemote();
   updateCounts();
   renderPlanningJour();
 }
