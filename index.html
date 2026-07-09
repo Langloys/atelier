@@ -491,6 +491,7 @@ async function loadFromSupabase() {
         if(row.key === 'rangements' && row.data) rangements = row.data;
         if(row.key === 'galeries' && row.data) galeries = row.data;
         if(row.key === 'planEvts' && row.data) planEvts = row.data;
+        if(row.key === 'dayPlan' && row.data) dayPlan = row.data;
       });
     }
     // ── Migration : sessions pointant vers une activité disparue → remap par label ──
@@ -547,7 +548,7 @@ function sbSaveOeuvre(o){ sbUpsert('oeuvres',o._id,o).catch(function(e){console.
 function sbSaveEx(e){ sbUpsert('exemplaires',e._id,e).catch(function(e2){console.error('sbSaveEx',e2);}); }
 function sbSaveProjet(p){ sbUpsert('projets',p._id,p).catch(function(e){console.error('sbSaveProjet',e);}); }
 function sbSaveClient(c){ sbUpsert('clients',c._id,c).catch(function(e){console.error('sbSaveClient',e);}); }
-function sbSaveConfig(key){ var val; if(key==='actionsConfig')val=actionsConfig; else if(key==='activites')val=activites; else if(key==='recettesPatine')val=recettesPatine; else if(key==='taches')val=taches; else if(key==='techniques')val=techniques||[]; else if(key==='matieres')val=matieres||[]; else if(key==='typesOeuvres')val=typesOeuvres||[]; else if(key==='creationActions')val=creationActions||[]; else if(key==='lieux')val=lieux||[]; else if(key==='fonderies')val=fonderies||[]; else if(key==='rangements')val=rangements||[]; else if(key==='galeries')val=galeries||[]; else if(key==='planEvts')val=planEvts||[]; else if(key==='finances')val=finances||[]; else if(key==='finTypes')val=finTypes||[]; else return; sbUpsert('config',key,val).catch(function(e){console.error('sbSaveConfig '+key,e);}); }
+function sbSaveConfig(key){ var val; if(key==='actionsConfig')val=actionsConfig; else if(key==='activites')val=activites; else if(key==='recettesPatine')val=recettesPatine; else if(key==='taches')val=taches; else if(key==='techniques')val=techniques||[]; else if(key==='matieres')val=matieres||[]; else if(key==='typesOeuvres')val=typesOeuvres||[]; else if(key==='creationActions')val=creationActions||[]; else if(key==='lieux')val=lieux||[]; else if(key==='fonderies')val=fonderies||[]; else if(key==='rangements')val=rangements||[]; else if(key==='galeries')val=galeries||[]; else if(key==='planEvts')val=planEvts||[]; else if(key==='finances')val=finances||[]; else if(key==='finTypes')val=finTypes||[]; else if(key==='dayPlan')val=dayPlan; else return; sbUpsert('config',key,val).catch(function(e){console.error('sbSaveConfig '+key,e);}); }
 function sbSaveAllConfig(){ ['actionsConfig','activites','recettesPatine','taches','techniques','matieres','typesOeuvres','creationActions','lieux','fonderies','rangements','galeries'].forEach(sbSaveConfig); }
 
 async function persistSupabase() {
@@ -1978,6 +1979,7 @@ async function refreshToday(btn){
       if(row.key==='actionsConfig'&&row.data) actionsConfig=row.data;
       if(row.key==='activites'&&row.data) activites=row.data;
       if(row.key==='planEvts'&&row.data) planEvts=row.data;
+      if(row.key==='dayPlan'&&row.data) dayPlan=row.data;
     });}
   } catch(e){ console.error('refreshToday',e); }
   if(btn){ btn.disabled=false; btn.textContent='↺ Actualiser'; }
@@ -7330,7 +7332,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260709 - v64 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260709 - v65 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -7895,17 +7897,8 @@ function setPlanningMode(mode){
   }
 }
 
-function dpLoadStorage(){
-  try{
-    var raw = localStorage.getItem('atelier_dayplan');
-    if(!raw) return null;
-    var data = JSON.parse(raw);
-    if(data.date !== TODAY) return null; // écrasé automatiquement le lendemain
-    return data;
-  }catch(e){ return null; }
-}
-function dpSaveStorage(){
-  try{ localStorage.setItem('atelier_dayplan', JSON.stringify(dayPlan)); }catch(e){}
+function dpSaveRemote(){
+  sbSaveConfig('dayPlan');
 }
 function dpMinToStr(min){
   var h=Math.floor(min/60), m=min%60;
@@ -7955,8 +7948,8 @@ function renderPlanningJour(){
   var wrap = document.getElementById('planning-jour-content');
   if(!wrap) return;
   if(!dayPlan || dayPlan.date !== TODAY){
-    dayPlan = dpLoadStorage() || dpBuildAuto();
-    dpSaveStorage();
+    dayPlan = dpBuildAuto();
+    dpSaveRemote();
   }
   dpResolveOverlaps();
   var totalPx = ((DP_END-DP_START)/DP_SLOT)*DP_PXSLOT;
@@ -8053,7 +8046,7 @@ function dpStartDrag(ev, id){
     document.removeEventListener('pointermove', onMove);
     document.removeEventListener('pointerup', onUp);
     dpResolveOverlaps();
-    dpSaveStorage();
+    dpSaveRemote();
     renderPlanningJour();
   }
   document.addEventListener('pointermove', onMove);
@@ -8077,7 +8070,7 @@ function dpStartResize(ev, id){
     document.removeEventListener('pointermove', onMove);
     document.removeEventListener('pointerup', onUp);
     dpResolveOverlaps();
-    dpSaveStorage();
+    dpSaveRemote();
     renderPlanningJour();
   }
   document.addEventListener('pointermove', onMove);
@@ -8099,7 +8092,7 @@ function dpStartPoolDrag(ev, taskId, label){
     start = Math.max(DP_START, Math.min(start, DP_END-30));
     dayPlan.blocks.push({id:'tache-'+taskId+'-'+Date.now(), type:'tache', label:label, start:start, dur:30, fixed:false, color:'#c9a876', done:false, refId:taskId});
     dpResolveOverlaps();
-    dpSaveStorage();
+    dpSaveRemote();
     renderPlanningJour();
   }
   document.addEventListener('pointermove', onMove);
@@ -8115,14 +8108,14 @@ function dpAddCustomBlock(){
   var start = Math.min(lastEnd, DP_END-dur);
   dayPlan.blocks.push({id:'custom-'+Date.now(), type:'custom', label:label.trim(), start:start, dur:dur, fixed:false, color:'#a89bc9', done:false, refId:null});
   dpResolveOverlaps();
-  dpSaveStorage();
+  dpSaveRemote();
   renderPlanningJour();
 }
 
 function dpResetAuto(){
   if(!confirm('Réinitialiser le planning du jour avec le pré-remplissage automatique ? Les blocs ajoutés manuellement seront perdus.')) return;
   dayPlan = dpBuildAuto();
-  dpSaveStorage();
+  dpSaveRemote();
   renderPlanningJour();
 }
 
@@ -8161,7 +8154,7 @@ function confirmDpLog(){
   sbSaveSession(_ns);
   b.done = true;
   b.realDur = dur;
-  dpSaveStorage();
+  dpSaveRemote();
   closeM('mo-dp-log');
   updateCounts();
   renderPlanningJour();
