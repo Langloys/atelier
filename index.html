@@ -1089,6 +1089,7 @@ function doLogout(){
     <div class="mh"><h2 id="dp-log-title">Session</h2><button class="mc" onclick="closeM('mo-dp-log')">×</button></div>
     <div class="mb">
       <div class="fg"><label>Heure de début</label><input type="text" id="dp-log-heure" readonly style="background:var(--off);"></div>
+      <div class="fg"><label>Rattaché à</label><select id="dp-log-item" onchange="dpLogItemChange()"></select></div>
       <div class="fg"><label>Durée réelle (min)</label><input type="number" id="dp-log-dur" min="1"></div>
       <div class="fg"><label>Action</label><select id="dp-log-action"></select></div>
       <div class="fg"><label>Commentaire</label><input type="text" id="dp-log-com" placeholder="Note (optionnel)…"></div>
@@ -4634,6 +4635,11 @@ function onDrop(event, mat, container){
 
 function refreshJExSel(){
   var sel=document.getElementById('j-ex');var cur=sel.value;
+  sel.innerHTML = buildJExOptionsHTML();
+  sel.value=cur;
+}
+
+function buildJExOptionsHTML(){
   var opts='<option value="">— Choisir —</option>';
   // Activités diverses
   opts+='<optgroup label="── Activités ──">';
@@ -4696,8 +4702,7 @@ function refreshJExSel(){
     });
     opts+='</optgroup>';
   }
-  sel.innerHTML=opts;
-  sel.value=cur;
+  return opts;
 }
 
 // ══ PROJETS ══
@@ -7355,7 +7360,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260709 - v71 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260709 - v72 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -8204,17 +8209,32 @@ function openDpLog(id){
   document.getElementById('dp-log-dur').value = b.dur;
   document.getElementById('dp-log-heure').value = dpMinToStr(b.start);
   document.getElementById('dp-log-com').value = '';
-  var acts;
+
+  var itemSel = document.getElementById('dp-log-item');
+  itemSel.innerHTML = buildJExOptionsHTML();
+  var defaultVal = '';
   if(b.type==='item'){
-    var realId = b.itemType==='projet' ? 'proj-'+b.refId : b.refId;
-    acts = getActionsListForId(realId);
-  } else {
-    acts = (actionsConfig['COMMUN']||[]);
+    defaultVal = (b.itemType==='projet') ? 'proj-'+b.refId : b.refId;
+  } else if(b.type==='tache'){
+    var t0 = (taches||[]).find(function(x){return x._id===b.refId;});
+    if(t0 && t0.projetId) defaultVal = 'proj-'+t0.projetId;
   }
+  itemSel.value = defaultVal;
+  if(defaultVal && itemSel.value !== defaultVal){
+    // L'élément n'est plus dans la liste (terminé/filtré) : on l'ajoute pour ne pas le perdre
+    var opt=document.createElement('option'); opt.value=defaultVal; opt.textContent=b.label; opt.selected=true;
+    itemSel.appendChild(opt);
+  }
+  dpLogItemChange();
+  openM('mo-dp-log');
+}
+
+function dpLogItemChange(){
+  var val = document.getElementById('dp-log-item').value;
+  var acts = val ? getActionsListForId(val) : (actionsConfig['COMMUN']||[]);
   var sel = document.getElementById('dp-log-action');
   sel.innerHTML='';
   acts.forEach(function(a){ sel.innerHTML += '<option value="'+a+'">'+a+'</option>'; });
-  openM('mo-dp-log');
 }
 
 function confirmDpLog(){
@@ -8223,19 +8243,38 @@ function confirmDpLog(){
   var dur = parseInt(document.getElementById('dp-log-dur').value)||b.dur;
   var action = document.getElementById('dp-log-action').value;
   var com = document.getElementById('dp-log-com').value.trim();
+  var itemVal = document.getElementById('dp-log-item').value;
   var exId='activ-admin', projetId=null, activId='admin', label=b.label;
-  if(b.type==='tache'){
+
+  if(itemVal){
+    if(itemVal.indexOf('proj-')===0){
+      var pid = itemVal.replace('proj-','');
+      var p = (projets||[]).find(function(x){return x._id===pid;});
+      exId=itemVal; projetId=pid; activId=null;
+      label = p ? '📁 '+p.titre : b.label;
+    } else if(itemVal.indexOf('activ-')===0){
+      var aid = itemVal.replace('activ-','');
+      var a = (activites||[]).find(function(x){return x.id===aid;});
+      exId=itemVal; projetId=null; activId=aid;
+      label = a ? a.label : b.label;
+    } else {
+      exId=itemVal; projetId=null; activId=null;
+      var itemSel2 = document.getElementById('dp-log-item');
+      var opt2 = itemSel2.options[itemSel2.selectedIndex];
+      label = opt2 ? opt2.textContent : b.label;
+    }
+  } else if(b.type==='tache'){
     var t = (taches||[]).find(function(x){return x._id===b.refId;});
     if(t && t.projetId){
-      var p = (projets||[]).find(function(x){return x._id===t.projetId;});
+      var p3 = (projets||[]).find(function(x){return x._id===t.projetId;});
       projetId = t.projetId; exId = 'proj-'+t.projetId; activId=null;
-      label = '📁 '+(p?p.titre:label);
+      label = '📁 '+(p3?p3.titre:label);
     }
   } else if(b.type==='item'){
     if(b.itemType==='projet'){
-      var p2 = (projets||[]).find(function(x){return x._id===b.refId;});
+      var p4 = (projets||[]).find(function(x){return x._id===b.refId;});
       projetId = b.refId; exId = 'proj-'+b.refId; activId=null;
-      label = p2 ? '📁 '+p2.titre : label;
+      label = p4 ? '📁 '+p4.titre : label;
     } else {
       exId = b.refId; projetId=null; activId=null;
     }
