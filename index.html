@@ -7360,7 +7360,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260709 - v79 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260709 - v80 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -7708,6 +7708,34 @@ var _planEvtTips = {}; // stocke les textes de tooltip par evt._id
 
 // planEvts chargé depuis Supabase au démarrage
 function persistPlanEvts(){ sbUpsert('config','planEvts',planEvts).catch(function(e){console.error('persistPlanEvts',e);}); }
+
+function dpSyncEvtBlock(evtId){
+  // Répercute la création/modification/suppression d'un événement perso sur
+  // le bloc correspondant dans la Vue Journée (sans reconstruire toute la journée).
+  if(!dayPlan || dayPlan.date !== TODAY) return;
+  var evt = (planEvts||[]).find(function(e){return e._id===evtId;});
+  var bId = 'rdv-'+evtId;
+  var b = dayPlan.blocks.find(function(x){return x.id===bId;});
+  var appliesToday = evt && evt.debut<=TODAY && TODAY<=evt.fin && evt.heureDebut;
+  if(!appliesToday){
+    if(b && !b.done){
+      dayPlan.blocks = dayPlan.blocks.filter(function(x){return x.id!==bId;});
+      dpSaveRemote();
+    }
+    return;
+  }
+  var hd=evt.heureDebut.split(':'); var start=parseInt(hd[0])*60+parseInt(hd[1]);
+  var dur=30;
+  if(evt.heureFin){ var hf=evt.heureFin.split(':'); var end=parseInt(hf[0])*60+parseInt(hf[1]); if(end>start) dur=end-start; }
+  var isFixed = (parseInt(evt.heures)||0) > 0;
+  if(b){
+    b.start=start; b.dur=dur; b.label=evt.label; b.color=evt.color||b.color; b.fixed=isFixed;
+  } else {
+    dayPlan.blocks.push({id:bId, type:'rdv', label:evt.label, start:start, dur:dur, fixed:isFixed, color:evt.color||'#7a8ba6', done:false, refId:evtId});
+  }
+  dpResolveOverlaps();
+  dpSaveRemote();
+}
 
 // Calcule les heures restantes d'un élément (oeuvre, exemplaire ou projet)
 function planHeuresRestantes(item){
@@ -8825,22 +8853,29 @@ function saveEvtPlanning(){
   var heureDebut=document.getElementById('pevt-heure-debut').value||null;
   var heureFin=document.getElementById('pevt-heure-fin').value||null;
   var note=document.getElementById('pevt-note').value.trim()||null;
+  var targetId;
   if(editPlanEvtId){
     var evt=planEvts.find(function(e){return e._id===editPlanEvtId;});
     if(evt){evt.label=label;evt.debut=debut;evt.fin=fin;evt.heures=heures;evt.color=color;evt.heureDebut=heureDebut;evt.heureFin=heureFin;evt.note=note;}
+    targetId = editPlanEvtId;
   } else {
-    planEvts.push({_id:'pe-'+Date.now(),label:label,debut:debut,fin:fin,heures:heures,color:color,heureDebut:heureDebut,heureFin:heureFin,note:note});
+    var newId = 'pe-'+Date.now();
+    planEvts.push({_id:newId,label:label,debut:debut,fin:fin,heures:heures,color:color,heureDebut:heureDebut,heureFin:heureFin,note:note});
+    targetId = newId;
   }
   persistPlanEvts();
+  dpSyncEvtBlock(targetId);
   closeM('mo-planning-evt');
-  renderPlanning();
+  if(planningMode==='jour') renderPlanningJour(); else renderPlanning();
 }
 function deleteEvtPlanning(){
   if(!confirm('Supprimer cet événement ?'))return;
-  planEvts=planEvts.filter(function(e){return e._id!==editPlanEvtId;});
+  var delId = editPlanEvtId;
+  planEvts=planEvts.filter(function(e){return e._id!==delId;});
   persistPlanEvts();
+  dpSyncEvtBlock(delId);
   closeM('mo-planning-evt');
-  renderPlanning();
+  if(planningMode==='jour') renderPlanningJour(); else renderPlanning();
 }
 
 var editFinId = null;
