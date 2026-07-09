@@ -7355,7 +7355,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260709 - v69 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260709 - v70 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -7977,8 +7977,7 @@ function renderPlanningJour(){
   dpResolveOverlaps();
   var totalPx = ((DP_END-DP_START)/DP_SLOT)*DP_PXSLOT;
 
-  var html = '<div style="display:flex;gap:16px;align-items:flex-start;">';
-  html += '<div style="flex:1;min-width:0;">';
+  var html = '<div>';
   html += '<div id="dp-grid" onclick="dpGridClick(event)" style="position:relative;height:'+totalPx+'px;border:1px solid var(--border);border-radius:var(--r);background:var(--w);background-image:repeating-linear-gradient(to bottom, var(--border) 0, var(--border) 1px, transparent 1px, transparent '+DP_PXSLOT+'px);margin-left:52px;cursor:copy;">';
   for(var h=Math.ceil(DP_START/60); h*60<=DP_END; h++){
     var top=((h*60-DP_START)/DP_SLOT)*DP_PXSLOT;
@@ -7995,8 +7994,9 @@ function renderPlanningJour(){
     var height=Math.max((b.dur/DP_SLOT)*DP_PXSLOT-2, 16);
     var bg=b.color||'#c9a876';
     html += '<div class="dp-block" data-id="'+b.id+'" style="position:absolute;left:4px;right:4px;top:'+top+'px;height:'+height+'px;background:'+(b.done?'var(--off)':bg+'26')+';border-left:3px solid '+bg+';border-radius:4px;opacity:'+(b.done?'.55':'1')+';overflow:hidden;display:flex;align-items:center;justify-content:space-between;gap:4px;padding:0 6px;">';
+    if(!b.done) html += '<button onclick="event.stopPropagation();dpToggleFixed(\''+b.id+'\')" title="'+(b.fixed?'Fixe — cliquer pour rendre flexible':'Flexible — cliquer pour figer')+'" style="flex-shrink:0;border:none;background:none;padding:0;cursor:pointer;font-size:.72rem;line-height:1;">'+(b.fixed?'🔒':'🔓')+'</button>';
     html += '<div class="dp-block-drag" data-id="'+b.id+'" style="flex:1;min-width:0;overflow:hidden;'+(b.fixed?'':'cursor:grab;')+'">';
-    html += '<div style="font-size:.68rem;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+(b.fixed?'🔒 ':'')+b.label+'</div>';
+    html += '<div style="font-size:.68rem;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+b.label+'</div>';
     html += '<div style="font-size:.6rem;color:var(--faint);">'+dpMinToStr(b.start)+'–'+dpMinToStr(b.start+b.dur)+(b.done?' · fait '+fmtMin(b.realDur||b.dur):'')+'</div>';
     html += '</div>';
     if(!b.done) html += '<button onclick="event.stopPropagation();openDpLog(\''+b.id+'\')" style="flex-shrink:0;border:none;background:var(--ink);color:var(--w);font-size:.62rem;padding:3px 7px;border-radius:10px;cursor:pointer;">✓ '+fmtMin(b.dur)+'</button>';
@@ -8007,19 +8007,6 @@ function renderPlanningJour(){
   html += '</div>';
   html += '<div style="text-align:center;margin-top:10px;"><button class="btn btn-sm" onclick="dpResetAuto()" style="color:var(--faint);">↺ Réinitialiser la journée</button></div>';
   html += '</div>';
-
-  html += '<div style="width:190px;flex-shrink:0;">';
-  html += '<div style="font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);font-weight:600;margin-bottom:8px;">🗂 À caser</div>';
-  var poolTasks = (taches||[]).filter(function(t){
-    if(t.done) return false;
-    if(dayPlan.blocks.some(function(b){return b.type==='tache' && b.refId===t._id;})) return false;
-    return true;
-  });
-  if(!poolTasks.length) html += '<div style="font-size:.72rem;color:var(--faint);font-style:italic;">Rien à caser.</div>';
-  poolTasks.forEach(function(t){
-    html += '<div class="dp-pool-chip" data-taskid="'+t._id+'" data-label="'+t.texte.replace(/"/g,'&quot;')+'" style="background:var(--w);border:1px solid var(--border);border-left:3px solid #c9a876;border-radius:4px;padding:6px 8px;margin-bottom:6px;font-size:.72rem;cursor:grab;">'+t.texte+(t.echeance?'<div style="font-size:.62rem;color:var(--faint);margin-top:2px;">📅 '+fmtShort(t.echeance)+'</div>':'')+'</div>';
-  });
-  html += '</div></div>';
 
   wrap.innerHTML = html;
   dpAttachHandlers();
@@ -8036,9 +8023,15 @@ function dpAttachHandlers(){
   grid.querySelectorAll('.dp-resize').forEach(function(el){
     el.addEventListener('pointerdown', function(ev){ dpStartResize(ev, el.dataset.id); });
   });
-  document.querySelectorAll('.dp-pool-chip').forEach(function(el){
-    el.addEventListener('pointerdown', function(ev){ dpStartPoolDrag(ev, el.dataset.taskid, el.dataset.label); });
-  });
+}
+
+function dpToggleFixed(id){
+  var b = dayPlan.blocks.find(function(x){return x.id===id;});
+  if(!b) return;
+  b.fixed = !b.fixed;
+  dpResolveOverlaps();
+  dpSaveRemote();
+  renderPlanningJour();
 }
 
 function dpQuickRedraw(){
@@ -8100,27 +8093,6 @@ function dpStartResize(ev, id){
   document.addEventListener('pointerup', onUp);
 }
 
-function dpStartPoolDrag(ev, taskId, label){
-  ev.preventDefault();
-  var grid = document.getElementById('dp-grid');
-  function onMove(){}
-  function onUp(e){
-    document.removeEventListener('pointermove', onMove);
-    document.removeEventListener('pointerup', onUp);
-    var gridRect = grid.getBoundingClientRect();
-    if(e.clientX<gridRect.left || e.clientX>gridRect.right || e.clientY<gridRect.top || e.clientY>gridRect.bottom) return;
-    var y = e.clientY - gridRect.top;
-    var slotIdx = Math.round(y/DP_PXSLOT);
-    var start = DP_START + slotIdx*DP_SLOT;
-    start = Math.max(DP_START, Math.min(start, DP_END-30));
-    dayPlan.blocks.push({id:'tache-'+taskId+'-'+Date.now(), type:'tache', label:label, start:start, dur:30, fixed:false, color:'#c9a876', done:false, refId:taskId});
-    dpResolveOverlaps();
-    dpSaveRemote();
-    renderPlanningJour();
-  }
-  document.addEventListener('pointermove', onMove);
-  document.addEventListener('pointerup', onUp);
-}
 
 var _dpQuickAddStart = null;
 function dpGridClick(ev){
