@@ -7361,7 +7361,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260709 - v83 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260709 - v84 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -8384,7 +8384,7 @@ function openDpLog(id){
   document.getElementById('dp-log-title').textContent = b.label;
   document.getElementById('dp-log-dur').value = b.dur;
   document.getElementById('dp-log-heure').value = dpMinToStr(b.start);
-  document.getElementById('dp-log-com').value = '';
+  document.getElementById('dp-log-com').value = b.label || '';
 
   var itemSel = document.getElementById('dp-log-item');
   itemSel.innerHTML = buildJExOptionsHTML();
