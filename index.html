@@ -1071,8 +1071,8 @@ function doLogout(){
     <div class="mh"><h2>Ajouter à <span id="dp-qa-heure"></span></h2><button class="mc" onclick="closeM('mo-dp-quickadd')">×</button></div>
     <div class="mb">
       <div class="fg"><label>Quoi ?</label>
-        <select id="dp-qa-select" onchange="dpQaSelectChange()"></select>
-        <input type="text" id="dp-qa-label" placeholder="Précise ce que c'est…" style="margin-top:6px;display:none;">
+        <input type="text" id="dp-qa-label" placeholder="Tape un nom libre (trajet, appel, courses…)" oninput="dpQaLabelInput()">
+        <select id="dp-qa-select" onchange="dpQaSelectChange()" style="margin-top:6px;"></select>
       </div>
       <div class="fg"><label>Durée (min)</label><input type="number" id="dp-qa-dur" value="30" min="5" step="5"></div>
     </div>
@@ -7360,7 +7360,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260709 - v81 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260709 - v82 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -8045,7 +8045,14 @@ function renderPlanningJour(){
   var wrap = document.getElementById('planning-jour-content');
   if(!wrap) return;
   if(!dayPlan || dayPlan.date !== TODAY){
+    // Ce qui n'a pas été validé (hors RDV, recalculés séparément à partir des événements)
+    // est reporté sur la nouvelle journée, pour ne rien perdre de ce qui traîne.
+    var carryOver = (dayPlan && dayPlan.blocks) ? dayPlan.blocks.filter(function(b){ return !b.done && b.type!=='rdv'; }) : [];
     dayPlan = dpBuildAuto();
+    carryOver.forEach(function(b){
+      var dup = b.refId!=null && dayPlan.blocks.some(function(x){ return x.type===b.type && x.refId===b.refId; });
+      if(!dup) dayPlan.blocks.push(b);
+    });
     dpSaveRemote();
   }
   var totalPx = ((DP_END-DP_START)/DP_SLOT)*DP_PXSLOT;
@@ -8080,7 +8087,7 @@ function renderPlanningJour(){
     var leftPct = (lay.col/lay.cols*100);
     var widthPct = (100/lay.cols);
     html += '<div class="dp-block" data-id="'+b.id+'" title="'+dpMinToStr(b.start)+'–'+dpMinToStr(b.start+b.dur)+'" style="position:absolute;left:calc('+leftPct+'% + 2px);width:calc('+widthPct+'% - 4px);top:'+top+'px;height:'+height+'px;background:'+(b.done?'var(--off)':bg+'26')+';border-left:3px solid '+bg+';border-radius:4px;opacity:'+(b.done?'.55':'1')+';overflow:hidden;display:flex;align-items:center;justify-content:space-between;gap:4px;padding:0 6px;">';
-    if(!b.done) html += '<button onclick="event.stopPropagation();dpDeleteBlock(\''+b.id+'\')" title="Supprimer ce bloc" style="flex-shrink:0;border:none;background:none;color:var(--red);padding:0;cursor:pointer;font-size:.72rem;line-height:1;">✕</button>';
+    html += '<button onclick="event.stopPropagation();dpDeleteBlock(\''+b.id+'\')" title="'+(b.done?'Retirer de la journée (garde la session)':'Supprimer ce bloc')+'" style="flex-shrink:0;border:none;background:none;color:var(--red);padding:0;cursor:pointer;font-size:.72rem;line-height:1;">✕</button>';
     if(!b.done){
       var lockSvg = b.fixed
         ? '<svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>'
@@ -8090,7 +8097,10 @@ function renderPlanningJour(){
     html += '<div class="dp-block-drag" data-id="'+b.id+'" style="flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:.7rem;font-weight:600;color:var(--ink);'+(b.fixed?'':'cursor:grab;')+'">'+b.label+(b.done?' <span style="font-weight:400;color:var(--faint);">· fait '+fmtMin(b.realDur||b.dur)+'</span>':'')+'</div>';
     if(!b.done) html += '<button onclick="event.stopPropagation();openDpLog(\''+b.id+'\')" style="flex-shrink:0;border:none;background:var(--ink);color:var(--w);font-size:.62rem;padding:3px 7px;border-radius:10px;cursor:pointer;">✓ '+fmtMin(b.dur)+'</button>';
     else html += '<button onclick="event.stopPropagation();dpUndoLog(\''+b.id+'\')" title="Annuler cette session" style="flex-shrink:0;border:none;background:none;color:var(--faint);font-size:.85rem;cursor:pointer;padding:0;">✓</button>';
-    if(!b.fixed && !b.done) html += '<div class="dp-resize" data-id="'+b.id+'" style="position:absolute;left:0;right:0;bottom:0;height:6px;cursor:ns-resize;"></div>';
+    if(!b.fixed && !b.done){
+      html += '<div class="dp-resize-top" data-id="'+b.id+'" style="position:absolute;left:50%;top:-2px;transform:translateX(-50%);width:36px;height:12px;cursor:ns-resize;display:flex;align-items:center;justify-content:center;z-index:2;"><div style="width:24px;height:4px;border-radius:2px;background:'+bg+';opacity:.6;"></div></div>';
+      html += '<div class="dp-resize" data-id="'+b.id+'" style="position:absolute;left:50%;bottom:-2px;transform:translateX(-50%);width:36px;height:12px;cursor:ns-resize;display:flex;align-items:center;justify-content:center;z-index:2;"><div style="width:24px;height:4px;border-radius:2px;background:'+bg+';opacity:.6;"></div></div>';
+    }
     html += '</div>';
   });
   html += '</div>';
@@ -8112,12 +8122,16 @@ function dpAttachHandlers(){
   grid.querySelectorAll('.dp-resize').forEach(function(el){
     el.addEventListener('pointerdown', function(ev){ dpStartResize(ev, el.dataset.id); });
   });
+  grid.querySelectorAll('.dp-resize-top').forEach(function(el){
+    el.addEventListener('pointerdown', function(ev){ dpStartResizeTop(ev, el.dataset.id); });
+  });
 }
 
 function dpDeleteBlock(id){
   var b = dayPlan.blocks.find(function(x){return x.id===id;});
-  if(!b || b.done) return;
-  if(!confirm('Supprimer ce bloc de la journée ?')) return;
+  if(!b) return;
+  var msg = b.done ? 'Retirer ce bloc de la journée ? La session déjà validée reste dans le Journal.' : 'Supprimer ce bloc de la journée ?';
+  if(!confirm(msg)) return;
   dayPlan.blocks = dayPlan.blocks.filter(function(x){return x.id!==id;});
   dpSaveRemote();
   renderPlanningJour();
@@ -8151,11 +8165,29 @@ function dpSyncRdvToEvt(b){
   sbSaveConfig('planEvts');
 }
 
+// ── Bulle flottante affichant le nom complet au toucher/glisser (utile sur mobile) ──
+var _dpBubbleEl = null;
+function dpShowLabelBubble(text, x, y){
+  dpHideLabelBubble();
+  var el = document.createElement('div');
+  el.textContent = text;
+  el.style.cssText = 'position:fixed;left:'+x+'px;top:'+(y-42)+'px;transform:translateX(-50%);background:var(--ink);color:var(--w);font-size:.72rem;padding:6px 10px;border-radius:6px;z-index:3000;pointer-events:none;white-space:nowrap;max-width:80vw;overflow:hidden;text-overflow:ellipsis;box-shadow:0 2px 10px rgba(0,0,0,.3);';
+  document.body.appendChild(el);
+  _dpBubbleEl = el;
+}
+function dpMoveLabelBubble(x,y){
+  if(_dpBubbleEl){ _dpBubbleEl.style.left=x+'px'; _dpBubbleEl.style.top=(y-42)+'px'; }
+}
+function dpHideLabelBubble(){
+  if(_dpBubbleEl){ _dpBubbleEl.remove(); _dpBubbleEl=null; }
+}
+
 function dpStartDrag(ev, id){
   ev.preventDefault();
   var b = dayPlan.blocks.find(function(x){return x.id===id;});
   if(!b) return;
   var startY = ev.clientY, origStart = b.start;
+  dpShowLabelBubble(b.label, ev.clientX, ev.clientY);
   function onMove(e){
     var dy = e.clientY - startY;
     var deltaSlots = Math.round(dy/DP_PXSLOT);
@@ -8163,10 +8195,12 @@ function dpStartDrag(ev, id){
     newStart = Math.max(DP_START, Math.min(newStart, DP_END-b.dur));
     b.start = newStart;
     dpQuickRedraw();
+    dpMoveLabelBubble(e.clientX, e.clientY);
   }
   function onUp(){
     document.removeEventListener('pointermove', onMove);
     document.removeEventListener('pointerup', onUp);
+    dpHideLabelBubble();
     dpSyncRdvToEvt(b);
     dpSaveRemote();
     renderPlanningJour();
@@ -8180,6 +8214,7 @@ function dpStartResize(ev, id){
   var b = dayPlan.blocks.find(function(x){return x.id===id;});
   if(!b) return;
   var startY = ev.clientY, origDur = b.dur;
+  dpShowLabelBubble(b.label+' — '+fmtMin(b.dur), ev.clientX, ev.clientY);
   function onMove(e){
     var dy = e.clientY - startY;
     var deltaSlots = Math.round(dy/DP_PXSLOT);
@@ -8187,10 +8222,13 @@ function dpStartResize(ev, id){
     newDur = Math.min(newDur, DP_END-b.start);
     b.dur = newDur;
     dpQuickRedraw();
+    dpMoveLabelBubble(e.clientX, e.clientY);
+    if(_dpBubbleEl) _dpBubbleEl.textContent = b.label+' — '+fmtMin(b.dur);
   }
   function onUp(){
     document.removeEventListener('pointermove', onMove);
     document.removeEventListener('pointerup', onUp);
+    dpHideLabelBubble();
     dpResolveOverlaps();
     dpSyncRdvToEvt(b);
     dpSaveRemote();
@@ -8200,6 +8238,35 @@ function dpStartResize(ev, id){
   document.addEventListener('pointerup', onUp);
 }
 
+
+function dpStartResizeTop(ev, id){
+  ev.preventDefault(); ev.stopPropagation();
+  var b = dayPlan.blocks.find(function(x){return x.id===id;});
+  if(!b) return;
+  var startY = ev.clientY, origStart=b.start, fixedEnd=b.start+b.dur;
+  dpShowLabelBubble(b.label+' — '+fmtMin(fixedEnd-b.start), ev.clientX, ev.clientY);
+  function onMove(e){
+    var dy = e.clientY - startY;
+    var deltaSlots = Math.round(dy/DP_PXSLOT);
+    var newStart = origStart + deltaSlots*DP_SLOT;
+    newStart = Math.max(DP_START, Math.min(newStart, fixedEnd-DP_SLOT));
+    b.start = newStart;
+    b.dur = fixedEnd - newStart;
+    dpQuickRedraw();
+    dpMoveLabelBubble(e.clientX, e.clientY);
+    if(_dpBubbleEl) _dpBubbleEl.textContent = b.label+' — '+fmtMin(b.dur);
+  }
+  function onUp(){
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    dpHideLabelBubble();
+    dpSyncRdvToEvt(b);
+    dpSaveRemote();
+    renderPlanningJour();
+  }
+  document.addEventListener('pointermove', onMove);
+  document.addEventListener('pointerup', onUp);
+}
 
 var _dpQuickAddStart = null;
 function dpGridClick(ev){
@@ -8231,7 +8298,7 @@ function dpTodayScheduledItems(){
 function dpBuildQaOptions(){
   var sel = document.getElementById('dp-qa-select');
   if(!sel) return;
-  var html = '<option value="trajet">🚗 Trajet</option>';
+  var html = '<option value="">— ou choisir dans la liste —</option><option value="trajet">🚗 Trajet</option>';
   var todayItems = dpTodayScheduledItems();
   if(todayItems.length){
     html += '<optgroup label="Programmé aujourd\'hui">';
@@ -8248,38 +8315,41 @@ function dpBuildQaOptions(){
     });
     html += '</optgroup>';
   }
-  html += '<option value="autre">✏️ Autre…</option>';
   sel.innerHTML = html;
-  sel.value = 'trajet';
-  dpQaSelectChange();
+  sel.value = '';
 }
 function dpQaSelectChange(){
   var sel = document.getElementById('dp-qa-select');
   var txt = document.getElementById('dp-qa-label');
   if(!sel || !txt) return;
-  if(sel.value==='autre'){ txt.style.display=''; txt.value=''; setTimeout(function(){txt.focus();},60); }
-  else { txt.style.display='none'; }
+  if(sel.value){ txt.value=''; } // une sélection dans la liste efface le champ libre
+}
+function dpQaLabelInput(){
+  var txt = document.getElementById('dp-qa-label');
+  var sel = document.getElementById('dp-qa-select');
+  if(txt.value.trim()) sel.value=''; // taper un texte annule la sélection dans la liste
 }
 function dpOpenQuickAdd(start){
   _dpQuickAddStart = start;
   document.getElementById('dp-qa-heure').textContent = dpMinToStr(start);
   document.getElementById('dp-qa-dur').value='30';
+  document.getElementById('dp-qa-label').value='';
   dpBuildQaOptions();
   openM('mo-dp-quickadd');
+  setTimeout(function(){ var el=document.getElementById('dp-qa-label'); if(el) el.focus(); }, 60);
 }
 function dpConfirmQuickAdd(){
   var sel = document.getElementById('dp-qa-select');
   var val = sel.value;
+  var freeLabel = document.getElementById('dp-qa-label').value.trim();
   var dur = parseInt(document.getElementById('dp-qa-dur').value)||30;
   var start = (_dpQuickAddStart!==null) ? _dpQuickAddStart : DP_START;
   start = Math.min(start, DP_END-dur);
   var block;
-  if(val==='trajet'){
+  if(freeLabel){
+    block = {id:'custom-'+Date.now(), type:'custom', label:freeLabel, start:start, dur:dur, fixed:false, color:'#a89bc9', done:false, refId:null};
+  } else if(val==='trajet'){
     block = {id:'custom-'+Date.now(), type:'custom', label:'🚗 Trajet', start:start, dur:dur, fixed:false, color:'#a89bc9', done:false, refId:null};
-  } else if(val==='autre'){
-    var label = document.getElementById('dp-qa-label').value.trim();
-    if(!label){ alert('Indique un nom pour ce créneau.'); return; }
-    block = {id:'custom-'+Date.now(), type:'custom', label:label, start:start, dur:dur, fixed:false, color:'#a89bc9', done:false, refId:null};
   } else if(val.indexOf('tache|')===0){
     var tid = val.slice(6);
     var t = (taches||[]).find(function(x){return x._id===tid;});
@@ -8291,6 +8361,7 @@ function dpConfirmQuickAdd(){
     var color = itype==='projet' ? '#8fae9e' : (itype==='oeuvre' ? '#c9a876' : '#6b8cba');
     block = {id:'item-'+id+'-'+Date.now(), type:'item', itemType:itype, label:label, start:start, dur:dur, fixed:false, color:color, done:false, refId:id};
   } else {
+    alert('Tape un nom ou choisis quelque chose dans la liste.');
     return;
   }
   dayPlan.blocks.push(block);
