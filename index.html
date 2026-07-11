@@ -7436,7 +7436,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260709 - v88 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260709 - v89 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -8650,9 +8650,10 @@ function renderPlanning(){
     var aAuj = (TODAY>=a.debut && TODAY<=a.fin) ? 1 : 0;
     var bAuj = (TODAY>=b.debut && TODAY<=b.fin) ? 1 : 0;
     if(aAuj!==bAuj) return bAuj-aAuj; // ceux en cours aujourd'hui prennent les premières lignes
+    if(a.debut !== b.debut) return a.debut < b.debut ? -1 : 1; // puis celui qui commence le plus tôt
     var da = new Date(a.fin+'T00:00:00') - new Date(a.debut+'T00:00:00');
     var db = new Date(b.fin+'T00:00:00') - new Date(b.debut+'T00:00:00');
-    return db - da;
+    return db - da; // à égalité de date de début, le plus long d'abord
   });
   evtsTries.forEach(function(evt){
     var placed = false;
@@ -8861,6 +8862,7 @@ function renderPlanning(){
     var aAuj = (TODAY>=a.debut && TODAY<=a.fin) ? 1 : 0;
     var bAuj = (TODAY>=b.debut && TODAY<=b.fin) ? 1 : 0;
     if(aAuj!==bAuj) return bAuj-aAuj;
+    if(a.debut !== b.debut) return a.debut < b.debut ? -1 : 1;
     var da = new Date(a.fin+'T00:00:00') - new Date(a.debut+'T00:00:00');
     var db = new Date(b.fin+'T00:00:00') - new Date(b.debut+'T00:00:00');
     return db - da;
