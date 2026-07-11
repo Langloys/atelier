@@ -7436,7 +7436,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260709 - v87 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260709 - v88 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -8647,6 +8647,9 @@ function renderPlanning(){
   // premières lignes et que les petits se glissent ensuite dans les trous.
   var evtLignes = [];
   var evtsTries = (planEvts||[]).slice().sort(function(a,b){
+    var aAuj = (TODAY>=a.debut && TODAY<=a.fin) ? 1 : 0;
+    var bAuj = (TODAY>=b.debut && TODAY<=b.fin) ? 1 : 0;
+    if(aAuj!==bAuj) return bAuj-aAuj; // ceux en cours aujourd'hui prennent les premières lignes
     var da = new Date(a.fin+'T00:00:00') - new Date(a.debut+'T00:00:00');
     var db = new Date(b.fin+'T00:00:00') - new Date(b.debut+'T00:00:00');
     return db - da;
@@ -8855,6 +8858,9 @@ function renderPlanning(){
   // premières lignes et que les petits se glissent ensuite dans les trous.
   var evtLignes = [];
   var evtsTries2 = (planEvts||[]).slice().sort(function(a,b){
+    var aAuj = (TODAY>=a.debut && TODAY<=a.fin) ? 1 : 0;
+    var bAuj = (TODAY>=b.debut && TODAY<=b.fin) ? 1 : 0;
+    if(aAuj!==bAuj) return bAuj-aAuj;
     var da = new Date(a.fin+'T00:00:00') - new Date(a.debut+'T00:00:00');
     var db = new Date(b.fin+'T00:00:00') - new Date(b.debut+'T00:00:00');
     return db - da;
