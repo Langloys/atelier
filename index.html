@@ -1066,6 +1066,23 @@ function doLogout(){
 
 </div><!-- /wrap -->
 
+<!-- MODAL AJOUT RAPIDE DE SESSION (depuis une fiche œuvre/exemplaire) -->
+<div class="mo" id="mo-quick-session" style="z-index:600;">
+  <div class="modal" style="max-width:360px;">
+    <div class="mh"><h2>Ajouter une session</h2><button class="mc" onclick="closeM('mo-quick-session')">×</button></div>
+    <div class="mb">
+      <div class="fg"><label>Date</label><input type="date" id="qs-date"></div>
+      <div class="fg"><label>Durée (min)</label><input type="number" id="qs-dur" min="1" placeholder="30"></div>
+      <div class="fg"><label>Action</label><select id="qs-action"></select></div>
+      <div class="fg"><label>Commentaire</label><input type="text" id="qs-com" placeholder="Note (optionnel)…"></div>
+    </div>
+    <div class="mfoot" style="display:flex;justify-content:flex-end;gap:8px;">
+      <button class="btn" onclick="closeM('mo-quick-session')">Annuler</button>
+      <button class="btn btn-primary" onclick="confirmQuickSession()">Ajouter</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL AJOUT RAPIDE — VUE JOURNÉE (clic sur un créneau) -->
 <div class="mo" id="mo-dp-quickadd">
   <div class="modal" style="max-width:340px;">
@@ -1549,6 +1566,9 @@ function doLogout(){
         <button class="btn btn-sm" onclick="sauvegarderRecettePatineOw()" style="background:var(--gold);color:white;border-color:var(--gold);">💾 Sauvegarder comme recette</button>
       </div>
     </div>
+    <div id="ow-addsession-row" style="display:none;border-top:1px solid var(--border);padding:16px 22px 0;">
+      <button class="btn btn-primary btn-sm" onclick="openQuickSession(editOeuvreId,'oeuvre')">+ Ajouter une session</button>
+    </div>
     <div id="ow-stats-bloc" style="display:none;border-top:1px solid var(--border);padding:16px 22px 0;max-height:420px;overflow-y:auto;"></div>
     <div class="mfoot"><button class="btn btn-danger" id="ow-del-btn" onclick="delOeuvre()" style="display:none;">Supprimer</button><button class="btn" onclick="closeM('mo-oeuvre')">Annuler</button><button class="btn btn-primary" onclick="saveOeuvre()">Enregistrer</button></div>
   </div>
@@ -1683,6 +1703,9 @@ function doLogout(){
         <button class="btn btn-sm" onclick="ajouterCouchePatine()">+ Couche</button>
         <button class="btn btn-sm" onclick="sauvegarderRecettePatine()" style="background:var(--gold);color:white;border-color:var(--gold);">💾 Sauvegarder comme recette</button>
       </div>
+    </div>
+    <div id="ex-addsession-row" style="display:none;border-top:1px solid var(--border);padding:16px 22px 0;">
+      <button class="btn btn-primary btn-sm" onclick="openQuickSession(editExId,'ex')">+ Ajouter une session</button>
     </div>
     <div id="ex-stats-bloc" style="display:none;border-top:1px solid var(--border);padding:16px 22px 0;max-height:420px;overflow-y:auto;"></div>
     <div class="mfoot"><button class="btn btn-danger" id="ex-del-btn" onclick="delExFromForm()" style="display:none;">Supprimer</button><button class="btn" onclick="closeM('mo-ex')">Annuler</button><button class="btn btn-primary" onclick="saveEx()">Enregistrer</button></div>
@@ -3471,6 +3494,73 @@ function onTypeChange(){
   if(type==='DESSIN') fillTechniqueSelect(document.getElementById('ow-technique')?document.getElementById('ow-technique').value:'');
 }
 
+var _qsItemId = null, _qsItemType = null;
+function openQuickSession(itemId, itemType){
+  if(!itemId) return;
+  _qsItemId = itemId;
+  _qsItemType = itemType;
+  document.getElementById('qs-date').value = TODAY;
+  document.getElementById('qs-dur').value = '';
+  document.getElementById('qs-com').value = '';
+  var acts = getActionsListForId(itemId);
+  var sel = document.getElementById('qs-action');
+  sel.innerHTML = '';
+  acts.forEach(function(a){ sel.innerHTML += '<option value="'+a+'">'+a+'</option>'; });
+  openM('mo-quick-session');
+}
+function confirmQuickSession(){
+  var date = document.getElementById('qs-date').value || TODAY;
+  var dur = parseInt(document.getElementById('qs-dur').value)||0;
+  if(!dur){ alert('Indique une durée.'); return; }
+  var action = document.getElementById('qs-action').value;
+  var com = document.getElementById('qs-com').value.trim();
+  var label = _qsItemId;
+  if(_qsItemType==='oeuvre'){
+    var o = oeuvres.find(function(x){return x._id===_qsItemId;});
+    if(o) label = o.num+' — '+(o.nom||o.num);
+  } else {
+    var e = exemplaires.find(function(x){return x._id===_qsItemId;});
+    if(e){
+      var op = oeuvres.find(function(x){return x._id===e.oeuvreId;});
+      label = e.exId+' — '+(op?(op.nom||op.num):'?')+(e.fonderie?' ['+e.fonderie+']':'');
+    }
+  }
+  var _ns={_id:Date.now(),date:date,exId:_qsItemId,projetId:null,activId:null,label:label,action:action,dur:dur,com:com,createdAt:(function(){var n=new Date();return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0')+' '+String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');})()};
+  sessions.push(_ns);
+  sbSaveSession(_ns);
+  updateCounts();
+  closeM('mo-quick-session');
+  if(_qsItemType==='oeuvre') refreshOwStatsBloc(_qsItemId);
+  else refreshExStatsBloc(_qsItemId);
+}
+
+function refreshOwStatsBloc(oid){
+  var owStats = document.getElementById('ow-stats-bloc');
+  if(!owStats) return;
+  var owSessions = sessions.filter(function(s){ return s.exId===oid; });
+  if(owSessions.length){
+    var totalMin = owSessions.reduce(function(a,s){return a+(s.dur||0);},0);
+    var sortedDesc = owSessions.slice().sort(function(a,b){return b.date.localeCompare(a.date)||(b._id-a._id);});
+    var statsHtml = buildHeatmap(owSessions);
+    statsHtml += '<div style="margin-top:16px;">';
+    statsHtml += '<div class="stats-section-title">Historique des sessions — '+fmtMin(totalMin)+' au total</div>';
+    sortedDesc.forEach(function(s){
+      var actionTag = s.action ? '<span class="ses-act-tag">'+s.action+'</span>' : '';
+      var com = s.com ? '<span style="color:var(--faint);font-style:italic;font-size:.72rem;">'+s.com+'</span>' : '';
+      statsHtml += '<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);font-size:.8rem;">'
+        + '<span style="color:var(--faint);min-width:90px;">'+fmtShort(s.date)+'</span>'
+        + actionTag + com
+        + '<span style="color:var(--gold);font-weight:500;margin-left:auto;">'+fmtMin(s.dur)+'</span>'
+        + '</div>';
+    });
+    statsHtml += '</div>';
+    owStats.innerHTML = statsHtml;
+    owStats.style.display = 'block';
+  } else {
+    owStats.style.display = 'none';
+    owStats.innerHTML = '';
+  }
+}
 function openEditOeuvre(oid){
   var o=oeuvres.find(function(x){return x._id===oid;});
   if(!o)return;
@@ -3511,30 +3601,8 @@ function openEditOeuvre(oid){
   renderCouchesPatineOwDirect();
 
   // Injecter le bloc stats
-  var owStats = document.getElementById('ow-stats-bloc');
-  var owSessions = sessions.filter(function(s){ return s.exId===oid; });
-  if(owSessions.length){
-    var totalMin = owSessions.reduce(function(a,s){return a+(s.dur||0);},0);
-    var sortedDesc = owSessions.slice().sort(function(a,b){return b.date.localeCompare(a.date)||(b._id-a._id);});
-    var statsHtml = buildHeatmap(owSessions);
-    statsHtml += '<div style="margin-top:16px;">';
-    statsHtml += '<div class="stats-section-title">Historique des sessions — '+fmtMin(totalMin)+' au total</div>';
-    sortedDesc.forEach(function(s){
-      var actionTag = s.action ? '<span class="ses-act-tag">'+s.action+'</span>' : '';
-      var com = s.com ? '<span style="color:var(--faint);font-style:italic;font-size:.72rem;">'+s.com+'</span>' : '';
-      statsHtml += '<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);font-size:.8rem;">'
-        + '<span style="color:var(--faint);min-width:90px;">'+fmtShort(s.date)+'</span>'
-        + actionTag + com
-        + '<span style="color:var(--gold);font-weight:500;margin-left:auto;">'+fmtMin(s.dur)+'</span>'
-        + '</div>';
-    });
-    statsHtml += '</div>';
-    owStats.innerHTML = statsHtml;
-    owStats.style.display = 'block';
-  } else {
-    owStats.style.display = 'none';
-    owStats.innerHTML = '';
-  }
+  document.getElementById('ow-addsession-row').style.display = 'block';
+  refreshOwStatsBloc(oid);
 
   openM('mo-oeuvre');
   scrollHeatmapRight(document.getElementById('ow-stats-bloc'));
@@ -3545,6 +3613,7 @@ function openAddOeuvre(){
   _tmpPhotoBlob=null;
   initPatineZoneOw(null); renderCouchesPatineOwDirect();
   var owStats2=document.getElementById('ow-stats-bloc'); if(owStats2){owStats2.style.display='none';owStats2.innerHTML='';}
+  var owAddSess=document.getElementById('ow-addsession-row'); if(owAddSess) owAddSess.style.display='none';
   document.getElementById('mo-oeuvre-title').textContent='Nouvelle œuvre';
   ['ow-nom','ow-num','ow-desc','ow-dim','ow-poids','ow-poids-cire','ow-lieu','ow-est','ow-avant-base','ow-rangement','ow-galerie-nom','ow-fonderie','ow-depot','ow-retour'].forEach(function(i){document.getElementById(i).value='';});
   document.getElementById('ow-type').value='BUSTE';
@@ -3677,6 +3746,7 @@ function openAddEx(){
   photoExDeleted=false;
   _tmpPhotoExBlob=null;
   var exSB=document.getElementById('ex-stats-bloc');if(exSB){exSB.style.display='none';exSB.innerHTML='';}
+  var exAddSess=document.getElementById('ex-addsession-row'); if(exAddSess) exAddSess.style.display='none';
   initPatineZone(null);
   document.getElementById('mo-ex-title').textContent='Nouvel exemplaire';
   ['ex-prix','ex-enc','ex-frais','ex-est','ex-avant-base','ex-notes','ex-debut','ex-fin','ex-fonderie','ex-depot','ex-retour','ex-rangement','ex-galerie-nom','ex-dim','ex-poids'].forEach(i=>document.getElementById(i).value='');
@@ -3701,6 +3771,33 @@ function openAddExFor(oid){
   var oParent=oeuvres.find(function(x){return x._id===oid;});
   if(oParent&&oParent.dim) document.getElementById('ex-dim').value=oParent.dim;
   if(oParent&&oParent.poidsCire) document.getElementById('ex-poids').value=oParent.poidsCire;
+}
+function refreshExStatsBloc(eid){
+  var exStats = document.getElementById('ex-stats-bloc');
+  if(!exStats) return;
+  var exSessions = sessions.filter(function(s){ return s.exId===eid; });
+  if(exSessions.length){
+    var exTotalM = exSessions.reduce(function(a,s){return a+(s.dur||0);},0);
+    var exSortedDesc = exSessions.slice().sort(function(a,b){return b.date.localeCompare(a.date)||(b._id-a._id);});
+    var exHtml = buildHeatmap(exSessions);
+    exHtml += '<div style="margin-top:16px;">';
+    exHtml += '<div class="stats-section-title">Historique des sessions — '+fmtMin(exTotalM)+' au total</div>';
+    exSortedDesc.forEach(function(s){
+      var actionTag = s.action ? '<span class="ses-act-tag">'+s.action+'</span>' : '';
+      var com = s.com ? '<span style="color:var(--faint);font-style:italic;font-size:.72rem;">'+s.com+'</span>' : '';
+      exHtml += '<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);font-size:.8rem;">'
+        + '<span style="color:var(--faint);min-width:90px;">'+fmtShort(s.date)+'</span>'
+        + actionTag + com
+        + '<span style="color:var(--gold);font-weight:500;margin-left:auto;">'+fmtMin(s.dur)+'</span>'
+        + '</div>';
+    });
+    exHtml += '</div>';
+    exStats.innerHTML = exHtml;
+    exStats.style.display = 'block';
+  } else {
+    exStats.style.display = 'none';
+    exStats.innerHTML = '';
+  }
 }
 function openEditEx(eid){
   const e=exemplaires.find(x=>x._id===eid);if(!e)return;
@@ -3742,30 +3839,8 @@ function openEditEx(eid){
   initPatineZone(e.patine||null);
 
   // Bloc stats
-  var exStats = document.getElementById('ex-stats-bloc');
-  var exSessions = sessions.filter(function(s){ return s.exId===eid; });
-  if(exSessions.length){
-    var exTotalM = exSessions.reduce(function(a,s){return a+(s.dur||0);},0);
-    var exSortedDesc = exSessions.slice().sort(function(a,b){return b.date.localeCompare(a.date)||(b._id-a._id);});
-    var exHtml = buildHeatmap(exSessions);
-    exHtml += '<div style="margin-top:16px;">';
-    exHtml += '<div class="stats-section-title">Historique des sessions — '+fmtMin(exTotalM)+' au total</div>';
-    exSortedDesc.forEach(function(s){
-      var actionTag = s.action ? '<span class="ses-act-tag">'+s.action+'</span>' : '';
-      var com = s.com ? '<span style="color:var(--faint);font-style:italic;font-size:.72rem;">'+s.com+'</span>' : '';
-      exHtml += '<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);font-size:.8rem;">'
-        + '<span style="color:var(--faint);min-width:90px;">'+fmtShort(s.date)+'</span>'
-        + actionTag + com
-        + '<span style="color:var(--gold);font-weight:500;margin-left:auto;">'+fmtMin(s.dur)+'</span>'
-        + '</div>';
-    });
-    exHtml += '</div>';
-    exStats.innerHTML = exHtml;
-    exStats.style.display = 'block';
-  } else {
-    exStats.style.display = 'none';
-    exStats.innerHTML = '';
-  }
+  document.getElementById('ex-addsession-row').style.display = 'block';
+  refreshExStatsBloc(eid);
 
   closeM('mo-det');openM('mo-ex');
   scrollHeatmapRight(document.getElementById('ex-stats-bloc'));
@@ -7361,7 +7436,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260709 - v84 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260709 - v85 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
