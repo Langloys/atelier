@@ -7436,7 +7436,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260709 - v85 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260709 - v86 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -7837,7 +7837,7 @@ function planBuildQueue(){
   }).forEach(function(e){
     var o=oeuvres.find(function(x){return x._id===e.oeuvreId;});
     var h = planHeuresRestantes(e);
-    if(h>0) items.push({_id:e._id, label:matEmoji(e.mat)+' '+e.exId+(o?' — '+(o.nom||o.num):''), prio:e.prio||99, heures:h, type:'ex', color:null, heuresRestantesInit:h});
+    if(h>0) items.push({_id:e._id, label:matEmoji(e.mat)+' '+e.exId+(o?' — '+(o.nom||o.num):''), prio:e.prio||99, heures:h, type:'ex', color:null, heuresRestantesInit:h, pasAvant:(e.debut||undefined)});
   });
 
   // Exemplaires en fonderie avec date de retour prévue et temps estimé
