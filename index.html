@@ -7436,7 +7436,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260709 - v86 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260709 - v87 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -8643,8 +8643,15 @@ function renderPlanning(){
   html+='</tr></thead><tbody>';
 
   // Grouper les événements perso sur des lignes sans chevauchement
+  // Triés du plus long au plus court, pour que les gros blocs prennent les
+  // premières lignes et que les petits se glissent ensuite dans les trous.
   var evtLignes = [];
-  planEvts.forEach(function(evt){
+  var evtsTries = (planEvts||[]).slice().sort(function(a,b){
+    var da = new Date(a.fin+'T00:00:00') - new Date(a.debut+'T00:00:00');
+    var db = new Date(b.fin+'T00:00:00') - new Date(b.debut+'T00:00:00');
+    return db - da;
+  });
+  evtsTries.forEach(function(evt){
     var placed = false;
     for(var li=0; li<evtLignes.length; li++){
       var conflit = evtLignes[li].some(function(e){
@@ -8844,8 +8851,15 @@ function renderPlanning(){
   });
 
   // Grouper les événements perso sur des lignes sans chevauchement
+  // Triés du plus long au plus court, pour que les gros blocs prennent les
+  // premières lignes et que les petits se glissent ensuite dans les trous.
   var evtLignes = [];
-  planEvts.forEach(function(evt){
+  var evtsTries2 = (planEvts||[]).slice().sort(function(a,b){
+    var da = new Date(a.fin+'T00:00:00') - new Date(a.debut+'T00:00:00');
+    var db = new Date(b.fin+'T00:00:00') - new Date(b.debut+'T00:00:00');
+    return db - da;
+  });
+  evtsTries2.forEach(function(evt){
     var placed = false;
     for(var li=0; li<evtLignes.length; li++){
       var conflit = evtLignes[li].some(function(e){
