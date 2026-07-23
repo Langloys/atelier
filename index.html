@@ -7436,7 +7436,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260723 - v90 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260723 - v91 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -7792,7 +7792,7 @@ function dpSyncEvtBlock(evtId){
   var evt = (planEvts||[]).find(function(e){return e._id===evtId;});
   var bId = 'rdv-'+evtId;
   var b = dayPlan.blocks.find(function(x){return x.id===bId;});
-  var appliesToday = evt && evt.debut<=TODAY && TODAY<=evt.fin && evt.heureDebut;
+  var appliesToday = evt && evt.debut===evt.fin && evt.debut===TODAY && evt.heureDebut;
   if(!appliesToday){
     if(b && !b.done){
       dayPlan.blocks = dayPlan.blocks.filter(function(x){return x.id!==bId;});
@@ -8045,16 +8045,22 @@ function dpNextFreeSlot(fromMin, dur, blocks){
   return pos;
 }
 function dpTodayInfoEvts(){
-  // Événements perso du jour sans heure précise (info "toute la journée") —
-  // affichés en bannière, faute de pouvoir les positionner dans la grille.
+  // Événements perso du jour affichés en bannière (info, sans bloquer de créneau) :
+  // - toujours pour un événement multi-jours (l'heure de début ne concerne que
+  //   le 1er jour, l'heure de fin que le dernier — ça n'a pas de sens de créer
+  //   un créneau chronométré chaque jour intermédiaire)
+  // - pour un événement d'un seul jour, uniquement s'il n'a pas d'heure précise
+  //   (sinon il devient un bloc positionné dans la grille, cf dpBuildAuto)
   return (planEvts||[]).filter(function(evt){
-    return evt.debut<=TODAY && TODAY<=evt.fin && !evt.heureDebut;
+    if(!(evt.debut<=TODAY && TODAY<=evt.fin)) return false;
+    if(evt.debut===evt.fin) return !evt.heureDebut;
+    return true;
   });
 }
 function dpBuildAuto(){
   var blocks = [];
   (planEvts||[]).forEach(function(evt){
-    if(evt.debut<=TODAY && TODAY<=evt.fin && evt.heureDebut){
+    if(evt.debut===evt.fin && evt.debut===TODAY && evt.heureDebut){
       var hd=evt.heureDebut.split(':'); var start=parseInt(hd[0])*60+parseInt(hd[1]);
       var dur=30;
       if(evt.heureFin){ var hf=evt.heureFin.split(':'); var end=parseInt(hf[0])*60+parseInt(hf[1]); if(end>start) dur=end-start; }
@@ -8139,7 +8145,12 @@ function renderPlanningJour(){
     html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">';
     infoEvts.forEach(function(evt){
       var c = evt.color||'#9a9a9a';
-      html += '<div title="Info — ne bloque pas de créneau" style="background:'+c+'22;border-left:3px solid '+c+';border-radius:4px;padding:5px 10px;font-size:.72rem;color:var(--ink);">'+evt.label+(evt.heureDebut?' <span style="color:var(--faint);">· '+evt.heureDebut+(evt.heureFin?'–'+evt.heureFin:'')+'</span>':'')+'</div>';
+      // L'heure de début ne s'affiche que le 1er jour de l'événement, l'heure
+      // de fin que le dernier jour (elles ne concernent pas les jours entre les deux).
+      var timeTxt = '';
+      if(evt.heureDebut && TODAY===evt.debut) timeTxt += evt.heureDebut;
+      if(evt.heureFin && TODAY===evt.fin) timeTxt += (timeTxt?'–':(evt.debut!==evt.fin?'→ ':'')) + evt.heureFin;
+      html += '<div title="Info — ne bloque pas de créneau" style="background:'+c+'22;border-left:3px solid '+c+';border-radius:4px;padding:5px 10px;font-size:.72rem;color:var(--ink);">'+evt.label+(timeTxt?' <span style="color:var(--faint);">· '+timeTxt+'</span>':'')+'</div>';
     });
     html += '</div>';
   }
