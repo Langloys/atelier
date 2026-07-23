@@ -7436,7 +7436,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260709 - v89 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260723 - v90 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -8693,22 +8693,18 @@ function renderPlanning(){
         }
       });
     });
-    var evtDatesOrdre = jourstAfficher.map(function(j){ return j.dateStr; });
-    var evtNextSeg = {};
-    var evtNS = null;
-    for(var ei=evtDatesOrdre.length-1; ei>=0; ei--){
-      var eds = evtDatesOrdre[ei];
-      evtNextSeg[eds] = evtNS;
-      if(evtSegmentDates[eds]) evtNS = evtSegmentDates[eds];
-    }
-    var evtPrevColor = null, evtPrevLabel = null, evtLabelEcrit = false, evtSepCompteur = 0, evtCouleurKey = null;
+    var evtLabelEcrit = false, evtCouleurKey = null;
     jourstAfficher.forEach(function(jour, jourIdx){
       var evt = evtSegmentDates[jour.dateStr];
       if(evt){
-        var evtKey = evt.color+'|'+evt.label;
+        // evtKey identifie l'événement précis (par son _id) : le libellé ne
+        // s'affiche qu'une fois par événement réel, sans jamais "ponter"
+        // vers un autre événement qui aurait par coïncidence la même
+        // couleur et le même nom (cela créait une bande claire trompeuse).
+        var evtKey = evt._id;
         if(evtKey !== evtCouleurKey){
-          evtCouleurKey=evtKey; evtPrevColor=evt.color; evtPrevLabel=evt.label;
-          evtLabelEcrit=false; evtSepCompteur=0;
+          evtCouleurKey=evtKey;
+          evtLabelEcrit=false;
         }
         html+='<td class="plan-evt-cell" onclick="openEditEvtPlanning(\''+evt._id+'\')" style="background:'+evt.color+';cursor:pointer;position:relative;height:28px;" onmouseenter="showPlanEvtTooltip(event,\''+evt._id+'\')" onmouseleave="hidePlanTooltip()">';
         if(!evtLabelEcrit){
@@ -8717,16 +8713,8 @@ function renderPlanning(){
         }
         html+='</td>';
       } else {
-        var nextEvt = evtNextSeg[jour.dateStr];
-        var memeEvtSuit = nextEvt && evtPrevColor && nextEvt.color===evtPrevColor && nextEvt.label===evtPrevLabel;
-        if(evtPrevColor && evtSepCompteur < 5 && memeEvtSuit){
-          html+='<td class="plan-evt-cell" style="background:'+evtPrevColor+'22;cursor:pointer;" onclick="openAddEvtPlanningDate(\''+jour.dateStr+'\')"></td>';
-          evtSepCompteur++;
-        } else {
-          evtPrevColor=null; evtPrevLabel=null; evtLabelEcrit=false; evtSepCompteur=0; evtCouleurKey=null;
-          html+='<td class="plan-evt-cell" onclick="openAddEvtPlanningDate(\''+jour.dateStr+'\')" style="cursor:pointer;"></td>';
-        }
-        if(evtSepCompteur>=5){ evtPrevColor=null; evtSepCompteur=0; }
+        evtLabelEcrit=false; evtCouleurKey=null;
+        html+='<td class="plan-evt-cell" onclick="openAddEvtPlanningDate(\''+jour.dateStr+'\')" style="cursor:pointer;"></td>';
       }
     });
     html+='</tr>';
