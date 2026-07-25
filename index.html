@@ -4737,7 +4737,12 @@ function renderConfig(){
     +'<div style="font-size:.72rem;color:var(--faint);margin-bottom:12px;">Les points de base sont attribués le jour de l\'interaction, puis diminuent linéairement sur 365 jours.</div>'
     +'<div style="border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:8px;">'
     +(interactionTypes||[]).map(function(t,i){
+      var iLen=(interactionTypes||[]).length;
       return '<div class="cfg-action-row">'
+        +'<div style="display:flex;flex-direction:column;gap:1px;margin-right:2px;">'
+        +'<button class="cfg-del-btn" style="font-size:.7rem;padding:0 3px;" onclick="moveInteractionType('+i+',-1)" '+(i===0?'disabled':'')+'>▲</button>'
+        +'<button class="cfg-del-btn" style="font-size:.7rem;padding:0 3px;" onclick="moveInteractionType('+i+',1)" '+(i===iLen-1?'disabled':'')+'>▼</button>'
+        +'</div>'
         +'<span class="cfg-action-name" style="flex:1;">'+t.label+'</span>'
         +'<input type="number" id="int-type-pts-'+i+'" value="'+t.points+'" style="width:70px;text-align:right;margin-right:8px;" onchange="updateInteractionTypePoints('+i+',this.value)">'
         +'<button class="cfg-del-btn" onclick="delInteractionType('+i+')">×</button>'
@@ -4773,8 +4778,13 @@ function renderConfig(){
   var groupsHtml = cfgHd('cercles-groupes','💫 Cercles — Groupes',null,false)
     +'<div style="font-size:.72rem;color:var(--faint);margin-bottom:10px;">Un groupe habituel (ex: le café du matin). Quand tu enregistres une interaction de groupe, les points sont répartis entre les présents (minimum 1 chacun).</div>'
     +'<div style="border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:8px;">'
-    +(relationGroups&&relationGroups.length?relationGroups.map(function(g){
+    +(relationGroups&&relationGroups.length?relationGroups.map(function(g,i){
+      var gLen=relationGroups.length;
       return '<div class="cfg-action-row">'
+        +'<div style="display:flex;flex-direction:column;gap:1px;margin-right:2px;">'
+        +'<button class="cfg-del-btn" style="font-size:.7rem;padding:0 3px;" onclick="moveGroup('+i+',-1)" '+(i===0?'disabled':'')+'>▲</button>'
+        +'<button class="cfg-del-btn" style="font-size:.7rem;padding:0 3px;" onclick="moveGroup('+i+',1)" '+(i===gLen-1?'disabled':'')+'>▼</button>'
+        +'</div>'
         +'<span class="cfg-action-name" style="flex:1;">'+g.label+' <span style="color:var(--faint);font-size:.72rem;">('+(g.memberIds||[]).length+' membre'+((g.memberIds||[]).length>1?'s':'')+')</span></span>'
         +'<button class="cfg-del-btn" style="color:var(--blue);margin-right:4px;" onclick="openGroupModal(\''+g.id+'\')">✏️</button>'
         +'</div>';
@@ -4783,6 +4793,21 @@ function renderConfig(){
     +'<button class="btn btn-sm btn-primary" onclick="openGroupModal(null)">+ Nouveau groupe</button>'
     +cfgFt();
   cfgEl.innerHTML += groupsHtml;
+}
+
+function moveInteractionType(i,dir){
+  var j=i+dir;
+  if(j<0||j>=interactionTypes.length)return;
+  var tmp=interactionTypes[i]; interactionTypes[i]=interactionTypes[j]; interactionTypes[j]=tmp;
+  sbSaveConfig('interactionTypes');
+  renderConfig();
+}
+function moveGroup(i,dir){
+  var j=i+dir;
+  if(j<0||j>=relationGroups.length)return;
+  var tmp=relationGroups[i]; relationGroups[i]=relationGroups[j]; relationGroups[j]=tmp;
+  sbSaveConfig('relationGroups');
+  renderConfig();
 }
 
 function updateInteractionTypePoints(i,val){
@@ -8065,7 +8090,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260725 - v98 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260725 - v99 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
