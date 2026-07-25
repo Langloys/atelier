@@ -68,6 +68,7 @@
 .stock-card:hover{box-shadow:var(--sh-lg);transform:translateY(-2px);}
 .stock-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;padding-bottom:60px;}
 #mo-client.open, #mo-cli-pick.open, #mo-echange.open{z-index:600;}
+#mo-interaction.open{z-index:700;}
 /* ══ STATS DETAIL ══ */
 .heatmap-grid{overflow-x:auto;padding-bottom:8px;}
 .heatmap-week{display:flex;flex-direction:column;gap:3px;}
@@ -7838,7 +7839,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260725 - v94 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260725 - v95 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
