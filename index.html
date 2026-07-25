@@ -495,6 +495,7 @@ async function loadFromSupabase() {
         if(row.key === 'finTypes' && row.data) finTypes = row.data;
         if(row.key === 'interactionTypes' && row.data) interactionTypes = row.data;
         if(row.key === 'relationTags' && row.data) relationTags = row.data;
+        if(row.key === 'relationGroups' && row.data) relationGroups = row.data;
         if(row.key === 'lieux' && row.data) lieux = row.data;
         if(row.key === 'fonderies' && row.data) fonderies = row.data;
         if(row.key === 'rangements' && row.data) rangements = row.data;
@@ -557,8 +558,8 @@ function sbSaveOeuvre(o){ sbUpsert('oeuvres',o._id,o).catch(function(e){console.
 function sbSaveEx(e){ sbUpsert('exemplaires',e._id,e).catch(function(e2){console.error('sbSaveEx',e2);}); }
 function sbSaveProjet(p){ sbUpsert('projets',p._id,p).catch(function(e){console.error('sbSaveProjet',e);}); }
 function sbSaveClient(c){ sbUpsert('clients',c._id,c).catch(function(e){console.error('sbSaveClient',e);}); }
-function sbSaveConfig(key){ var val; if(key==='actionsConfig')val=actionsConfig; else if(key==='activites')val=activites; else if(key==='recettesPatine')val=recettesPatine; else if(key==='taches')val=taches; else if(key==='techniques')val=techniques||[]; else if(key==='matieres')val=matieres||[]; else if(key==='typesOeuvres')val=typesOeuvres||[]; else if(key==='creationActions')val=creationActions||[]; else if(key==='lieux')val=lieux||[]; else if(key==='fonderies')val=fonderies||[]; else if(key==='rangements')val=rangements||[]; else if(key==='galeries')val=galeries||[]; else if(key==='planEvts')val=planEvts||[]; else if(key==='finances')val=finances||[]; else if(key==='finTypes')val=finTypes||[]; else if(key==='interactionTypes')val=interactionTypes||[]; else if(key==='relationTags')val=relationTags||[]; else if(key==='dayPlan')val=dayPlan; else return; sbUpsert('config',key,val).catch(function(e){console.error('sbSaveConfig '+key,e);}); }
-function sbSaveAllConfig(){ ['actionsConfig','activites','recettesPatine','taches','techniques','matieres','typesOeuvres','creationActions','lieux','fonderies','rangements','galeries','interactionTypes','relationTags'].forEach(sbSaveConfig); }
+function sbSaveConfig(key){ var val; if(key==='actionsConfig')val=actionsConfig; else if(key==='activites')val=activites; else if(key==='recettesPatine')val=recettesPatine; else if(key==='taches')val=taches; else if(key==='techniques')val=techniques||[]; else if(key==='matieres')val=matieres||[]; else if(key==='typesOeuvres')val=typesOeuvres||[]; else if(key==='creationActions')val=creationActions||[]; else if(key==='lieux')val=lieux||[]; else if(key==='fonderies')val=fonderies||[]; else if(key==='rangements')val=rangements||[]; else if(key==='galeries')val=galeries||[]; else if(key==='planEvts')val=planEvts||[]; else if(key==='finances')val=finances||[]; else if(key==='finTypes')val=finTypes||[]; else if(key==='interactionTypes')val=interactionTypes||[]; else if(key==='relationTags')val=relationTags||[]; else if(key==='relationGroups')val=relationGroups||[]; else if(key==='dayPlan')val=dayPlan; else return; sbUpsert('config',key,val).catch(function(e){console.error('sbSaveConfig '+key,e);}); }
+function sbSaveAllConfig(){ ['actionsConfig','activites','recettesPatine','taches','techniques','matieres','typesOeuvres','creationActions','lieux','fonderies','rangements','galeries','interactionTypes','relationTags','relationGroups'].forEach(sbSaveConfig); }
 
 async function persistSupabase() {
   // Oeuvres — par paquets de 10
@@ -591,6 +592,7 @@ async function persistSupabase() {
   await sbUpsert('config', 'planEvts', planEvts||[]);
   await sbUpsert('config', 'interactionTypes', interactionTypes||[]);
   await sbUpsert('config', 'relationTags', relationTags||[]);
+  await sbUpsert('config', 'relationGroups', relationGroups||[]);
 }
 </script>
 </head>
@@ -846,6 +848,7 @@ function doLogout(){
       <div style="font-family:'Playfair Display',serif;font-size:1.1rem;font-style:italic;color:var(--mid);">Cercles de relations</div>
       <div style="display:flex;gap:8px;">
         <button class="btn" onclick="openInteractionModal(null)">+ Interaction</button>
+        <button class="btn" onclick="openGroupModal(null)">+ Groupe</button>
         <button class="btn btn-primary" onclick="openAddClientBtn()">+ Personne</button>
       </div>
     </div>
@@ -1412,26 +1415,59 @@ function doLogout(){
 
 <!-- MODAL INTERACTION -->
 <div class="mo" id="mo-interaction">
-  <div class="modal" style="max-width:460px;">
+  <div class="modal" style="max-width:480px;">
     <div class="mh"><h2>Nouvelle interaction</h2><button class="mc" onclick="closeM('mo-interaction')">×</button></div>
     <div class="mb">
+      <div class="fg" style="display:flex;gap:8px;">
+        <button class="btn btn-sm" id="int-mode-person" onclick="setIntMode('person')" style="flex:1;">👤 Une personne</button>
+        <button class="btn btn-sm" id="int-mode-group" onclick="setIntMode('group')" style="flex:1;">👥 Un groupe</button>
+      </div>
       <div class="fg" id="int-cli-picker-wrap">
         <label>Personne *</label>
         <select id="int-cli"></select>
+      </div>
+      <div class="fg" id="int-group-picker-wrap" style="display:none;">
+        <label>Groupe *</label>
+        <div style="display:flex;gap:6px;">
+          <select id="int-group-sel" onchange="renderIntGroupMembers()" style="flex:1;"></select>
+          <button class="btn btn-sm" onclick="openGroupModal(null)">+ Nouveau</button>
+        </div>
+        <div id="int-group-members" style="margin-top:8px;display:flex;flex-direction:column;gap:4px;max-height:160px;overflow-y:auto;"></div>
+        <div style="font-size:.68rem;color:var(--faint);margin-top:4px;" id="int-group-split-hint"></div>
       </div>
       <div class="fr">
         <div class="fg"><label>Type *</label><select id="int-type"></select></div>
         <div class="fg"><label>Date</label><input type="date" id="int-date"></div>
       </div>
-      <div class="fr">
-        <div class="fg"><label>Bonus (points)</label><input type="number" id="int-bonus" value="0" step="1"></div>
+      <div class="fr" id="int-bonus-row">
+        <div class="fg"><label>Bonus (points)</label><input type="number" id="int-bonus" value="0" step="1" onchange="updateIntGroupSplitHint()"></div>
         <div class="fg"><label>Points de base</label><input type="text" id="int-points-display" disabled></div>
       </div>
-      <div class="fg"><label>Note (optionnel)</label><input type="text" id="int-note" placeholder="ex: dîner chez elle, ça faisait longtemps"></div>
+      <div class="fg"><label>Note (optionnel)</label><input type="text" id="int-note" placeholder="ex: café au tabac"></div>
     </div>
     <div class="mfoot">
       <button class="btn" onclick="closeM('mo-interaction')">Annuler</button>
       <button class="btn btn-primary" onclick="saveInteraction()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL GROUPE -->
+<div class="mo" id="mo-group" style="z-index:800;">
+  <div class="modal" style="max-width:460px;">
+    <div class="mh"><h2 id="mo-group-title">Nouveau groupe</h2><button class="mc" onclick="closeM('mo-group')">×</button></div>
+    <div class="mb">
+      <div class="fg"><label>Nom du groupe *</label><input type="text" id="grp-label" placeholder="ex: Café du tabac"></div>
+      <div class="fg">
+        <label>Membres habituels</label>
+        <input type="text" id="grp-member-srch" placeholder="Rechercher…" oninput="renderGroupMemberCheckboxes()" style="margin-bottom:8px;">
+        <div id="grp-members-box" style="max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;"></div>
+      </div>
+    </div>
+    <div class="mfoot">
+      <button class="btn btn-danger" id="grp-del-btn" onclick="deleteGroup()" style="display:none;">Supprimer</button>
+      <button class="btn" onclick="closeM('mo-group')">Annuler</button>
+      <button class="btn btn-primary" onclick="saveGroup()">Enregistrer</button>
     </div>
   </div>
 </div>
@@ -1907,7 +1943,7 @@ const CERCLE_TRANCHES = [
 // ══ STATE ══
 let oeuvres, exemplaires, sessions;
 let actionsConfig, projets, clients, activites, typesOeuvres, taches, techniques, matieres, creationActions;
-let interactionTypes, relationTags;
+let interactionTypes, relationTags, relationGroups;
 let finances = [], finTypes = [], lieux = [], fonderies = [], rangements = [], galeries = [];
 let recettesPatine = [];
 function load(){
@@ -1935,6 +1971,7 @@ function load(){
   galeries        = [];
   interactionTypes = JSON.parse(JSON.stringify(DEFAULT_INTERACTION_TYPES));
   relationTags      = DEFAULT_RELATION_TAGS.slice();
+  relationGroups    = [];
   // Migration : anciens types avec emoji sans color → couleur par défaut
   finTypes.forEach(function(t){ if(!t.color) t.color = '#a08050'; });
 
@@ -4718,6 +4755,21 @@ function renderConfig(){
     +'</div>'
     +cfgFt();
   cfgEl.innerHTML += relTagsHtml;
+
+  // Cercles — Groupes
+  var groupsHtml = cfgHd('cercles-groupes','💫 Cercles — Groupes',null,false)
+    +'<div style="font-size:.72rem;color:var(--faint);margin-bottom:10px;">Un groupe habituel (ex: le café du matin). Quand tu enregistres une interaction de groupe, les points sont répartis entre les présents (minimum 1 chacun).</div>'
+    +'<div style="border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:8px;">'
+    +(relationGroups&&relationGroups.length?relationGroups.map(function(g){
+      return '<div class="cfg-action-row">'
+        +'<span class="cfg-action-name" style="flex:1;">'+g.label+' <span style="color:var(--faint);font-size:.72rem;">('+(g.memberIds||[]).length+' membre'+((g.memberIds||[]).length>1?'s':'')+')</span></span>'
+        +'<button class="cfg-del-btn" style="color:var(--blue);margin-right:4px;" onclick="openGroupModal(\''+g.id+'\')">✏️</button>'
+        +'</div>';
+    }).join(''):'<div style="font-size:.78rem;color:var(--faint);font-style:italic;padding:10px;">Aucun groupe pour l\'instant.</div>')
+    +'</div>'
+    +'<button class="btn btn-sm btn-primary" onclick="openGroupModal(null)">+ Nouveau groupe</button>'
+    +cfgFt();
+  cfgEl.innerHTML += groupsHtml;
 }
 
 function updateInteractionTypePoints(i,val){
@@ -5883,42 +5935,103 @@ function formatRelDays(dateStr){
   return 'il y a plus d\'un an';
 }
 
+var intMode='person';
+function setIntMode(mode){
+  intMode=mode;
+  document.getElementById('int-mode-person').classList.toggle('btn-primary',mode==='person');
+  document.getElementById('int-mode-group').classList.toggle('btn-primary',mode==='group');
+  document.getElementById('int-cli-picker-wrap').style.display=mode==='person'?'block':'none';
+  document.getElementById('int-group-picker-wrap').style.display=mode==='group'?'block':'none';
+  updateIntGroupSplitHint();
+}
+
 function openInteractionModal(presetClientId){
   var sel=document.getElementById('int-cli');
   sel.innerHTML=clients.slice().sort(function(a,b){return clientDisplayName(a).localeCompare(clientDisplayName(b));}).map(function(c){
     return '<option value="'+c._id+'">'+clientDisplayName(c)+'</option>';
   }).join('');
-  var wrap=document.getElementById('int-cli-picker-wrap');
-  if(presetClientId){ sel.value=presetClientId; wrap.style.display='none'; }
-  else { wrap.style.display='block'; }
+  if(presetClientId) sel.value=presetClientId;
+  var groupSel=document.getElementById('int-group-sel');
+  groupSel.innerHTML=(relationGroups||[]).map(function(g){return '<option value="'+g.id+'">'+g.label+' ('+(g.memberIds||[]).length+')</option>';}).join('');
   var typeSel=document.getElementById('int-type');
   typeSel.innerHTML=(interactionTypes||[]).map(function(t){return '<option value="'+t.id+'">'+t.label+' ('+t.points+' pts)</option>';}).join('');
   document.getElementById('int-date').value=TODAY;
   document.getElementById('int-bonus').value=0;
   document.getElementById('int-note').value='';
   updateIntPointsDisplay();
+  setIntMode(presetClientId?'person':(intMode||'person'));
+  if(document.getElementById('int-group-sel').value) renderIntGroupMembers();
   openM('mo-interaction');
 }
 function updateIntPointsDisplay(){
   var t=(interactionTypes||[]).find(function(x){return x.id===document.getElementById('int-type').value;});
   document.getElementById('int-points-display').value=t?t.points:'';
+  updateIntGroupSplitHint();
 }
 document.addEventListener('change',function(ev){ if(ev.target && ev.target.id==='int-type') updateIntPointsDisplay(); });
 
+function renderIntGroupMembers(){
+  var gid=document.getElementById('int-group-sel').value;
+  var g=(relationGroups||[]).find(function(x){return x.id===gid;});
+  var box=document.getElementById('int-group-members');
+  if(!g){box.innerHTML='';return;}
+  box.innerHTML=(g.memberIds||[]).map(function(cid){
+    var c=clients.find(function(x){return x._id===cid;});
+    if(!c)return '';
+    return '<label style="display:flex;align-items:center;gap:6px;font-size:.8rem;"><input type="checkbox" class="int-grp-member-cb" value="'+cid+'" checked onchange="updateIntGroupSplitHint()">'+clientDisplayName(c)+'</label>';
+  }).join('');
+  updateIntGroupSplitHint();
+}
+function updateIntGroupSplitHint(){
+  var hint=document.getElementById('int-group-split-hint');
+  if(!hint)return;
+  if(intMode!=='group'){hint.textContent='';return;}
+  var present=document.querySelectorAll('.int-grp-member-cb:checked').length;
+  var t=(interactionTypes||[]).find(function(x){return x.id===document.getElementById('int-type').value;});
+  var total=(t?t.points:0)+(Number(document.getElementById('int-bonus').value)||0);
+  if(!present){hint.textContent='Sélectionne les personnes présentes.';return;}
+  var per=Math.max(1,Math.round(total/present));
+  hint.textContent=total+' points ÷ '+present+' présent'+(present>1?'s':'')+' = '+per+' pt'+(per>1?'s':'')+' chacun (minimum 1).';
+}
+
 function saveInteraction(){
-  var cid=document.getElementById('int-cli').value;
-  var c=clients.find(function(x){return x._id===cid;});
-  if(!c){alert('Choisis une personne');return;}
   var typeId=document.getElementById('int-type').value;
   var t=(interactionTypes||[]).find(function(x){return x.id===typeId;});
   if(!t){alert('Choisis un type');return;}
+  var date=document.getElementById('int-date').value||TODAY;
+  var bonus=Number(document.getElementById('int-bonus').value)||0;
+  var note=document.getElementById('int-note').value.trim();
+
+  if(intMode==='group'){
+    var presentIds=Array.prototype.slice.call(document.querySelectorAll('.int-grp-member-cb:checked')).map(function(cb){return cb.value;});
+    if(!presentIds.length){alert('Sélectionne au moins une personne présente');return;}
+    var total=t.points+bonus;
+    var per=Math.max(1,Math.round(total/presentIds.length));
+    var gid=document.getElementById('int-group-sel').value;
+    var g=(relationGroups||[]).find(function(x){return x.id===gid;});
+    var noteFull=(g?g.label+(note?' · '+note:''):note);
+    presentIds.forEach(function(cid){
+      var c=clients.find(function(x){return x._id===cid;});
+      if(!c)return;
+      if(!c.interactions)c.interactions=[];
+      c.interactions.push({_id:'int-'+Date.now()+'-'+cid, date:date, typeId:typeId, points:per, bonus:0, note:noteFull});
+      sbSaveClient(c);
+    });
+    closeM('mo-interaction');
+    renderCercles();
+    return;
+  }
+
+  var cid=document.getElementById('int-cli').value;
+  var c=clients.find(function(x){return x._id===cid;});
+  if(!c){alert('Choisis une personne');return;}
   var it={
     _id:'int-'+Date.now(),
-    date:document.getElementById('int-date').value||TODAY,
+    date:date,
     typeId:typeId,
     points:t.points,
-    bonus:Number(document.getElementById('int-bonus').value)||0,
-    note:document.getElementById('int-note').value.trim()
+    bonus:bonus,
+    note:note
   };
   if(!c.interactions)c.interactions=[];
   c.interactions.push(it);
@@ -5933,6 +6046,55 @@ function delInteraction(cid,iid){
   sbSaveClient(c);
   renderClientInteractionsList(c);
   renderCercles();
+}
+
+// ══ GROUPES DE RELATIONS ══
+var editGroupId=null;
+function openGroupModal(gid){
+  editGroupId=gid;
+  var g=gid?(relationGroups||[]).find(function(x){return x.id===gid;}):null;
+  document.getElementById('mo-group-title').textContent=g?'Modifier le groupe':'Nouveau groupe';
+  document.getElementById('grp-label').value=g?g.label:'';
+  document.getElementById('grp-member-srch').value='';
+  document.getElementById('grp-del-btn').style.display=g?'inline-block':'none';
+  renderGroupMemberCheckboxes(g?g.memberIds||[]:[]);
+  openM('mo-group');
+}
+function renderGroupMemberCheckboxes(preselected){
+  var box=document.getElementById('grp-members-box');
+  var srch=(document.getElementById('grp-member-srch').value||'').toLowerCase();
+  var currentChecked=preselected;
+  if(!currentChecked){
+    currentChecked=Array.prototype.slice.call(document.querySelectorAll('.grp-member-cb:checked')).map(function(cb){return cb.value;});
+  }
+  var list=clients.slice().sort(function(a,b){return clientDisplayName(a).localeCompare(clientDisplayName(b));});
+  if(srch) list=list.filter(function(c){return clientDisplayName(c).toLowerCase().indexOf(srch)>=0;});
+  box.innerHTML=list.map(function(c){
+    var checked=currentChecked.indexOf(c._id)>=0?'checked':'';
+    return '<label style="display:flex;align-items:center;gap:6px;font-size:.8rem;"><input type="checkbox" class="grp-member-cb" value="'+c._id+'" '+checked+'>'+clientDisplayName(c)+'</label>';
+  }).join('');
+}
+function saveGroup(){
+  var label=document.getElementById('grp-label').value.trim();
+  if(!label){alert('Nom du groupe obligatoire');return;}
+  var memberIds=Array.prototype.slice.call(document.querySelectorAll('.grp-member-cb:checked')).map(function(cb){return cb.value;});
+  if(!relationGroups)relationGroups=[];
+  var g={id:editGroupId||('grp-'+Date.now()), label:label, memberIds:memberIds};
+  var i=relationGroups.findIndex(function(x){return x.id===g.id;});
+  if(i>=0)relationGroups[i]=g; else relationGroups.push(g);
+  sbSaveConfig('relationGroups');
+  closeM('mo-group');
+  if(typeof renderConfig==='function' && document.getElementById('zone-config').style.display!=='none') renderConfig();
+  var groupSel=document.getElementById('int-group-sel');
+  if(groupSel){ groupSel.innerHTML=(relationGroups||[]).map(function(x){return '<option value="'+x.id+'">'+x.label+' ('+(x.memberIds||[]).length+')</option>';}).join(''); groupSel.value=g.id; renderIntGroupMembers(); }
+}
+function deleteGroup(){
+  if(!editGroupId)return;
+  if(!confirm('Supprimer ce groupe ?'))return;
+  relationGroups=(relationGroups||[]).filter(function(x){return x.id!==editGroupId;});
+  sbSaveConfig('relationGroups');
+  closeM('mo-group');
+  renderConfig();
 }
 
 function renderCercles(){
@@ -7849,7 +8011,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260725 - v96 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260725 - v97 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
