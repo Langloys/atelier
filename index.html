@@ -1434,7 +1434,7 @@ function doLogout(){
     <div class="mb">
       <div class="fg" style="display:flex;gap:6px;">
         <button class="btn btn-sm" id="int-src-groupe" onclick="setIntSource('groupe')" style="flex:1;">👥 Groupe</button>
-        <button class="btn btn-sm" id="int-src-recherche" onclick="setIntSource('recherche')" style="flex:1;">🔍 Recherche</button>
+        <input type="text" id="int-search-input" placeholder="🔍 Rechercher un nom…" oninput="onIntSearchInput()" onfocus="onIntSearchInput()" style="flex:1.6;">
         <button class="btn btn-sm" id="int-src-top20" onclick="setIntSource('top20')" style="flex:1;">⭐ Top 20</button>
       </div>
 
@@ -1443,9 +1443,6 @@ function doLogout(){
           <select id="int-group-sel" onchange="onIntGroupChange()" style="flex:1;"></select>
           <button class="btn btn-sm" onclick="openGroupModal(null)">+ Nouveau</button>
         </div>
-      </div>
-      <div class="fg" id="int-recherche-wrap" style="display:none;">
-        <input type="text" id="int-search-input" placeholder="Rechercher un nom…" oninput="renderIntPeopleList()">
       </div>
 
       <div class="fg">
@@ -5989,14 +5986,21 @@ var intSource='groupe';
 var intSelected={}; // id -> true
 var intLastClientForRefresh=null;
 
-function setIntSource(src){
+function setIntSource(src, autoCheckGroup){
   intSource=src;
-  ['groupe','recherche','top20'].forEach(function(s){
+  ['groupe','top20'].forEach(function(s){
     document.getElementById('int-src-'+s).classList.toggle('btn-primary', s===src);
   });
+  var searchInput=document.getElementById('int-search-input');
+  searchInput.style.borderColor = src==='recherche' ? 'var(--gold)' : '';
+  if(src!=='recherche') searchInput.value='';
   document.getElementById('int-groupe-wrap').style.display = src==='groupe'?'block':'none';
-  document.getElementById('int-recherche-wrap').style.display = src==='recherche'?'block':'none';
   document.getElementById('int-people-label').textContent = src==='groupe'?'Membres du groupe':(src==='recherche'?'Résultats':'Tes 20 relations les plus actives');
+  if(src==='groupe' && autoCheckGroup!==false){ onIntGroupChange(); }
+  else { renderIntPeopleList(); }
+}
+function onIntSearchInput(){
+  setIntSource('recherche');
   renderIntPeopleList();
 }
 
@@ -6014,10 +6018,10 @@ function openInteractionModal(presetClientId){
   updateIntPointsDisplay();
   if(presetClientId){
     intSelected[presetClientId]=true;
+    intSource='recherche';
     setIntSource('recherche');
   } else {
-    setIntSource(intSource||'groupe');
-    if(groupSel.value) onIntGroupChange();
+    setIntSource(intSource==='recherche'?'groupe':(intSource||'groupe'), false);
   }
   renderIntSelectedChips();
   openM('mo-interaction');
@@ -8139,7 +8143,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260725 - v102 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260725 - v103 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
