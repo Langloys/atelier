@@ -853,6 +853,19 @@ function doLogout(){
       </div>
     </div>
     <div style="font-size:.78rem;color:var(--faint);margin-bottom:16px;">Classées par score (interactions récentes, lissées sur 365 jours). Les 5 premières = cercle 1, les 15 suivantes = cercle 2, etc.</div>
+
+    <div style="border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:18px;">
+      <div onclick="toggleCerJournal()" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:11px 14px;background:var(--off);user-select:none;">
+        <span style="font-family:'Playfair Display',serif;font-size:.88rem;font-style:italic;color:var(--mid);display:flex;align-items:center;gap:8px;">
+          <span id="cer-journal-chevron" style="display:inline-block;transition:transform .15s;font-size:.65rem;transform:rotate(90deg);">▶</span>📅 Interactions du jour
+        </span>
+        <input type="date" id="cer-journal-date" onclick="event.stopPropagation()" onchange="renderCerJournal()" style="width:150px;">
+      </div>
+      <div id="cer-journal-body" style="padding:14px;">
+        <div id="cer-journal-list"></div>
+      </div>
+    </div>
+
     <div class="filters" style="margin-bottom:14px;">
       <input type="text" class="srch" id="cer-srch" placeholder="Rechercher…" oninput="renderCercles()" style="width:200px;">
       <label style="display:flex;align-items:center;gap:5px;font-size:.78rem;color:var(--faint);"><input type="checkbox" id="cer-hide-zero" onchange="renderCercles()"> Masquer scores à 0</label>
@@ -6097,9 +6110,50 @@ function deleteGroup(){
   renderConfig();
 }
 
+var cerJournalOpen=true;
+function toggleCerJournal(){
+  cerJournalOpen=!cerJournalOpen;
+  var body=document.getElementById('cer-journal-body');
+  var chev=document.getElementById('cer-journal-chevron');
+  if(body) body.style.display=cerJournalOpen?'block':'none';
+  if(chev) chev.style.transform='rotate('+(cerJournalOpen?90:0)+'deg)';
+}
+function renderCerJournal(){
+  var dateInput=document.getElementById('cer-journal-date');
+  if(!dateInput)return;
+  if(!dateInput.value) dateInput.value=TODAY;
+  var date=dateInput.value;
+  var zone=document.getElementById('cer-journal-list');
+  if(!zone)return;
+  var rows=[];
+  (clients||[]).forEach(function(c){
+    (c.interactions||[]).forEach(function(it){
+      if(it.date===date) rows.push({c:c,it:it});
+    });
+  });
+  if(!rows.length){
+    zone.innerHTML='<div style="font-size:.78rem;color:var(--faint);font-style:italic;padding:6px 0;">Aucune interaction ce jour-là.</div>';
+    return;
+  }
+  var totalPts=0;
+  var html=rows.map(function(r){
+    var t=(interactionTypes||[]).find(function(x){return x.id===r.it.typeId;});
+    var label=t?t.label:(r.it.typeId||'?');
+    var pts=(Number(r.it.points)||0)+(Number(r.it.bonus)||0);
+    totalPts+=pts;
+    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:.8rem;">'
+      +'<div style="cursor:pointer;flex:1;min-width:0;" onclick="editClientBtn(\''+r.c._id+'\',\'cercles\')"><b>'+clientDisplayName(r.c)+'</b> · '+label+(r.it.note?' · <span style="color:var(--faint);">'+r.it.note+'</span>':'')+'</div>'
+      +'<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;"><span style="color:var(--gold);">+'+pts+'</span><button class="btn btn-sm" style="color:var(--red);" onclick="delInteraction(\''+r.c._id+'\',\''+r.it._id+'\')">×</button></div>'
+      +'</div>';
+  }).join('');
+  html+='<div style="font-size:.72rem;color:var(--faint);margin-top:8px;">'+rows.length+' interaction'+(rows.length>1?'s':'')+' · '+totalPts+' points au total</div>';
+  zone.innerHTML=html;
+}
+
 function renderCercles(){
   var zone=document.getElementById('cercles-list');
   if(!zone)return;
+  renderCerJournal();
   var srch=(document.getElementById('cer-srch').value||'').toLowerCase();
   var hideZero=document.getElementById('cer-hide-zero').checked;
   var hideArchived=document.getElementById('cer-hide-archived').checked;
@@ -8011,7 +8065,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260725 - v97 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260725 - v98 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
