@@ -492,6 +492,8 @@ async function loadFromSupabase() {
         if(row.key === 'creationActions' && row.data) creationActions = row.data;
         if(row.key === 'finances' && row.data) finances = row.data;
         if(row.key === 'finTypes' && row.data) finTypes = row.data;
+        if(row.key === 'interactionTypes' && row.data) interactionTypes = row.data;
+        if(row.key === 'relationTags' && row.data) relationTags = row.data;
         if(row.key === 'lieux' && row.data) lieux = row.data;
         if(row.key === 'fonderies' && row.data) fonderies = row.data;
         if(row.key === 'rangements' && row.data) rangements = row.data;
@@ -554,8 +556,8 @@ function sbSaveOeuvre(o){ sbUpsert('oeuvres',o._id,o).catch(function(e){console.
 function sbSaveEx(e){ sbUpsert('exemplaires',e._id,e).catch(function(e2){console.error('sbSaveEx',e2);}); }
 function sbSaveProjet(p){ sbUpsert('projets',p._id,p).catch(function(e){console.error('sbSaveProjet',e);}); }
 function sbSaveClient(c){ sbUpsert('clients',c._id,c).catch(function(e){console.error('sbSaveClient',e);}); }
-function sbSaveConfig(key){ var val; if(key==='actionsConfig')val=actionsConfig; else if(key==='activites')val=activites; else if(key==='recettesPatine')val=recettesPatine; else if(key==='taches')val=taches; else if(key==='techniques')val=techniques||[]; else if(key==='matieres')val=matieres||[]; else if(key==='typesOeuvres')val=typesOeuvres||[]; else if(key==='creationActions')val=creationActions||[]; else if(key==='lieux')val=lieux||[]; else if(key==='fonderies')val=fonderies||[]; else if(key==='rangements')val=rangements||[]; else if(key==='galeries')val=galeries||[]; else if(key==='planEvts')val=planEvts||[]; else if(key==='finances')val=finances||[]; else if(key==='finTypes')val=finTypes||[]; else if(key==='dayPlan')val=dayPlan; else return; sbUpsert('config',key,val).catch(function(e){console.error('sbSaveConfig '+key,e);}); }
-function sbSaveAllConfig(){ ['actionsConfig','activites','recettesPatine','taches','techniques','matieres','typesOeuvres','creationActions','lieux','fonderies','rangements','galeries'].forEach(sbSaveConfig); }
+function sbSaveConfig(key){ var val; if(key==='actionsConfig')val=actionsConfig; else if(key==='activites')val=activites; else if(key==='recettesPatine')val=recettesPatine; else if(key==='taches')val=taches; else if(key==='techniques')val=techniques||[]; else if(key==='matieres')val=matieres||[]; else if(key==='typesOeuvres')val=typesOeuvres||[]; else if(key==='creationActions')val=creationActions||[]; else if(key==='lieux')val=lieux||[]; else if(key==='fonderies')val=fonderies||[]; else if(key==='rangements')val=rangements||[]; else if(key==='galeries')val=galeries||[]; else if(key==='planEvts')val=planEvts||[]; else if(key==='finances')val=finances||[]; else if(key==='finTypes')val=finTypes||[]; else if(key==='interactionTypes')val=interactionTypes||[]; else if(key==='relationTags')val=relationTags||[]; else if(key==='dayPlan')val=dayPlan; else return; sbUpsert('config',key,val).catch(function(e){console.error('sbSaveConfig '+key,e);}); }
+function sbSaveAllConfig(){ ['actionsConfig','activites','recettesPatine','taches','techniques','matieres','typesOeuvres','creationActions','lieux','fonderies','rangements','galeries','interactionTypes','relationTags'].forEach(sbSaveConfig); }
 
 async function persistSupabase() {
   // Oeuvres — par paquets de 10
@@ -586,6 +588,8 @@ async function persistSupabase() {
   await sbUpsert('config', 'rangements', rangements||[]);
   await sbUpsert('config', 'galeries', galeries||[]);
   await sbUpsert('config', 'planEvts', planEvts||[]);
+  await sbUpsert('config', 'interactionTypes', interactionTypes||[]);
+  await sbUpsert('config', 'relationTags', relationTags||[]);
 }
 </script>
 </head>
@@ -671,6 +675,7 @@ function doLogout(){
   <button class="tab"        onclick="setTab('stats')"   id="tab-stats">Stats</button>
   <button class="tab"        onclick="setTab('taches')"  id="tab-taches">Tâches <span class="ct" id="ct-taches">0</span></button>
   <button class="tab"        onclick="setTab('projets')" id="tab-projets">Projets <span class="ct" id="ct-proj">0</span></button>
+  <button class="tab"        onclick="setTab('cercles')" id="tab-cercles">💫 Cercles</button>
   <button class="tab"        onclick="setTab('temps')"    id="tab-temps">⏱ Temps</button>
   <button class="tab"        onclick="setTab('finances')" id="tab-finances">Finances <span class="ct" id="ct-fin">€</span></button>
   <button class="tab"        onclick="setTab('config')"  id="tab-config">⚙ Config</button>
@@ -832,6 +837,24 @@ function doLogout(){
       </select>
     </div>
     <div id="projets-list"></div>
+  </div>
+
+  <!-- ══ CERCLES ══ -->
+  <div id="zone-cercles" style="display:none;padding:20px 0 60px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:8px;">
+      <div style="font-family:'Playfair Display',serif;font-size:1.1rem;font-style:italic;color:var(--mid);">Cercles de relations</div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn" onclick="openInteractionModal(null)">+ Interaction</button>
+        <button class="btn btn-primary" onclick="openAddClientBtn()">+ Personne</button>
+      </div>
+    </div>
+    <div style="font-size:.78rem;color:var(--faint);margin-bottom:16px;">Classées par score (interactions récentes, lissées sur 365 jours). Les 5 premières = cercle 1, les 15 suivantes = cercle 2, etc.</div>
+    <div class="filters" style="margin-bottom:14px;">
+      <input type="text" class="srch" id="cer-srch" placeholder="Rechercher…" oninput="renderCercles()" style="width:200px;">
+      <label style="display:flex;align-items:center;gap:5px;font-size:.78rem;color:var(--faint);"><input type="checkbox" id="cer-hide-zero" onchange="renderCercles()"> Masquer scores à 0</label>
+      <label style="display:flex;align-items:center;gap:5px;font-size:.78rem;color:var(--faint);"><input type="checkbox" id="cer-hide-archived" checked onchange="renderCercles()"> Masquer archivés</label>
+    </div>
+    <div id="cercles-list"></div>
   </div>
 
   <!-- ══ TEMPS ══ -->
@@ -1336,10 +1359,18 @@ function doLogout(){
 
 <!-- MODAL CLIENT -->
 <div class="mo" id="mo-client">
-  <div class="modal" style="max-width:560px;">
+  <div class="modal" style="max-width:600px;">
     <div class="mh"><h2 id="mo-client-title">Nouveau client</h2><button class="mc" onclick="closeM('mo-client')">×</button></div>
     <div class="mb">
-      <div class="fg"><label>Nom / Organisation *</label><input type="text" id="cli-nom" placeholder="ex: Mairie de Paris"></div>
+      <div class="fr" style="align-items:flex-start;">
+        <div class="fg" style="flex:0 0 90px;">
+          <label>Photo</label>
+          <img id="cli-prev" class="img-prev" style="display:none;width:80px;height:80px;object-fit:cover;border-radius:50%;">
+          <div id="cli-avatar-empty" style="width:80px;height:80px;border-radius:50%;background:var(--off);display:flex;align-items:center;justify-content:center;font-size:1.6rem;color:var(--faint);">👤</div>
+          <input type="file" accept="image/*" onchange="prevImgClient(this)" style="font-size:.68rem;margin-top:6px;width:80px;">
+        </div>
+        <div class="fg" style="flex:1;"><label>Nom / Organisation *</label><input type="text" id="cli-nom" placeholder="ex: Mairie de Paris"></div>
+      </div>
       <div class="fr">
         <div class="fg"><label>Contact</label><input type="text" id="cli-contact" placeholder="Nom du contact"></div>
         <div class="fg"><label>Téléphone</label><input type="text" id="cli-tel" placeholder="06…"></div>
@@ -1350,11 +1381,51 @@ function doLogout(){
       </div>
       <div class="fg"><label>Adresse</label><textarea id="cli-adresse" placeholder="Adresse complète…" style="min-height:50px;"></textarea></div>
       <div class="fg"><label>Notes</label><textarea id="cli-notes" placeholder="Informations complémentaires…" style="min-height:50px;"></textarea></div>
+      <div class="fg">
+        <label>Type de lien</label>
+        <div id="cli-tags-box" style="display:flex;flex-wrap:wrap;gap:10px;"></div>
+      </div>
+      <div class="fg">
+        <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="cli-archived" style="width:auto;"> Archivé (ne compte plus dans les cercles)</label>
+      </div>
+      <div class="fg" id="cli-interactions-section" style="display:none;">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <label style="margin:0;">Historique d'interactions <span id="cli-score-badge" style="font-weight:400;color:var(--faint);"></span></label>
+          <button class="btn btn-sm btn-primary" onclick="openInteractionModal(editClientId)">+ Ajouter</button>
+        </div>
+        <div id="cli-interactions-list" style="margin-top:6px;max-height:180px;overflow-y:auto;"></div>
+      </div>
     </div>
     <div class="mfoot">
       <button class="btn btn-danger" id="cli-del-btn" onclick="delClient()" style="display:none;">Supprimer</button>
       <button class="btn" onclick="closeM('mo-client')">Annuler</button>
       <button class="btn btn-primary" onclick="saveClient()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL INTERACTION -->
+<div class="mo" id="mo-interaction">
+  <div class="modal" style="max-width:460px;">
+    <div class="mh"><h2>Nouvelle interaction</h2><button class="mc" onclick="closeM('mo-interaction')">×</button></div>
+    <div class="mb">
+      <div class="fg" id="int-cli-picker-wrap">
+        <label>Personne *</label>
+        <select id="int-cli"></select>
+      </div>
+      <div class="fr">
+        <div class="fg"><label>Type *</label><select id="int-type"></select></div>
+        <div class="fg"><label>Date</label><input type="date" id="int-date"></div>
+      </div>
+      <div class="fr">
+        <div class="fg"><label>Bonus (points)</label><input type="number" id="int-bonus" value="0" step="1"></div>
+        <div class="fg"><label>Points de base</label><input type="text" id="int-points-display" disabled></div>
+      </div>
+      <div class="fg"><label>Note (optionnel)</label><input type="text" id="int-note" placeholder="ex: dîner chez elle, ça faisait longtemps"></div>
+    </div>
+    <div class="mfoot">
+      <button class="btn" onclick="closeM('mo-interaction')">Annuler</button>
+      <button class="btn btn-primary" onclick="saveInteraction()">Enregistrer</button>
     </div>
   </div>
 </div>
@@ -1808,10 +1879,29 @@ const DEFAULT_ACTIONS = {
   'CRAYON':    ['Dessin','Retouche','Encadrement','Emballage','Photos modèle'],
   'COMMUN':    ['Commercial','Communication','Accueil galerie','Déplacement','Nettoyer','Planning','Autre']
 };
+// ══ CERCLES (relations) ══
+const DEFAULT_INTERACTION_TYPES = [
+  {id:'dej',      label:'Déjeuner / Dîner', points:365},
+  {id:'soiree',   label:'Soirée',           points:300},
+  {id:'cafe',     label:'Café / Verre',     points:60},
+  {id:'appel',    label:'Appel téléphonique', points:20},
+  {id:'message',  label:'Message / SMS',    points:5},
+  {id:'rue',      label:'Rencontre dans la rue', points:5}
+];
+const DEFAULT_RELATION_TAGS = ['Famille','Ami','Client','Ami de l\'académie','Élève','Commerçant'];
+const CERCLE_TRANCHES = [
+  {n:5,   label:'Cercle 1 · Intimes'},
+  {n:15,  label:'Cercle 2 · Proches'},
+  {n:50,  label:'Cercle 3 · Bons amis'},
+  {n:150, label:'Cercle 4 · Dunbar'},
+  {n:500, label:'Cercle 5 · Connaissances'},
+  {n:1500,label:'Cercle 6 · Visages familiers'}
+];
 
 // ══ STATE ══
 let oeuvres, exemplaires, sessions;
 let actionsConfig, projets, clients, activites, typesOeuvres, taches, techniques, matieres, creationActions;
+let interactionTypes, relationTags;
 let finances = [], finTypes = [], lieux = [], fonderies = [], rangements = [], galeries = [];
 let recettesPatine = [];
 function load(){
@@ -1837,6 +1927,8 @@ function load(){
   fonderies       = [];
   rangements      = [];
   galeries        = [];
+  interactionTypes = JSON.parse(JSON.stringify(DEFAULT_INTERACTION_TYPES));
+  relationTags      = DEFAULT_RELATION_TAGS.slice();
   // Migration : anciens types avec emoji sans color → couleur par défaut
   finTypes.forEach(function(t){ if(!t.color) t.color = '#a08050'; });
 
@@ -1958,6 +2050,7 @@ function setTab(t){
   document.getElementById('zone-stats').style.display     = t==='stats'   ?'block':'none';
   document.getElementById('zone-taches').style.display    = t==='taches'  ?'block':'none';
   document.getElementById('zone-projets').style.display   = t==='projets' ?'block':'none';
+  document.getElementById('zone-cercles').style.display   = t==='cercles' ?'block':'none';
   document.getElementById('zone-temps').style.display      = t==='temps'    ?'block':'none';
   document.getElementById('zone-planning').style.display    = t==='planning'  ?'block':'none';
   document.getElementById('zone-finances').style.display    = t==='finances'  ?'block':'none';
@@ -1975,6 +2068,7 @@ function setTab(t){
   else if(t==='config')renderConfig();
   else if(t==='patine')renderPatineConfig();
   else if(t==='projets')renderProjets();
+  else if(t==='cercles')renderCercles();
   else if(t==='stats'){renderStatsPeriodSel();renderStats2();}
   else if(t==='taches')renderTaches();
   else if(t==='temps')renderTemps();
@@ -4571,6 +4665,79 @@ function renderConfig(){
     +'<button class="btn btn-primary" onclick="addLieu()">+ Ajouter</button>'
     +'</div></div>';
   cfgEl.innerHTML += lieuxHtml;
+
+  // Cercles — Types d'interaction (points)
+  var intTypesHtml = '<div style="margin-top:32px;padding-top:24px;border-top:1px solid var(--border);">'
+    +'<div style="font-family:Playfair Display,serif;font-size:.9rem;font-style:italic;color:var(--mid);margin-bottom:4px;">💫 Cercles — Types d\'interaction</div>'
+    +'<div style="font-size:.72rem;color:var(--faint);margin-bottom:12px;">Les points de base sont attribués le jour de l\'interaction, puis diminuent linéairement sur 365 jours.</div>'
+    +'<div style="border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:8px;">'
+    +(interactionTypes||[]).map(function(t,i){
+      return '<div class="cfg-action-row">'
+        +'<span class="cfg-action-name" style="flex:1;">'+t.label+'</span>'
+        +'<input type="number" id="int-type-pts-'+i+'" value="'+t.points+'" style="width:70px;text-align:right;margin-right:8px;" onchange="updateInteractionTypePoints('+i+',this.value)">'
+        +'<button class="cfg-del-btn" onclick="delInteractionType('+i+')">×</button>'
+        +'</div>';
+    }).join('')
+    +'</div>'
+    +'<div class="cfg-add-row">'
+    +'<input type="text" id="new-int-type-label" placeholder="Nouveau type… (ex: Sortie sportive)" style="flex:1;">'
+    +'<input type="number" id="new-int-type-pts" placeholder="Points" value="20" style="width:80px;">'
+    +'<button class="btn btn-sm btn-primary" onclick="addInteractionType()">+ Ajouter</button>'
+    +'</div></div>';
+  cfgEl.innerHTML += intTypesHtml;
+
+  // Cercles — Types de lien
+  var relTagsHtml = '<div style="margin-top:24px;padding-top:24px;border-top:1px solid var(--border);">'
+    +'<div style="font-family:Playfair Display,serif;font-size:.9rem;font-style:italic;color:var(--mid);margin-bottom:12px;">💫 Cercles — Types de lien</div>'
+    +'<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">'
+    +(relationTags||[]).map(function(t){
+      return '<div style="display:flex;align-items:center;gap:5px;background:var(--w);border:1px solid var(--border);border-radius:var(--r);padding:4px 10px;">'
+        +'<span style="font-size:.82rem;">'+t+'</span>'
+        +'<button onclick="deleteRelationTag(\''+t.replace(/'/g,"\\'")+'\')" style="background:none;border:none;cursor:pointer;color:var(--faint);font-size:.8rem;padding:0 0 0 6px;">×</button>'
+        +'</div>';
+    }).join('')
+    +'</div>'
+    +'<div style="display:flex;gap:6px;">'
+    +'<input type="text" id="cfg-reltag-label" placeholder="Nouveau type de lien…" style="flex:1;" onkeydown="if(event.key===\'Enter\')addRelationTag()">'
+    +'<button class="btn btn-primary" onclick="addRelationTag()">+ Ajouter</button>'
+    +'</div></div>';
+  cfgEl.innerHTML += relTagsHtml;
+}
+
+function updateInteractionTypePoints(i,val){
+  if(!interactionTypes[i])return;
+  interactionTypes[i].points=Number(val)||0;
+  sbSaveConfig('interactionTypes');
+}
+function delInteractionType(i){
+  if(!confirm('Supprimer ce type d\'interaction ?'))return;
+  interactionTypes.splice(i,1);
+  sbSaveConfig('interactionTypes');
+  renderConfig();
+}
+function addInteractionType(){
+  var label=document.getElementById('new-int-type-label').value.trim();
+  var pts=Number(document.getElementById('new-int-type-pts').value)||0;
+  if(!label)return;
+  var id='int-'+label.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'')+'-'+Date.now();
+  interactionTypes.push({id:id,label:label,points:pts});
+  sbSaveConfig('interactionTypes');
+  renderConfig();
+}
+function deleteRelationTag(t){
+  if(!confirm('Supprimer ce type de lien ?'))return;
+  relationTags=relationTags.filter(function(x){return x!==t;});
+  sbSaveConfig('relationTags');
+  renderConfig();
+}
+function addRelationTag(){
+  var v=document.getElementById('cfg-reltag-label').value.trim();
+  if(!v)return;
+  if(!relationTags)relationTags=[];
+  if(relationTags.indexOf(v)<0)relationTags.push(v);
+  document.getElementById('cfg-reltag-label').value='';
+  sbSaveConfig('relationTags');
+  renderConfig();
 }
 
 function toggleCreationAction(action){
@@ -5480,7 +5647,13 @@ function removeClientFromProjet(pid,cid){
 }
 
 // ══ CLIENTS ══
-var editClientId=null, currentClientProjetId=null;
+var editClientId=null, currentClientProjetId=null, clientOrigin='projet';
+var tmpClientPhoto=null;
+
+function openAddClientBtn(){
+  clientOrigin='cercles';
+  openNewClientModal(null);
+}
 
 function openAddClientToProjet(pid){
   currentClientProjetId=pid;
@@ -5505,18 +5678,31 @@ function openAddClientToProjet(pid){
   openM('mo-cli-pick');
 }
 
+var editClientIsNew=false;
+
 function openNewClientModal(pid){
   currentClientProjetId=pid;
-  editClientId=null;
+  if(!pid) clientOrigin='cercles'; else clientOrigin='projet';
+  editClientId='c-'+Date.now();
+  editClientIsNew=true;
+  tmpClientPhoto=null;
   document.getElementById('mo-client-title').textContent='Nouveau client';
   ['cli-nom','cli-contact','cli-tel','cli-email','cli-ville','cli-adresse','cli-notes'].forEach(function(i){document.getElementById(i).value='';});
   document.getElementById('cli-del-btn').style.display='none';
+  document.getElementById('cli-archived').checked=false;
+  document.getElementById('cli-prev').style.display='none';
+  document.getElementById('cli-avatar-empty').style.display='flex';
+  document.getElementById('cli-interactions-section').style.display='none';
+  renderClientTagsCheckboxes([]);
   openM('mo-client');
 }
 
-function editClientBtn(cid){
+function editClientBtn(cid,origin){
   var c=clients.find(function(x){return x._id===cid;});if(!c)return;
   editClientId=cid;
+  editClientIsNew=false;
+  clientOrigin=origin||'projet';
+  tmpClientPhoto=c.photo||null;
   document.getElementById('mo-client-title').textContent="Modifier le client";
   document.getElementById('cli-nom').value=c.nom||'';
   document.getElementById('cli-contact').value=c.contact||'';
@@ -5525,28 +5711,91 @@ function editClientBtn(cid){
   document.getElementById('cli-ville').value=c.ville||'';
   document.getElementById('cli-adresse').value=c.adresse||'';
   document.getElementById('cli-notes').value=c.notes||'';
+  document.getElementById('cli-archived').checked=!!c.archived;
+  if(c.photo){document.getElementById('cli-prev').src=c.photo;document.getElementById('cli-prev').style.display='block';document.getElementById('cli-avatar-empty').style.display='none';}
+  else{document.getElementById('cli-prev').style.display='none';document.getElementById('cli-avatar-empty').style.display='flex';}
+  renderClientTagsCheckboxes(c.tags||[]);
   document.getElementById('cli-del-btn').style.display='inline-block';
+  document.getElementById('cli-interactions-section').style.display='block';
+  renderClientInteractionsList(c);
   openM('mo-client');
+}
+
+function renderClientTagsCheckboxes(selected){
+  var box=document.getElementById('cli-tags-box');
+  box.innerHTML=(relationTags||[]).map(function(t){
+    var checked=selected.indexOf(t)>=0?'checked':'';
+    return '<label style="display:flex;align-items:center;gap:5px;font-size:.78rem;"><input type="checkbox" class="cli-tag-cb" value="'+t+'" '+checked+' style="width:auto;">'+t+'</label>';
+  }).join('');
+}
+
+function prevImgClient(input){
+  if(!input.files||!input.files[0])return;
+  var r=new FileReader();
+  r.onload=function(ev){
+    compressImage(ev.target.result, 600, 0.85, function(compressed){
+      document.getElementById('cli-prev').src=compressed;
+      document.getElementById('cli-prev').style.display='block';
+      document.getElementById('cli-avatar-empty').style.display='none';
+      var now=new Date();
+      var ts=now.getFullYear().toString()+String(now.getMonth()+1).padStart(2,'0')+String(now.getDate()).padStart(2,'0')+'-'+String(now.getHours()).padStart(2,'0')+String(now.getMinutes()).padStart(2,'0');
+      var fileName='CONTACT-'+editClientId+'-'+ts+'.jpg';
+      var blob=dataURLtoBlob(compressed);
+      _uploadBlob(blob, fileName, editClientId, tmpClientPhoto, function(url){
+        if(url){
+          tmpClientPhoto=url;
+          var c=clients.find(function(x){return x._id===editClientId;});
+          if(c){ c.photo=url; sbSaveClient(c); }
+        }
+      });
+    });
+  };
+  r.readAsDataURL(input.files[0]);
+}
+
+function renderClientInteractionsList(c){
+  var zone=document.getElementById('cli-interactions-list');
+  var interactions=(c.interactions||[]).slice().sort(function(a,b){return a.date<b.date?1:-1;});
+  var score=Math.round(computeClientScore(c));
+  document.getElementById('cli-score-badge').textContent='· score actuel : '+score;
+  if(!interactions.length){ zone.innerHTML='<div style="font-size:.75rem;color:var(--faint);font-style:italic;padding:6px 0;">Aucune interaction enregistrée</div>'; return; }
+  zone.innerHTML=interactions.map(function(it){
+    var t=(interactionTypes||[]).find(function(x){return x.id===it.typeId;});
+    var label=t?t.label:(it.typeId||'?');
+    var pts=(Number(it.points)||0)+(Number(it.bonus)||0);
+    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:.78rem;">'
+      +'<div><b>'+fmtShort(it.date)+'</b> · '+label+(it.note?' · <span style="color:var(--faint);">'+it.note+'</span>':'')+'</div>'
+      +'<div style="display:flex;align-items:center;gap:8px;"><span style="color:var(--gold);">+'+pts+'</span><button class="btn btn-sm" style="color:var(--red);" onclick="delInteraction(\''+c._id+'\',\''+it._id+'\')">×</button></div>'
+      +'</div>';
+  }).join('');
 }
 
 function saveClient(){
   var nom=document.getElementById('cli-nom').value.trim();
   if(!nom){alert('Nom obligatoire');return;}
+  var existing=clients.find(function(x){return x._id===editClientId;});
+  var tags=Array.prototype.slice.call(document.querySelectorAll('.cli-tag-cb:checked')).map(function(cb){return cb.value;});
   var c={
-    _id:editClientId||'c-'+Date.now(),
+    _id:editClientId,
     nom:nom,
     contact:document.getElementById('cli-contact').value.trim(),
     tel:document.getElementById('cli-tel').value.trim(),
     email:document.getElementById('cli-email').value.trim(),
     ville:document.getElementById('cli-ville').value.trim(),
     adresse:document.getElementById('cli-adresse').value.trim(),
-    notes:document.getElementById('cli-notes').value.trim()
+    notes:document.getElementById('cli-notes').value.trim(),
+    tags:tags,
+    archived:document.getElementById('cli-archived').checked,
+    photo:tmpClientPhoto||(existing?existing.photo:null)||null,
+    interactions:existing?(existing.interactions||[]):[]
   };
-  if(editClientId){var i=clients.findIndex(function(x){return x._id===editClientId;});clients[i]=c;}
-  else clients.push(c);
+  var i=clients.findIndex(function(x){return x._id===editClientId;});
+  if(i>=0)clients[i]=c; else clients.push(c);
   sbSaveClient(c);
   closeM('mo-client');
-  if(currentClientProjetId&&!editClientId){
+  if(clientOrigin==='cercles'){
+    renderCercles();
+  } else if(currentClientProjetId&&editClientIsNew){
     linkClientToProjet(currentClientProjetId,c._id);
   } else {
     openProjetDetail(detProjetId);
@@ -5569,7 +5818,139 @@ function delClient(){
   var cid = editClientId;
   clients=clients.filter(function(c){return c._id!==cid;});
   sbDelete('clients', cid).catch(function(e){console.error('delClient Supabase:',e);});
-  closeM('mo-client');openProjetDetail(detProjetId);
+  closeM('mo-client');
+  if(clientOrigin==='cercles') renderCercles(); else openProjetDetail(detProjetId);
+}
+
+// ══ CERCLES (relations) ══
+function daysBetween(dateStr, refStr){
+  var d1=new Date(dateStr+'T00:00:00'), d2=new Date(refStr+'T00:00:00');
+  return Math.round((d2-d1)/86400000);
+}
+function computeClientScore(c, refDate){
+  refDate = refDate || TODAY;
+  var interactions = c.interactions || [];
+  var score = 0;
+  interactions.forEach(function(it){
+    var days = daysBetween(it.date, refDate);
+    if(days < 0 || days >= 365) return;
+    var base = (Number(it.points)||0) + (Number(it.bonus)||0);
+    score += base * (1 - days/365);
+  });
+  return score;
+}
+function lastInteractionDate(c){
+  var interactions=c.interactions||[];
+  if(!interactions.length) return null;
+  return interactions.reduce(function(m,it){return it.date>m?it.date:m;}, interactions[0].date);
+}
+function formatRelDays(dateStr){
+  if(!dateStr) return 'jamais';
+  var d=daysBetween(dateStr,TODAY);
+  if(d<=0) return "aujourd'hui";
+  if(d===1) return 'hier';
+  if(d<30) return 'il y a '+d+' j';
+  if(d<365) return 'il y a '+Math.round(d/30)+' mois';
+  return 'il y a plus d\'un an';
+}
+
+function openInteractionModal(presetClientId){
+  var sel=document.getElementById('int-cli');
+  sel.innerHTML=clients.slice().sort(function(a,b){return (a.nom||'').localeCompare(b.nom||'');}).map(function(c){
+    return '<option value="'+c._id+'">'+c.nom+'</option>';
+  }).join('');
+  var wrap=document.getElementById('int-cli-picker-wrap');
+  if(presetClientId){ sel.value=presetClientId; wrap.style.display='none'; }
+  else { wrap.style.display='block'; }
+  var typeSel=document.getElementById('int-type');
+  typeSel.innerHTML=(interactionTypes||[]).map(function(t){return '<option value="'+t.id+'">'+t.label+' ('+t.points+' pts)</option>';}).join('');
+  document.getElementById('int-date').value=TODAY;
+  document.getElementById('int-bonus').value=0;
+  document.getElementById('int-note').value='';
+  updateIntPointsDisplay();
+  openM('mo-interaction');
+}
+function updateIntPointsDisplay(){
+  var t=(interactionTypes||[]).find(function(x){return x.id===document.getElementById('int-type').value;});
+  document.getElementById('int-points-display').value=t?t.points:'';
+}
+document.addEventListener('change',function(ev){ if(ev.target && ev.target.id==='int-type') updateIntPointsDisplay(); });
+
+function saveInteraction(){
+  var cid=document.getElementById('int-cli').value;
+  var c=clients.find(function(x){return x._id===cid;});
+  if(!c){alert('Choisis une personne');return;}
+  var typeId=document.getElementById('int-type').value;
+  var t=(interactionTypes||[]).find(function(x){return x.id===typeId;});
+  if(!t){alert('Choisis un type');return;}
+  var it={
+    _id:'int-'+Date.now(),
+    date:document.getElementById('int-date').value||TODAY,
+    typeId:typeId,
+    points:t.points,
+    bonus:Number(document.getElementById('int-bonus').value)||0,
+    note:document.getElementById('int-note').value.trim()
+  };
+  if(!c.interactions)c.interactions=[];
+  c.interactions.push(it);
+  sbSaveClient(c);
+  closeM('mo-interaction');
+  if(document.getElementById('mo-client').classList.contains('open') && editClientId===cid) renderClientInteractionsList(c);
+  renderCercles();
+}
+function delInteraction(cid,iid){
+  var c=clients.find(function(x){return x._id===cid;});if(!c)return;
+  c.interactions=(c.interactions||[]).filter(function(it){return it._id!==iid;});
+  sbSaveClient(c);
+  renderClientInteractionsList(c);
+  renderCercles();
+}
+
+function renderCercles(){
+  var zone=document.getElementById('cercles-list');
+  if(!zone)return;
+  var srch=(document.getElementById('cer-srch').value||'').toLowerCase();
+  var hideZero=document.getElementById('cer-hide-zero').checked;
+  var hideArchived=document.getElementById('cer-hide-archived').checked;
+  var list=(clients||[]).filter(function(c){
+    if(hideArchived && c.archived) return false;
+    if(srch && (c.nom||'').toLowerCase().indexOf(srch)<0 && !(c.tags||[]).some(function(t){return t.toLowerCase().indexOf(srch)>=0;})) return false;
+    return true;
+  }).map(function(c){
+    return {c:c, score:computeClientScore(c), last:lastInteractionDate(c)};
+  }).sort(function(a,b){return b.score-a.score;});
+  var filtered=hideZero?list.filter(function(x){return x.score>0.5;}):list;
+  if(!filtered.length){
+    zone.innerHTML='<div class="empty-state" style="display:block;text-align:center;padding:50px;color:var(--faint);"><div class="ei">💫</div><h3>Aucune relation</h3><div style="font-size:.8rem;">Ajoute une personne pour commencer.</div></div>';
+    return;
+  }
+  var html='';
+  var rank=0, trancheIdx=0, trancheStart=0;
+  filtered.forEach(function(x){
+    rank++;
+    // Print header when entering a new tranche
+    while(trancheIdx<CERCLE_TRANCHES.length && rank>trancheStart+CERCLE_TRANCHES[trancheIdx].n){
+      trancheStart+=CERCLE_TRANCHES[trancheIdx].n;
+      trancheIdx++;
+    }
+    if(rank===trancheStart+1){
+      var label = trancheIdx<CERCLE_TRANCHES.length ? CERCLE_TRANCHES[trancheIdx].label : 'Au-delà';
+      html+='<div style="font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--gold);font-weight:600;margin:18px 0 8px;padding-top:10px;border-top:1px solid var(--border);">'+label+'</div>';
+    }
+    var c=x.c, faded=x.score<0.5?'opacity:.5;':'';
+    var avatar=c.photo?'<img src="'+c.photo+'" style="width:38px;height:38px;border-radius:50%;object-fit:cover;">':'<div style="width:38px;height:38px;border-radius:50%;background:var(--off);display:flex;align-items:center;justify-content:center;font-size:1rem;">👤</div>';
+    var tagsHtml=(c.tags||[]).map(function(t){return '<span style="font-size:.62rem;padding:1px 6px;border-radius:8px;background:var(--off);color:var(--faint);margin-right:4px;">'+t+'</span>';}).join('');
+    html+='<div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--border);'+faded+'">';
+    html+=avatar;
+    html+='<div style="flex:1;min-width:0;cursor:pointer;" onclick="editClientBtn(\''+c._id+'\',\'cercles\')">';
+    html+='<div style="font-size:.85rem;font-weight:500;">'+c.nom+(c.archived?' <span style="color:var(--faint);font-weight:400;">(archivé)</span>':'')+'</div>';
+    html+='<div style="font-size:.68rem;color:var(--faint);">'+tagsHtml+(tagsHtml?'· ':'')+'dernière interaction : '+formatRelDays(x.last)+'</div>';
+    html+='</div>';
+    html+='<div style="font-family:\'Playfair Display\',serif;font-size:1rem;color:var(--gold);min-width:36px;text-align:right;">'+Math.round(x.score)+'</div>';
+    html+='<button class="btn btn-sm" onclick="openInteractionModal(\''+c._id+'\')">+ Interaction</button>';
+    html+='</div>';
+  });
+  zone.innerHTML=html;
 }
 
 // ══ ÉCHANGES ══
@@ -7436,7 +7817,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260723 - v91 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260725 - v91 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -7792,7 +8173,7 @@ function dpSyncEvtBlock(evtId){
   var evt = (planEvts||[]).find(function(e){return e._id===evtId;});
   var bId = 'rdv-'+evtId;
   var b = dayPlan.blocks.find(function(x){return x.id===bId;});
-  var appliesToday = evt && evt.debut===evt.fin && evt.debut===TODAY && evt.heureDebut;
+  var appliesToday = evt && evt.debut<=TODAY && TODAY<=evt.fin && evt.heureDebut;
   if(!appliesToday){
     if(b && !b.done){
       dayPlan.blocks = dayPlan.blocks.filter(function(x){return x.id!==bId;});
@@ -8045,22 +8426,16 @@ function dpNextFreeSlot(fromMin, dur, blocks){
   return pos;
 }
 function dpTodayInfoEvts(){
-  // Événements perso du jour affichés en bannière (info, sans bloquer de créneau) :
-  // - toujours pour un événement multi-jours (l'heure de début ne concerne que
-  //   le 1er jour, l'heure de fin que le dernier — ça n'a pas de sens de créer
-  //   un créneau chronométré chaque jour intermédiaire)
-  // - pour un événement d'un seul jour, uniquement s'il n'a pas d'heure précise
-  //   (sinon il devient un bloc positionné dans la grille, cf dpBuildAuto)
+  // Événements perso du jour sans heure précise (info "toute la journée") —
+  // affichés en bannière, faute de pouvoir les positionner dans la grille.
   return (planEvts||[]).filter(function(evt){
-    if(!(evt.debut<=TODAY && TODAY<=evt.fin)) return false;
-    if(evt.debut===evt.fin) return !evt.heureDebut;
-    return true;
+    return evt.debut<=TODAY && TODAY<=evt.fin && !evt.heureDebut;
   });
 }
 function dpBuildAuto(){
   var blocks = [];
   (planEvts||[]).forEach(function(evt){
-    if(evt.debut===evt.fin && evt.debut===TODAY && evt.heureDebut){
+    if(evt.debut<=TODAY && TODAY<=evt.fin && evt.heureDebut){
       var hd=evt.heureDebut.split(':'); var start=parseInt(hd[0])*60+parseInt(hd[1]);
       var dur=30;
       if(evt.heureFin){ var hf=evt.heureFin.split(':'); var end=parseInt(hf[0])*60+parseInt(hf[1]); if(end>start) dur=end-start; }
@@ -8145,12 +8520,7 @@ function renderPlanningJour(){
     html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">';
     infoEvts.forEach(function(evt){
       var c = evt.color||'#9a9a9a';
-      // L'heure de début ne s'affiche que le 1er jour de l'événement, l'heure
-      // de fin que le dernier jour (elles ne concernent pas les jours entre les deux).
-      var timeTxt = '';
-      if(evt.heureDebut && TODAY===evt.debut) timeTxt += evt.heureDebut;
-      if(evt.heureFin && TODAY===evt.fin) timeTxt += (timeTxt?'–':(evt.debut!==evt.fin?'→ ':'')) + evt.heureFin;
-      html += '<div title="Info — ne bloque pas de créneau" style="background:'+c+'22;border-left:3px solid '+c+';border-radius:4px;padding:5px 10px;font-size:.72rem;color:var(--ink);">'+evt.label+(timeTxt?' <span style="color:var(--faint);">· '+timeTxt+'</span>':'')+'</div>';
+      html += '<div title="Info — ne bloque pas de créneau" style="background:'+c+'22;border-left:3px solid '+c+';border-radius:4px;padding:5px 10px;font-size:.72rem;color:var(--ink);">'+evt.label+(evt.heureDebut?' <span style="color:var(--faint);">· '+evt.heureDebut+(evt.heureFin?'–'+evt.heureFin:'')+'</span>':'')+'</div>';
     });
     html += '</div>';
   }
@@ -8704,18 +9074,22 @@ function renderPlanning(){
         }
       });
     });
-    var evtLabelEcrit = false, evtCouleurKey = null;
+    var evtDatesOrdre = jourstAfficher.map(function(j){ return j.dateStr; });
+    var evtNextSeg = {};
+    var evtNS = null;
+    for(var ei=evtDatesOrdre.length-1; ei>=0; ei--){
+      var eds = evtDatesOrdre[ei];
+      evtNextSeg[eds] = evtNS;
+      if(evtSegmentDates[eds]) evtNS = evtSegmentDates[eds];
+    }
+    var evtPrevColor = null, evtPrevLabel = null, evtLabelEcrit = false, evtSepCompteur = 0, evtCouleurKey = null;
     jourstAfficher.forEach(function(jour, jourIdx){
       var evt = evtSegmentDates[jour.dateStr];
       if(evt){
-        // evtKey identifie l'événement précis (par son _id) : le libellé ne
-        // s'affiche qu'une fois par événement réel, sans jamais "ponter"
-        // vers un autre événement qui aurait par coïncidence la même
-        // couleur et le même nom (cela créait une bande claire trompeuse).
-        var evtKey = evt._id;
+        var evtKey = evt.color+'|'+evt.label;
         if(evtKey !== evtCouleurKey){
-          evtCouleurKey=evtKey;
-          evtLabelEcrit=false;
+          evtCouleurKey=evtKey; evtPrevColor=evt.color; evtPrevLabel=evt.label;
+          evtLabelEcrit=false; evtSepCompteur=0;
         }
         html+='<td class="plan-evt-cell" onclick="openEditEvtPlanning(\''+evt._id+'\')" style="background:'+evt.color+';cursor:pointer;position:relative;height:28px;" onmouseenter="showPlanEvtTooltip(event,\''+evt._id+'\')" onmouseleave="hidePlanTooltip()">';
         if(!evtLabelEcrit){
@@ -8724,8 +9098,16 @@ function renderPlanning(){
         }
         html+='</td>';
       } else {
-        evtLabelEcrit=false; evtCouleurKey=null;
-        html+='<td class="plan-evt-cell" onclick="openAddEvtPlanningDate(\''+jour.dateStr+'\')" style="cursor:pointer;"></td>';
+        var nextEvt = evtNextSeg[jour.dateStr];
+        var memeEvtSuit = nextEvt && evtPrevColor && nextEvt.color===evtPrevColor && nextEvt.label===evtPrevLabel;
+        if(evtPrevColor && evtSepCompteur < 5 && memeEvtSuit){
+          html+='<td class="plan-evt-cell" style="background:'+evtPrevColor+'22;cursor:pointer;" onclick="openAddEvtPlanningDate(\''+jour.dateStr+'\')"></td>';
+          evtSepCompteur++;
+        } else {
+          evtPrevColor=null; evtPrevLabel=null; evtLabelEcrit=false; evtSepCompteur=0; evtCouleurKey=null;
+          html+='<td class="plan-evt-cell" onclick="openAddEvtPlanningDate(\''+jour.dateStr+'\')" style="cursor:pointer;"></td>';
+        }
+        if(evtSepCompteur>=5){ evtPrevColor=null; evtSepCompteur=0; }
       }
     });
     html+='</tr>';
