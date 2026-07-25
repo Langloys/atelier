@@ -1432,31 +1432,40 @@ function doLogout(){
   <div class="modal" style="max-width:480px;">
     <div class="mh"><h2>Nouvelle interaction</h2><button class="mc" onclick="closeM('mo-interaction')">×</button></div>
     <div class="mb">
-      <div class="fg" style="display:flex;gap:8px;">
-        <button class="btn btn-sm" id="int-mode-person" onclick="setIntMode('person')" style="flex:1;">👤 Une personne</button>
-        <button class="btn btn-sm" id="int-mode-group" onclick="setIntMode('group')" style="flex:1;">👥 Un groupe</button>
+      <div class="fg" style="display:flex;gap:6px;">
+        <button class="btn btn-sm" id="int-src-groupe" onclick="setIntSource('groupe')" style="flex:1;">👥 Groupe</button>
+        <button class="btn btn-sm" id="int-src-recherche" onclick="setIntSource('recherche')" style="flex:1;">🔍 Recherche</button>
+        <button class="btn btn-sm" id="int-src-top20" onclick="setIntSource('top20')" style="flex:1;">⭐ Top 20</button>
       </div>
-      <div class="fg" id="int-cli-picker-wrap">
-        <label>Personne *</label>
-        <select id="int-cli"></select>
-      </div>
-      <div class="fg" id="int-group-picker-wrap" style="display:none;">
-        <label>Groupe *</label>
+
+      <div class="fg" id="int-groupe-wrap" style="display:none;">
         <div style="display:flex;gap:6px;">
-          <select id="int-group-sel" onchange="renderIntGroupMembers()" style="flex:1;"></select>
+          <select id="int-group-sel" onchange="onIntGroupChange()" style="flex:1;"></select>
           <button class="btn btn-sm" onclick="openGroupModal(null)">+ Nouveau</button>
         </div>
-        <div id="int-group-members" style="margin-top:8px;display:flex;flex-direction:column;gap:4px;max-height:160px;overflow-y:auto;"></div>
-        <div style="font-size:.68rem;color:var(--faint);margin-top:4px;" id="int-group-split-hint"></div>
       </div>
+      <div class="fg" id="int-recherche-wrap" style="display:none;">
+        <input type="text" id="int-search-input" placeholder="Rechercher un nom…" oninput="renderIntPeopleList()">
+      </div>
+
+      <div class="fg">
+        <label>Sélection actuelle</label>
+        <div id="int-selected-chips" style="min-height:20px;"></div>
+      </div>
+      <div class="fg">
+        <label id="int-people-label">Personnes</label>
+        <div id="int-people-list" style="display:flex;flex-direction:column;gap:4px;max-height:180px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--r);padding:8px;"></div>
+      </div>
+
       <div class="fr">
         <div class="fg"><label>Type *</label><select id="int-type"></select></div>
         <div class="fg"><label>Date</label><input type="date" id="int-date"></div>
       </div>
-      <div class="fr" id="int-bonus-row">
-        <div class="fg"><label>Bonus (points)</label><input type="number" id="int-bonus" value="0" step="1" onchange="updateIntGroupSplitHint()"></div>
+      <div class="fr">
+        <div class="fg"><label>Bonus (points)</label><input type="number" id="int-bonus" value="0" step="1" onchange="updateIntSplitHint()"></div>
         <div class="fg"><label>Points de base</label><input type="text" id="int-points-display" disabled></div>
       </div>
+      <div style="font-size:.68rem;color:var(--faint);margin-bottom:8px;" id="int-split-hint"></div>
       <div class="fg"><label>Note (optionnel)</label><input type="text" id="int-note" placeholder="ex: café au tabac"></div>
     </div>
     <div class="mfoot">
@@ -5976,22 +5985,24 @@ function formatRelDays(dateStr){
   return 'il y a plus d\'un an';
 }
 
-var intMode='person';
-function setIntMode(mode){
-  intMode=mode;
-  document.getElementById('int-mode-person').classList.toggle('btn-primary',mode==='person');
-  document.getElementById('int-mode-group').classList.toggle('btn-primary',mode==='group');
-  document.getElementById('int-cli-picker-wrap').style.display=mode==='person'?'block':'none';
-  document.getElementById('int-group-picker-wrap').style.display=mode==='group'?'block':'none';
-  updateIntGroupSplitHint();
+var intSource='groupe';
+var intSelected={}; // id -> true
+var intLastClientForRefresh=null;
+
+function setIntSource(src){
+  intSource=src;
+  ['groupe','recherche','top20'].forEach(function(s){
+    document.getElementById('int-src-'+s).classList.toggle('btn-primary', s===src);
+  });
+  document.getElementById('int-groupe-wrap').style.display = src==='groupe'?'block':'none';
+  document.getElementById('int-recherche-wrap').style.display = src==='recherche'?'block':'none';
+  document.getElementById('int-people-label').textContent = src==='groupe'?'Membres du groupe':(src==='recherche'?'Résultats':'Tes 20 relations les plus actives');
+  renderIntPeopleList();
 }
 
 function openInteractionModal(presetClientId){
-  var sel=document.getElementById('int-cli');
-  sel.innerHTML=clients.slice().sort(function(a,b){return clientDisplayName(a).localeCompare(clientDisplayName(b));}).map(function(c){
-    return '<option value="'+c._id+'">'+clientDisplayName(c)+'</option>';
-  }).join('');
-  if(presetClientId) sel.value=presetClientId;
+  intSelected={};
+  intLastClientForRefresh=presetClientId||null;
   var groupSel=document.getElementById('int-group-sel');
   groupSel.innerHTML=(relationGroups||[]).map(function(g){return '<option value="'+g.id+'">'+g.label+' ('+(g.memberIds||[]).length+')</option>';}).join('');
   var typeSel=document.getElementById('int-type');
@@ -5999,40 +6010,95 @@ function openInteractionModal(presetClientId){
   document.getElementById('int-date').value=TODAY;
   document.getElementById('int-bonus').value=0;
   document.getElementById('int-note').value='';
+  document.getElementById('int-search-input').value='';
   updateIntPointsDisplay();
-  setIntMode(presetClientId?'person':(intMode||'person'));
-  if(document.getElementById('int-group-sel').value) renderIntGroupMembers();
+  if(presetClientId){
+    intSelected[presetClientId]=true;
+    setIntSource('recherche');
+  } else {
+    setIntSource(intSource||'groupe');
+    if(groupSel.value) onIntGroupChange();
+  }
+  renderIntSelectedChips();
   openM('mo-interaction');
 }
+
 function updateIntPointsDisplay(){
   var t=(interactionTypes||[]).find(function(x){return x.id===document.getElementById('int-type').value;});
   document.getElementById('int-points-display').value=t?t.points:'';
-  updateIntGroupSplitHint();
+  updateIntSplitHint();
 }
 document.addEventListener('change',function(ev){ if(ev.target && ev.target.id==='int-type') updateIntPointsDisplay(); });
 
-function renderIntGroupMembers(){
+function onIntGroupChange(){
   var gid=document.getElementById('int-group-sel').value;
   var g=(relationGroups||[]).find(function(x){return x.id===gid;});
-  var box=document.getElementById('int-group-members');
-  if(!g){box.innerHTML='';return;}
-  box.innerHTML=(g.memberIds||[]).map(function(cid){
-    var c=clients.find(function(x){return x._id===cid;});
-    if(!c)return '';
-    return '<label style="display:flex;align-items:center;gap:6px;font-size:.8rem;"><input type="checkbox" class="int-grp-member-cb" value="'+cid+'" checked onchange="updateIntGroupSplitHint()">'+clientDisplayName(c)+'</label>';
-  }).join('');
-  updateIntGroupSplitHint();
+  if(g){ (g.memberIds||[]).forEach(function(cid){ intSelected[cid]=true; }); }
+  renderIntPeopleList();
+  renderIntSelectedChips();
 }
-function updateIntGroupSplitHint(){
-  var hint=document.getElementById('int-group-split-hint');
+
+function renderIntPeopleList(){
+  var box=document.getElementById('int-people-list');
+  var people=[];
+  if(intSource==='groupe'){
+    var gid=document.getElementById('int-group-sel').value;
+    var g=(relationGroups||[]).find(function(x){return x.id===gid;});
+    people=g?(g.memberIds||[]).map(function(id){return clients.find(function(c){return c._id===id;});}).filter(Boolean):[];
+    if(!g){box.innerHTML='<div style="font-size:.78rem;color:var(--faint);font-style:italic;">Choisis un groupe, ou crée-en un.</div>';updateIntSplitHint();return;}
+  } else if(intSource==='recherche'){
+    var q=(document.getElementById('int-search-input').value||'').toLowerCase().trim();
+    people = q ? clients.filter(function(c){return clientDisplayName(c).toLowerCase().indexOf(q)>=0;}) : [];
+    if(!q){box.innerHTML='<div style="font-size:.78rem;color:var(--faint);font-style:italic;">Tape un nom pour chercher…</div>';updateIntSplitHint();return;}
+  } else if(intSource==='top20'){
+    people = clients.slice().filter(function(c){return !c.archived;})
+      .map(function(c){return {c:c,score:computeClientScore(c)};})
+      .sort(function(a,b){return b.score-a.score;})
+      .slice(0,20).map(function(x){return x.c;});
+  }
+  if(!people.length){
+    box.innerHTML='<div style="font-size:.78rem;color:var(--faint);font-style:italic;">Aucun résultat.</div>';
+    updateIntSplitHint();
+    return;
+  }
+  box.innerHTML=people.map(function(c){
+    var checked=intSelected[c._id]?'checked':'';
+    return '<label style="display:flex;align-items:center;gap:6px;font-size:.8rem;"><input type="checkbox" class="int-person-cb" value="'+c._id+'" '+checked+' onchange="toggleIntPerson(\''+c._id+'\',this)">'+clientDisplayName(c)+'</label>';
+  }).join('');
+  updateIntSplitHint();
+}
+
+function toggleIntPerson(id,cb){
+  if(cb.checked) intSelected[id]=true; else delete intSelected[id];
+  renderIntSelectedChips();
+  updateIntSplitHint();
+}
+function removeIntPerson(id){
+  delete intSelected[id];
+  renderIntSelectedChips();
+  renderIntPeopleList();
+}
+function renderIntSelectedChips(){
+  var box=document.getElementById('int-selected-chips');
+  var ids=Object.keys(intSelected);
+  if(!ids.length){ box.innerHTML='<span style="font-size:.75rem;color:var(--faint);font-style:italic;">Personne sélectionné pour l\'instant.</span>'; return; }
+  box.innerHTML=ids.map(function(id){
+    var c=clients.find(function(x){return x._id===id;});
+    if(!c)return '';
+    return '<span style="display:inline-flex;align-items:center;gap:4px;background:var(--off);border:1px solid var(--border);border-radius:20px;padding:3px 9px;font-size:.76rem;margin:2px 5px 2px 0;">'+clientDisplayName(c)+'<button onclick="removeIntPerson(\''+id+'\')" style="background:none;border:none;cursor:pointer;color:var(--faint);padding:0;line-height:1;">×</button></span>';
+  }).join('');
+}
+
+function updateIntSplitHint(){
+  var hint=document.getElementById('int-split-hint');
   if(!hint)return;
-  if(intMode!=='group'){hint.textContent='';return;}
-  var present=document.querySelectorAll('.int-grp-member-cb:checked').length;
+  var present=Object.keys(intSelected).length;
   var t=(interactionTypes||[]).find(function(x){return x.id===document.getElementById('int-type').value;});
   var total=(t?t.points:0)+(Number(document.getElementById('int-bonus').value)||0);
-  if(!present){hint.textContent='Sélectionne les personnes présentes.';return;}
+  if(!present){hint.textContent='Sélectionne au moins une personne.';return;}
+  if(present===1){hint.textContent=total+' points pour cette personne.';return;}
   var per=Math.max(1,Math.round(total/present));
-  hint.textContent=total+' points ÷ '+present+' présent'+(present>1?'s':'')+' = '+per+' pt'+(per>1?'s':'')+' chacun (minimum 1).';
+  hint.textContent=total+' points ÷ '+present+' présents = '+per+' pt'+(per>1?'s':'')+' chacun (minimum 1).';
 }
 
 function saveInteraction(){
@@ -6042,43 +6108,22 @@ function saveInteraction(){
   var date=document.getElementById('int-date').value||TODAY;
   var bonus=Number(document.getElementById('int-bonus').value)||0;
   var note=document.getElementById('int-note').value.trim();
-
-  if(intMode==='group'){
-    var presentIds=Array.prototype.slice.call(document.querySelectorAll('.int-grp-member-cb:checked')).map(function(cb){return cb.value;});
-    if(!presentIds.length){alert('Sélectionne au moins une personne présente');return;}
-    var total=t.points+bonus;
-    var per=Math.max(1,Math.round(total/presentIds.length));
-    var gid=document.getElementById('int-group-sel').value;
-    var g=(relationGroups||[]).find(function(x){return x.id===gid;});
-    var noteFull=(g?g.label+(note?' · '+note:''):note);
-    presentIds.forEach(function(cid){
-      var c=clients.find(function(x){return x._id===cid;});
-      if(!c)return;
-      if(!c.interactions)c.interactions=[];
-      c.interactions.push({_id:'int-'+Date.now()+'-'+cid, date:date, typeId:typeId, points:per, bonus:0, note:noteFull});
-      sbSaveClient(c);
-    });
-    closeM('mo-interaction');
-    renderCercles();
-    return;
-  }
-
-  var cid=document.getElementById('int-cli').value;
-  var c=clients.find(function(x){return x._id===cid;});
-  if(!c){alert('Choisis une personne');return;}
-  var it={
-    _id:'int-'+Date.now(),
-    date:date,
-    typeId:typeId,
-    points:t.points,
-    bonus:bonus,
-    note:note
-  };
-  if(!c.interactions)c.interactions=[];
-  c.interactions.push(it);
-  sbSaveClient(c);
+  var presentIds=Object.keys(intSelected);
+  if(!presentIds.length){alert('Sélectionne au moins une personne');return;}
+  var total=t.points+bonus;
+  var per=Math.max(1,Math.round(total/presentIds.length));
+  presentIds.forEach(function(cid){
+    var c=clients.find(function(x){return x._id===cid;});
+    if(!c)return;
+    if(!c.interactions)c.interactions=[];
+    c.interactions.push({_id:'int-'+Date.now()+'-'+cid, date:date, typeId:typeId, points:per, bonus:0, note:note});
+    sbSaveClient(c);
+  });
   closeM('mo-interaction');
-  if(document.getElementById('mo-client').classList.contains('open') && editClientId===cid) renderClientInteractionsList(c);
+  if(document.getElementById('mo-client').classList.contains('open') && presentIds.indexOf(editClientId)>=0){
+    var editedC=clients.find(function(x){return x._id===editClientId;});
+    if(editedC) renderClientInteractionsList(editedC);
+  }
   renderCercles();
 }
 function delInteraction(cid,iid){
@@ -6127,7 +6172,7 @@ function saveGroup(){
   closeM('mo-group');
   if(typeof renderConfig==='function' && document.getElementById('zone-config').style.display!=='none') renderConfig();
   var groupSel=document.getElementById('int-group-sel');
-  if(groupSel){ groupSel.innerHTML=(relationGroups||[]).map(function(x){return '<option value="'+x.id+'">'+x.label+' ('+(x.memberIds||[]).length+')</option>';}).join(''); groupSel.value=g.id; renderIntGroupMembers(); }
+  if(groupSel){ groupSel.innerHTML=(relationGroups||[]).map(function(x){return '<option value="'+x.id+'">'+x.label+' ('+(x.memberIds||[]).length+')</option>';}).join(''); groupSel.value=g.id; onIntGroupChange(); }
 }
 function deleteGroup(){
   if(!editGroupId)return;
@@ -8094,7 +8139,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260725 - v101 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260725 - v102 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
