@@ -1401,6 +1401,7 @@ function doLogout(){
         <div class="fg"><label>Email</label><input type="text" id="cli-email" placeholder="contact@…"></div>
         <div class="fg"><label>Ville</label><input type="text" id="cli-ville" placeholder="Paris"></div>
       </div>
+      <div class="fg" style="max-width:200px;"><label>🎂 Date de naissance</label><input type="date" id="cli-anniversaire"></div>
       <div class="fg"><label>Adresse</label><textarea id="cli-adresse" placeholder="Adresse complète…" style="min-height:50px;"></textarea></div>
       <div class="fg"><label>Notes</label><textarea id="cli-notes" placeholder="Informations complémentaires…" style="min-height:50px;"></textarea></div>
       <div class="fg">
@@ -5793,7 +5794,7 @@ function openNewClientModal(pid){
   editClientIsNew=true;
   tmpClientPhoto=null;
   document.getElementById('mo-client-title').textContent='Nouveau client';
-  ['cli-societe','cli-nom','cli-prenom','cli-tel','cli-email','cli-ville','cli-adresse','cli-notes'].forEach(function(i){document.getElementById(i).value='';});
+  ['cli-societe','cli-nom','cli-prenom','cli-tel','cli-email','cli-ville','cli-anniversaire','cli-adresse','cli-notes'].forEach(function(i){document.getElementById(i).value='';});
   document.getElementById('cli-del-btn').style.display='none';
   document.getElementById('cli-archived').checked=false;
   document.getElementById('cli-prev').style.display='none';
@@ -5816,6 +5817,7 @@ function editClientBtn(cid,origin){
   document.getElementById('cli-tel').value=c.tel||'';
   document.getElementById('cli-email').value=c.email||'';
   document.getElementById('cli-ville').value=c.ville||'';
+  document.getElementById('cli-anniversaire').value=c.anniversaire||'';
   document.getElementById('cli-adresse').value=c.adresse||'';
   document.getElementById('cli-notes').value=c.notes||'';
   document.getElementById('cli-archived').checked=!!c.archived;
@@ -5892,6 +5894,7 @@ function saveClient(){
     tel:document.getElementById('cli-tel').value.trim(),
     email:document.getElementById('cli-email').value.trim(),
     ville:document.getElementById('cli-ville').value.trim(),
+    anniversaire:document.getElementById('cli-anniversaire').value,
     adresse:document.getElementById('cli-adresse').value.trim(),
     notes:document.getElementById('cli-notes').value.trim(),
     tags:tags,
@@ -6216,7 +6219,8 @@ function renderCercles(){
     html+='<div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--border);'+faded+'">';
     html+=avatar;
     html+='<div style="flex:1;min-width:0;cursor:pointer;" onclick="editClientBtn(\''+c._id+'\',\'cercles\')">';
-    html+='<div style="font-size:.85rem;font-weight:500;">'+clientDisplayName(c)+(c.archived?' <span style="color:var(--faint);font-weight:400;">(archivé)</span>':'')+'</div>';
+    var isBday = c.anniversaire && c.anniversaire.slice(5)===TODAY.slice(5);
+    html+='<div style="font-size:.85rem;font-weight:500;">'+clientDisplayName(c)+(isBday?' 🎂':'')+(c.archived?' <span style="color:var(--faint);font-weight:400;">(archivé)</span>':'')+'</div>';
     html+='<div style="font-size:.68rem;color:var(--faint);">'+tagsHtml+(tagsHtml?'· ':'')+'dernière interaction : '+formatRelDays(x.last)+'</div>';
     html+='</div>';
     html+='<div style="font-family:\'Playfair Display\',serif;font-size:1rem;color:var(--gold);min-width:36px;text-align:right;">'+Math.round(x.score)+'</div>';
@@ -8090,7 +8094,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260725 - v99 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260725 - v100 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
