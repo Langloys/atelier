@@ -4354,16 +4354,30 @@ function onDropActiv(event,ai,container){
   sbSaveConfig('activites');renderConfig();
 }
 
+// ══ CONFIG — groupes pliables ══
+var configGroupOpen = {};
+function cfgOpen(key, dflt){ return (key in configGroupOpen) ? configGroupOpen[key] : dflt; }
+function toggleConfigGroup(key){ configGroupOpen[key]=!cfgOpen(key,true); renderConfig(); }
+function cfgHd(key,title,badge,dflt){
+  if(dflt===undefined)dflt=true;
+  var open=cfgOpen(key,dflt);
+  return '<div class="cfg-section" style="margin-bottom:16px;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;">'
+    +'<div onclick="toggleConfigGroup(\''+key+'\')" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:11px 14px;background:var(--off);user-select:none;">'
+    +'<span style="font-family:\'Playfair Display\',serif;font-size:.88rem;font-style:italic;color:var(--mid);display:flex;align-items:center;gap:8px;">'
+    +'<span style="display:inline-block;transition:transform .15s;transform:rotate('+(open?90:0)+'deg);font-size:.65rem;">▶</span>'+title+'</span>'
+    +(badge||'')
+    +'</div>'
+    +'<div style="padding:14px;'+(open?'':'display:none;')+'">';
+}
+function cfgFt(){ return '</div></div>'; }
+
 function renderConfig(){
   var html='';
 
   // ── Section Nettoyage ──
   var orphans=findOrphanSessions();
-  html+='<div style="margin-bottom:24px;">';
-  html+='<div style="font-family:Playfair Display,serif;font-size:.9rem;font-style:italic;color:var(--mid);margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;">';
-  html+='<span>🔍 Sessions à harmoniser</span>';
-  if(orphans.length)html+='<span style="font-size:.72rem;background:#fff0ee;color:var(--red);border:1px solid #f5c6c2;padding:2px 10px;border-radius:20px;">'+orphans.length+' session'+(orphans.length>1?'s':'')+'</span>';
-  html+='</div>';
+  var orphansBadge = orphans.length ? '<span style="font-size:.72rem;background:#fff0ee;color:var(--red);border:1px solid #f5c6c2;padding:2px 10px;border-radius:20px;">'+orphans.length+' session'+(orphans.length>1?'s':'')+'</span>' : '';
+  html+=cfgHd('harmoniser-sessions','🔍 Sessions à harmoniser',orphansBadge,orphans.length>0);
   if(!orphans.length){
     html+='<div style="font-size:.78rem;color:var(--green);padding:10px;background:var(--ter);border-radius:var(--r);">✅ Toutes les sessions sont correctement liées.</div>';
   } else {
@@ -4402,16 +4416,13 @@ function renderConfig(){
     });
     html+='</div>';
   }
-  html+='</div>';
+  html+=cfgFt();
 
 
   // ── Section Actions à harmoniser ──
   var badActions=findOrphanActions();
-  html+='<div style="margin-bottom:24px;">';
-  html+='<div style="font-family:Playfair Display,serif;font-size:.9rem;font-style:italic;color:var(--mid);margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;">';
-  html+='<span>🔍 Actions à harmoniser</span>';
-  if(badActions.length)html+='<span style="font-size:.72rem;background:#fff0ee;color:var(--red);border:1px solid #f5c6c2;padding:2px 10px;border-radius:20px;">'+badActions.length+' session'+(badActions.length>1?'s':'')+'</span>';
-  html+='</div>';
+  var badActionsBadge = badActions.length ? '<span style="font-size:.72rem;background:#fff0ee;color:var(--red);border:1px solid #f5c6c2;padding:2px 10px;border-radius:20px;">'+badActions.length+' session'+(badActions.length>1?'s':'')+'</span>' : '';
+  html+=cfgHd('harmoniser-actions','🔍 Actions à harmoniser',badActionsBadge,badActions.length>0);
   if(!badActions.length){
     html+='<div style="font-size:.78rem;color:var(--green);padding:10px;background:var(--ter);border-radius:var(--r);">✅ Toutes les actions sont reconnues.</div>';
   } else {
@@ -4446,15 +4457,14 @@ function renderConfig(){
     });
     html+='</div>';
   }
-  html+='</div>';
+  html+=cfgFt();
 
   // ── Actions de création ──
   var allActionsFlat=[];
   Object.values(actionsConfig||{}).forEach(function(arr){arr.forEach(function(a){if(allActionsFlat.indexOf(a)<0)allActionsFlat.push(a);});});
   (activites||[]).forEach(function(activ){(activ.actions||[]).forEach(function(a){if(allActionsFlat.indexOf(a)<0)allActionsFlat.push(a);});});
   allActionsFlat.sort();
-  html+='<div style="margin-bottom:24px;">';
-  html+='<div style="font-family:Playfair Display,serif;font-size:.9rem;font-style:italic;color:var(--mid);margin-bottom:10px;">⭐ Actions comptées comme Création</div>';
+  html+=cfgHd('creation-actions','⭐ Actions comptées comme Création',null,false);
   html+='<div style="font-size:.72rem;color:var(--faint);margin-bottom:10px;">Ces sessions sont comptées comme du temps de création dans les stats.</div>';
   html+='<div style="display:flex;flex-wrap:wrap;gap:8px;padding:10px;background:var(--off);border-radius:var(--r);border:1px solid var(--border);">';
   allActionsFlat.forEach(function(a){
@@ -4464,11 +4474,12 @@ function renderConfig(){
     html+='<span>'+a+'</span></label>';
   });
   html+='</div>';
-  html+='</div>';
+  html+=cfgFt();
 
 
 
 
+  html+=cfgHd('activites','🗂 Activités & leurs actions',null,false);
   (activites||[]).forEach(function(a,ai){
     html+='<div class="cfg-mat">';
     html+='<div class="cfg-mat-hd"><span class="cfg-mat-title">'+a.label+'</span>';
@@ -4492,14 +4503,15 @@ function renderConfig(){
     html+='</div>';
   });
   // Bouton nouvelle activité
-  html+='<div style="margin-bottom:24px;display:flex;gap:8px;">';
+  html+='<div style="display:flex;gap:8px;">';
   html+='<input type="text" id="new-activ-label" placeholder="Emoji + nom (ex: 🎵 Musique)" style="flex:1;font-size:.82rem;padding:8px 10px;border:1px solid var(--bd);border-radius:var(--r);outline:none;">';
   html+='<button class="btn btn-primary" onclick="addActivite()">+ Nouvelle activité</button>';
   html+='</div>';
+  html+=cfgFt();
 
   // ── Section Types d'œuvres ──
-  html+='<div style="margin-bottom:24px;">';
-  html+='<div style="font-family:Playfair Display,serif;font-size:.9rem;font-style:italic;color:var(--mid);margin-bottom:10px;">Types d’œuvres</div>';
+  html+=cfgHd('catalogue','🪨 Catalogue — types, matières, techniques, actions',null,false);
+  html+='<div style="font-family:Playfair Display,serif;font-size:.85rem;font-style:italic;color:var(--mid);margin-bottom:10px;">Types d’œuvres</div>';
   html+='<div style="border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:8px;">';
   (typesOeuvres||[]).forEach(function(t,i){
     html+='<div class="cfg-action-row">';
@@ -4514,11 +4526,9 @@ function renderConfig(){
   });
   html+='</div>';
   html+='<div class="cfg-add-row"><input type="text" id="new-type-input" placeholder="Nouveau type… (ex: TABLEAU)"><button class="btn btn-sm btn-primary" onclick="addType()">+ Ajouter</button></div>';
-  html+='</div>';
 
   // ── Matières exemplaires ──
-  html+='<div style="margin-bottom:24px;">';
-  html+='<div style="font-family:Playfair Display,serif;font-size:.9rem;font-style:italic;color:var(--mid);margin-bottom:10px;">Matières (Exemplaires)</div>';
+  html+='<div style="font-family:Playfair Display,serif;font-size:.85rem;font-style:italic;color:var(--mid);margin:18px 0 10px;">Matières (Exemplaires)</div>';
   html+='<div style="border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:8px;">';
   (matieres||[]).forEach(function(m,i){
     var mLen=(matieres||[]).length;
@@ -4533,11 +4543,9 @@ function renderConfig(){
   });
   html+='</div>';
   html+='<div class="cfg-add-row"><input type="text" id="new-mat-input" placeholder="Nouvelle matière…" onkeydown="if(event.key===\'Enter\')addMatiere()"><button class="btn btn-sm btn-primary" onclick="addMatiere()">+ Ajouter</button></div>';
-  html+='</div>';
 
   // ── Techniques dessin ──
-  html+='<div style="margin-bottom:24px;">';
-  html+='<div style="font-family:Playfair Display,serif;font-size:.9rem;font-style:italic;color:var(--mid);margin-bottom:10px;">Techniques (Dessin)</div>';
+  html+='<div style="font-family:Playfair Display,serif;font-size:.85rem;font-style:italic;color:var(--mid);margin:18px 0 10px;">Techniques (Dessin)</div>';
   html+='<div style="border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:8px;">';
   (techniques||[]).forEach(function(t,i){
     var tLen=(techniques||[]).length;
@@ -4552,9 +4560,8 @@ function renderConfig(){
   });
   html+='</div>';
   html+='<div class="cfg-add-row"><input type="text" id="new-tech-input" placeholder="Nouvelle technique…" onkeydown="if(event.key===\'Enter\')addTechnique()"><button class="btn btn-sm btn-primary" onclick="addTechnique()">+ Ajouter</button></div>';
-  html+='</div>';
 
-  html+='<div style="font-family:Playfair Display,serif;font-size:.9rem;font-style:italic;color:var(--mid);margin-bottom:12px;">Actions par matière</div>';
+  html+='<div style="font-family:Playfair Display,serif;font-size:.85rem;font-style:italic;color:var(--mid);margin:18px 0 12px;">Actions par matière</div>';
 
   var mats = Object.keys(actionsConfig);
   mats.forEach(function(mat){
@@ -4583,12 +4590,12 @@ function renderConfig(){
           + '</div>';
     html += '</div>';
   });
+  html+=cfgFt();
   document.getElementById('config-content').innerHTML = html;
 
   // Injecter la section types de dépenses en fin de config
   var cfgEl = document.getElementById('config-content');
-  var finTypesHtml = '<div style="margin-top:32px;padding-top:24px;border-top:1px solid var(--border);">'
-    +'<div style="font-family:Playfair Display,serif;font-size:.9rem;font-style:italic;color:var(--mid);margin-bottom:12px;">💰 Types de dépenses</div>'
+  var finTypesHtml = cfgHd('fin-types','💰 Types de dépenses',null,false)
     +'<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;" id="cfg-fin-types-list">'
     + finTypes.map(function(t){
         return '<div style="display:flex;align-items:center;gap:5px;background:var(--w);border:1px solid var(--border);border-left:3px solid '+(t.color||'#a08050')+';border-radius:var(--r);padding:5px 10px;">'
@@ -4603,10 +4610,11 @@ function renderConfig(){
     +'<input type="text" id="cfg-fin-type-label" placeholder="Nouveau type de dépense…" style="flex:1;" onkeydown="if(event.key===\'Enter\')addFinType()">'
     +'<button class="btn btn-primary" onclick="addFinType()">+ Ajouter</button>'
     +'</div>'
-    +'</div>';
+    +cfgFt();
+  cfgEl.innerHTML += finTypesHtml;
+
   // Fonderies
-  var fonderiesHtml = '<div style="margin-top:24px;padding-top:24px;border-top:1px solid var(--border);">'
-    +'<div style="font-family:Playfair Display,serif;font-size:.9rem;font-style:italic;color:var(--mid);margin-bottom:12px;">🔥 Fonderies</div>'
+  var fonderiesHtml = cfgHd('fonderies','🔥 Fonderies',null,false)
     +'<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">'
     +(fonderies||[]).map(function(f){
       return '<div style="display:flex;align-items:center;gap:5px;background:var(--w);border:1px solid var(--border);border-radius:var(--r);padding:4px 10px;">'
@@ -4618,12 +4626,12 @@ function renderConfig(){
     +'<div style="display:flex;gap:6px;">'
     +'<input type="text" id="cfg-fonderie-label" placeholder="Nom de la fonderie…" style="flex:1;" onkeydown="if(event.key===\'Enter\')addFonderieConfig()">'
     +'<button class="btn btn-primary" onclick="addFonderieConfig()">+ Ajouter</button>'
-    +'</div></div>';
+    +'</div>'
+    +cfgFt();
   cfgEl.innerHTML += fonderiesHtml;
 
   // Rangements
-  var rangementsHtml = '<div style="margin-top:24px;padding-top:24px;border-top:1px solid var(--border);">'
-    +'<div style="font-family:Playfair Display,serif;font-size:.9rem;font-style:italic;color:var(--mid);margin-bottom:12px;">📦 Emplacements de rangement</div>'
+  var rangementsHtml = cfgHd('rangements','📦 Emplacements de rangement',null,false)
     +'<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">'
     +(rangements||[]).map(function(r){
       return '<div style="display:flex;align-items:center;gap:5px;background:var(--w);border:1px solid var(--border);border-radius:var(--r);padding:4px 10px;">'
@@ -4635,12 +4643,12 @@ function renderConfig(){
     +'<div style="display:flex;gap:6px;">'
     +'<input type="text" id="cfg-rangement-label" placeholder="Atelier-B-1…" style="flex:1;" onkeydown="if(event.key===\'Enter\')addRangementConfig()">'
     +'<button class="btn btn-primary" onclick="addRangementConfig()">+ Ajouter</button>'
-    +'</div></div>';
+    +'</div>'
+    +cfgFt();
   cfgEl.innerHTML += rangementsHtml;
 
   // Galeries
-  var galeriesHtml = '<div style="margin-top:24px;padding-top:24px;border-top:1px solid var(--border);">'
-    +'<div style="font-family:Playfair Display,serif;font-size:.9rem;font-style:italic;color:var(--mid);margin-bottom:12px;">🖼 Galeries</div>'
+  var galeriesHtml = cfgHd('galeries','🖼 Galeries',null,false)
     +'<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">'
     +(galeries||[]).map(function(g){
       return '<div style="display:flex;align-items:center;gap:5px;background:var(--w);border:1px solid var(--border);border-radius:var(--r);padding:4px 10px;">'
@@ -4652,12 +4660,12 @@ function renderConfig(){
     +'<div style="display:flex;gap:6px;">'
     +'<input type="text" id="cfg-galerie-label" placeholder="Galerie Lombrives…" style="flex:1;" onkeydown="if(event.key===\'Enter\')addGalerieConfig()">'
     +'<button class="btn btn-primary" onclick="addGalerieConfig()">+ Ajouter</button>'
-    +'</div></div>';
+    +'</div>'
+    +cfgFt();
   cfgEl.innerHTML += galeriesHtml;
 
   // Lieux
-  var lieuxHtml = '<div style="margin-top:32px;padding-top:24px;border-top:1px solid var(--border);">'
-    +'<div style="font-family:Playfair Display,serif;font-size:.9rem;font-style:italic;color:var(--mid);margin-bottom:12px;">📍 Lieux</div>'
+  var lieuxHtml = cfgHd('lieux','📍 Lieux',null,false)
     +'<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">'
     +(lieux||[]).map(function(l){
       return '<div style="display:flex;align-items:center;gap:5px;background:var(--w);border:1px solid var(--border);border-radius:var(--r);padding:4px 10px;">'
@@ -4669,12 +4677,13 @@ function renderConfig(){
     +'<div style="display:flex;gap:6px;">'
     +'<input type="text" id="cfg-lieu-label" placeholder="Nouveau lieu…" style="flex:1;" onkeydown="if(event.key===\'Enter\')addLieu()">'
     +'<button class="btn btn-primary" onclick="addLieu()">+ Ajouter</button>'
-    +'</div></div>';
+    +'</div>'
+    +cfgFt();
   cfgEl.innerHTML += lieuxHtml;
 
   // Cercles — Types d'interaction (points)
-  var intTypesHtml = '<div style="margin-top:32px;padding-top:24px;border-top:1px solid var(--border);">'
-    +'<div style="font-family:Playfair Display,serif;font-size:.9rem;font-style:italic;color:var(--mid);margin-bottom:4px;">💫 Cercles — Types d\'interaction</div>'
+  var intTypesBadge='<span style="font-size:.68rem;color:var(--faint);">'+(interactionTypes||[]).length+'</span>';
+  var intTypesHtml = cfgHd('cercles-interactions','💫 Cercles — Types d\'interaction',intTypesBadge,false)
     +'<div style="font-size:.72rem;color:var(--faint);margin-bottom:12px;">Les points de base sont attribués le jour de l\'interaction, puis diminuent linéairement sur 365 jours.</div>'
     +'<div style="border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:8px;">'
     +(interactionTypes||[]).map(function(t,i){
@@ -4689,12 +4698,12 @@ function renderConfig(){
     +'<input type="text" id="new-int-type-label" placeholder="Nouveau type… (ex: Sortie sportive)" style="flex:1;">'
     +'<input type="number" id="new-int-type-pts" placeholder="Points" value="20" style="width:80px;">'
     +'<button class="btn btn-sm btn-primary" onclick="addInteractionType()">+ Ajouter</button>'
-    +'</div></div>';
+    +'</div>'
+    +cfgFt();
   cfgEl.innerHTML += intTypesHtml;
 
   // Cercles — Types de lien
-  var relTagsHtml = '<div style="margin-top:24px;padding-top:24px;border-top:1px solid var(--border);">'
-    +'<div style="font-family:Playfair Display,serif;font-size:.9rem;font-style:italic;color:var(--mid);margin-bottom:12px;">💫 Cercles — Types de lien</div>'
+  var relTagsHtml = cfgHd('cercles-tags','💫 Cercles — Types de lien',null,false)
     +'<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">'
     +(relationTags||[]).map(function(t){
       return '<div style="display:flex;align-items:center;gap:5px;background:var(--w);border:1px solid var(--border);border-radius:var(--r);padding:4px 10px;">'
@@ -4706,7 +4715,8 @@ function renderConfig(){
     +'<div style="display:flex;gap:6px;">'
     +'<input type="text" id="cfg-reltag-label" placeholder="Nouveau type de lien…" style="flex:1;" onkeydown="if(event.key===\'Enter\')addRelationTag()">'
     +'<button class="btn btn-primary" onclick="addRelationTag()">+ Ajouter</button>'
-    +'</div></div>';
+    +'</div>'
+    +cfgFt();
   cfgEl.innerHTML += relTagsHtml;
 }
 
@@ -7839,7 +7849,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260725 - v95 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260725 - v96 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
