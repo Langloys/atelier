@@ -1378,7 +1378,6 @@ function doLogout(){
         </div>
       </div>
       <div class="fr">
-        <div class="fg"><label>Contact</label><input type="text" id="cli-contact" placeholder="Nom du contact"></div>
         <div class="fg"><label>Téléphone</label><input type="text" id="cli-tel" placeholder="06…"></div>
       </div>
       <div class="fr">
@@ -5606,7 +5605,7 @@ function openProjetDetail(pid){
       html+='<div class="client-block">';
       html+='<div class="client-hd">';
       html+='<div><div class="client-nom">'+clientDisplayName(c)+'</div>';
-      if(c.contact)html+='<div class="client-contact">'+c.contact+(c.tel?' · '+c.tel:'')+(c.email?' · '+c.email:'')+'</div>';
+      if(c.tel||c.email)html+='<div class="client-contact">'+(c.tel?c.tel:'')+(c.tel&&c.email?' · ':'')+(c.email?c.email:'')+'</div>';
       html+='</div>';
       html+='<div style="display:flex;gap:6px;">';
       html+='<button class="btn btn-sm" onclick="openAddEchange(\'' + pid + '\',\'' + cid + '\')">+ Échange</button>';
@@ -5673,7 +5672,7 @@ function openAddClientToProjet(pid){
   available.forEach(function(c){
     html+='<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);">';
     html+='<div><div style="font-size:.85rem;font-weight:500;">'+clientDisplayName(c)+'</div>';
-    if(c.contact)html+='<div style="font-size:.72rem;color:var(--faint);">'+c.contact+'</div>';
+    if(c.tel||c.email)html+='<div style="font-size:.72rem;color:var(--faint);">'+(c.tel?c.tel:'')+(c.tel&&c.email?' · ':'')+(c.email?c.email:'')+'</div>';
     html+='</div>';
     html+='<button class="btn btn-sm btn-primary" onclick="linkClientToProjet(\'' + pid + '\',\'' + c._id + '\');closeM(\'mo-cli-pick\');">Lier</button>';
     html+='</div>';
@@ -5693,7 +5692,7 @@ function openNewClientModal(pid){
   editClientIsNew=true;
   tmpClientPhoto=null;
   document.getElementById('mo-client-title').textContent='Nouveau client';
-  ['cli-societe','cli-nom','cli-prenom','cli-contact','cli-tel','cli-email','cli-ville','cli-adresse','cli-notes'].forEach(function(i){document.getElementById(i).value='';});
+  ['cli-societe','cli-nom','cli-prenom','cli-tel','cli-email','cli-ville','cli-adresse','cli-notes'].forEach(function(i){document.getElementById(i).value='';});
   document.getElementById('cli-del-btn').style.display='none';
   document.getElementById('cli-archived').checked=false;
   document.getElementById('cli-prev').style.display='none';
@@ -5713,7 +5712,6 @@ function editClientBtn(cid,origin){
   document.getElementById('cli-societe').value=c.societe||'';
   document.getElementById('cli-nom').value=c.nom||'';
   document.getElementById('cli-prenom').value=c.prenom||'';
-  document.getElementById('cli-contact').value=c.contact||'';
   document.getElementById('cli-tel').value=c.tel||'';
   document.getElementById('cli-email').value=c.email||'';
   document.getElementById('cli-ville').value=c.ville||'';
@@ -5790,7 +5788,6 @@ function saveClient(){
     societe:societe,
     nom:nom,
     prenom:prenom,
-    contact:document.getElementById('cli-contact').value.trim(),
     tel:document.getElementById('cli-tel').value.trim(),
     email:document.getElementById('cli-email').value.trim(),
     ville:document.getElementById('cli-ville').value.trim(),
@@ -7841,7 +7838,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260725 - v93 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260725 - v94 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
