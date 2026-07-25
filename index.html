@@ -1369,7 +1369,13 @@ function doLogout(){
           <div id="cli-avatar-empty" style="width:80px;height:80px;border-radius:50%;background:var(--off);display:flex;align-items:center;justify-content:center;font-size:1.6rem;color:var(--faint);">👤</div>
           <input type="file" accept="image/*" onchange="prevImgClient(this)" style="font-size:.68rem;margin-top:6px;width:80px;">
         </div>
-        <div class="fg" style="flex:1;"><label>Nom / Organisation *</label><input type="text" id="cli-nom" placeholder="ex: Mairie de Paris"></div>
+        <div class="fg" style="flex:1;">
+          <div class="fg"><label>Société (optionnel)</label><input type="text" id="cli-societe" placeholder="ex: Mairie de Paris — laisser vide pour un particulier"></div>
+          <div class="fr">
+            <div class="fg"><label>Nom *</label><input type="text" id="cli-nom" placeholder="ex: Dupont" style="text-transform:uppercase;"></div>
+            <div class="fg"><label>Prénom</label><input type="text" id="cli-prenom" placeholder="ex: Marie"></div>
+          </div>
+        </div>
       </div>
       <div class="fr">
         <div class="fg"><label>Contact</label><input type="text" id="cli-contact" placeholder="Nom du contact"></div>
@@ -4970,7 +4976,7 @@ function renderProjets(){
   list.forEach(function(p){
     var cliNames=(p.clientIds||[]).map(function(cid){
       var c=clients.find(function(x){return x._id===cid;});
-      return c?c.nom:'?';
+      return c?clientDisplayName(c):'?';
     }).join(', ');
     var oeuNames=(p.oeuvreIds||[]).map(function(oid){
       var o=oeuvres.find(function(x){return x._id===oid;});
@@ -5019,7 +5025,7 @@ function getAllRappels(){
       var proj=p;
       var cli=clients.find(function(c){return c._id===r.client;});
       r.projetTitre=proj.titre;
-      r.clientNom=cli?cli.nom:'';
+      r.clientNom=cli?clientDisplayName(cli):'';
       all.push(r);
     });
   });
@@ -5599,7 +5605,7 @@ function openProjetDetail(pid){
       var echanges=((p.echanges||{})[cid])||[];
       html+='<div class="client-block">';
       html+='<div class="client-hd">';
-      html+='<div><div class="client-nom">'+c.nom+'</div>';
+      html+='<div><div class="client-nom">'+clientDisplayName(c)+'</div>';
       if(c.contact)html+='<div class="client-contact">'+c.contact+(c.tel?' · '+c.tel:'')+(c.email?' · '+c.email:'')+'</div>';
       html+='</div>';
       html+='<div style="display:flex;gap:6px;">';
@@ -5666,7 +5672,7 @@ function openAddClientToProjet(pid){
   html+='<div class="section-title" style="margin-top:0;">Clients existants</div>';
   available.forEach(function(c){
     html+='<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);">';
-    html+='<div><div style="font-size:.85rem;font-weight:500;">'+c.nom+'</div>';
+    html+='<div><div style="font-size:.85rem;font-weight:500;">'+clientDisplayName(c)+'</div>';
     if(c.contact)html+='<div style="font-size:.72rem;color:var(--faint);">'+c.contact+'</div>';
     html+='</div>';
     html+='<button class="btn btn-sm btn-primary" onclick="linkClientToProjet(\'' + pid + '\',\'' + c._id + '\');closeM(\'mo-cli-pick\');">Lier</button>';
@@ -5687,7 +5693,7 @@ function openNewClientModal(pid){
   editClientIsNew=true;
   tmpClientPhoto=null;
   document.getElementById('mo-client-title').textContent='Nouveau client';
-  ['cli-nom','cli-contact','cli-tel','cli-email','cli-ville','cli-adresse','cli-notes'].forEach(function(i){document.getElementById(i).value='';});
+  ['cli-societe','cli-nom','cli-prenom','cli-contact','cli-tel','cli-email','cli-ville','cli-adresse','cli-notes'].forEach(function(i){document.getElementById(i).value='';});
   document.getElementById('cli-del-btn').style.display='none';
   document.getElementById('cli-archived').checked=false;
   document.getElementById('cli-prev').style.display='none';
@@ -5704,7 +5710,9 @@ function editClientBtn(cid,origin){
   clientOrigin=origin||'projet';
   tmpClientPhoto=c.photo||null;
   document.getElementById('mo-client-title').textContent="Modifier le client";
+  document.getElementById('cli-societe').value=c.societe||'';
   document.getElementById('cli-nom').value=c.nom||'';
+  document.getElementById('cli-prenom').value=c.prenom||'';
   document.getElementById('cli-contact').value=c.contact||'';
   document.getElementById('cli-tel').value=c.tel||'';
   document.getElementById('cli-email').value=c.email||'';
@@ -5771,13 +5779,17 @@ function renderClientInteractionsList(c){
 }
 
 function saveClient(){
+  var societe=document.getElementById('cli-societe').value.trim();
   var nom=document.getElementById('cli-nom').value.trim();
-  if(!nom){alert('Nom obligatoire');return;}
+  var prenom=document.getElementById('cli-prenom').value.trim();
+  if(!nom&&!societe){alert('Le nom ou la société est obligatoire');return;}
   var existing=clients.find(function(x){return x._id===editClientId;});
   var tags=Array.prototype.slice.call(document.querySelectorAll('.cli-tag-cb:checked')).map(function(cb){return cb.value;});
   var c={
     _id:editClientId,
+    societe:societe,
     nom:nom,
+    prenom:prenom,
     contact:document.getElementById('cli-contact').value.trim(),
     tel:document.getElementById('cli-tel').value.trim(),
     email:document.getElementById('cli-email').value.trim(),
@@ -5823,6 +5835,15 @@ function delClient(){
 }
 
 // ══ CERCLES (relations) ══
+function fmtNomMaj(s){ return (s||'').trim().toUpperCase(); }
+function fmtPrenomCap(s){ s=(s||'').trim(); if(!s) return ''; return s.charAt(0).toUpperCase()+s.slice(1).toLowerCase(); }
+function clientDisplayName(c){
+  if(!c) return '?';
+  var n=fmtNomMaj(c.nom), p=fmtPrenomCap(c.prenom);
+  var full=(n+(p?' '+p:'')).trim();
+  if(!full) return (c.societe&&c.societe.trim()) ? c.societe.trim() : (c.nom || '(sans nom)');
+  return full + ((c.societe&&c.societe.trim()) ? ' ('+c.societe.trim()+')' : '');
+}
 function daysBetween(dateStr, refStr){
   var d1=new Date(dateStr+'T00:00:00'), d2=new Date(refStr+'T00:00:00');
   return Math.round((d2-d1)/86400000);
@@ -5856,8 +5877,8 @@ function formatRelDays(dateStr){
 
 function openInteractionModal(presetClientId){
   var sel=document.getElementById('int-cli');
-  sel.innerHTML=clients.slice().sort(function(a,b){return (a.nom||'').localeCompare(b.nom||'');}).map(function(c){
-    return '<option value="'+c._id+'">'+c.nom+'</option>';
+  sel.innerHTML=clients.slice().sort(function(a,b){return clientDisplayName(a).localeCompare(clientDisplayName(b));}).map(function(c){
+    return '<option value="'+c._id+'">'+clientDisplayName(c)+'</option>';
   }).join('');
   var wrap=document.getElementById('int-cli-picker-wrap');
   if(presetClientId){ sel.value=presetClientId; wrap.style.display='none'; }
@@ -5914,7 +5935,10 @@ function renderCercles(){
   var hideArchived=document.getElementById('cer-hide-archived').checked;
   var list=(clients||[]).filter(function(c){
     if(hideArchived && c.archived) return false;
-    if(srch && (c.nom||'').toLowerCase().indexOf(srch)<0 && !(c.tags||[]).some(function(t){return t.toLowerCase().indexOf(srch)>=0;})) return false;
+    if(srch){
+      var hay=((c.societe||'')+' '+(c.nom||'')+' '+(c.prenom||'')).toLowerCase();
+      if(hay.indexOf(srch)<0 && !(c.tags||[]).some(function(t){return t.toLowerCase().indexOf(srch)>=0;})) return false;
+    }
     return true;
   }).map(function(c){
     return {c:c, score:computeClientScore(c), last:lastInteractionDate(c)};
@@ -5943,7 +5967,7 @@ function renderCercles(){
     html+='<div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--border);'+faded+'">';
     html+=avatar;
     html+='<div style="flex:1;min-width:0;cursor:pointer;" onclick="editClientBtn(\''+c._id+'\',\'cercles\')">';
-    html+='<div style="font-size:.85rem;font-weight:500;">'+c.nom+(c.archived?' <span style="color:var(--faint);font-weight:400;">(archivé)</span>':'')+'</div>';
+    html+='<div style="font-size:.85rem;font-weight:500;">'+clientDisplayName(c)+(c.archived?' <span style="color:var(--faint);font-weight:400;">(archivé)</span>':'')+'</div>';
     html+='<div style="font-size:.68rem;color:var(--faint);">'+tagsHtml+(tagsHtml?'· ':'')+'dernière interaction : '+formatRelDays(x.last)+'</div>';
     html+='</div>';
     html+='<div style="font-family:\'Playfair Display\',serif;font-size:1rem;color:var(--gold);min-width:36px;text-align:right;">'+Math.round(x.score)+'</div>';
@@ -7336,7 +7360,7 @@ function renderTaches(){
             _id:'r-'+e._id, texte:e.rappelAction,
             echeance:e.rappelDate, prio:'2',
             projetId:p._id, projetTitre:p.titre,
-            clientNom:cli?cli.nom:'',
+            clientNom:cli?clientDisplayName(cli):'',
             done:false, isRappel:true,
             pid:p._id, cid:cid, eid:e._id
           });
@@ -7817,7 +7841,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260725 - v91 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260725 - v93 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
