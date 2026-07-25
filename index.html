@@ -671,6 +671,7 @@ function doLogout(){
 <div class="tabs">
   <button class="tab active" onclick="setTab('today')"   id="tab-today">Aujourd'hui <span class="ct" id="ct-today">0</span></button>
   <button class="tab"        onclick="setTab('planning')" id="tab-planning">📅 Planning</button>
+  <button class="tab"        onclick="setTab('cercles')" id="tab-cercles">💫 Cercles</button>
   <button class="tab"        onclick="setTab('journal')" id="tab-journal">Journal <span class="ct" id="ct-jour">0</span></button>
   <button class="tab"        onclick="setTab('all')"     id="tab-all">Catalogue <span class="ct" id="ct-all">0</span></button>
   <button class="tab"        onclick="setTab('encours')" id="tab-encours">En cours <span class="ct" id="ct-enc">0</span></button>
@@ -678,7 +679,6 @@ function doLogout(){
   <button class="tab"        onclick="setTab('stats')"   id="tab-stats">Stats</button>
   <button class="tab"        onclick="setTab('taches')"  id="tab-taches">Tâches <span class="ct" id="ct-taches">0</span></button>
   <button class="tab"        onclick="setTab('projets')" id="tab-projets">Projets <span class="ct" id="ct-proj">0</span></button>
-  <button class="tab"        onclick="setTab('cercles')" id="tab-cercles">💫 Cercles</button>
   <button class="tab"        onclick="setTab('temps')"    id="tab-temps">⏱ Temps</button>
   <button class="tab"        onclick="setTab('finances')" id="tab-finances">Finances <span class="ct" id="ct-fin">€</span></button>
   <button class="tab"        onclick="setTab('config')"  id="tab-config">⚙ Config</button>
@@ -8094,7 +8094,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260725 - v100 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260725 - v101 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
