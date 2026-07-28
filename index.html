@@ -496,6 +496,7 @@ async function loadFromSupabase() {
         if(row.key === 'interactionTypes' && row.data) interactionTypes = row.data;
         if(row.key === 'relationTags' && row.data) relationTags = row.data;
         if(row.key === 'relationGroups' && row.data) relationGroups = row.data;
+        if(row.key === 'dedupIgnored' && row.data) dedupIgnored = row.data;
         if(row.key === 'lieux' && row.data) lieux = row.data;
         if(row.key === 'fonderies' && row.data) fonderies = row.data;
         if(row.key === 'rangements' && row.data) rangements = row.data;
@@ -558,8 +559,8 @@ function sbSaveOeuvre(o){ sbUpsert('oeuvres',o._id,o).catch(function(e){console.
 function sbSaveEx(e){ sbUpsert('exemplaires',e._id,e).catch(function(e2){console.error('sbSaveEx',e2);}); }
 function sbSaveProjet(p){ sbUpsert('projets',p._id,p).catch(function(e){console.error('sbSaveProjet',e);}); }
 function sbSaveClient(c){ sbUpsert('clients',c._id,c).catch(function(e){console.error('sbSaveClient',e);}); }
-function sbSaveConfig(key){ var val; if(key==='actionsConfig')val=actionsConfig; else if(key==='activites')val=activites; else if(key==='recettesPatine')val=recettesPatine; else if(key==='taches')val=taches; else if(key==='techniques')val=techniques||[]; else if(key==='matieres')val=matieres||[]; else if(key==='typesOeuvres')val=typesOeuvres||[]; else if(key==='creationActions')val=creationActions||[]; else if(key==='lieux')val=lieux||[]; else if(key==='fonderies')val=fonderies||[]; else if(key==='rangements')val=rangements||[]; else if(key==='galeries')val=galeries||[]; else if(key==='planEvts')val=planEvts||[]; else if(key==='finances')val=finances||[]; else if(key==='finTypes')val=finTypes||[]; else if(key==='interactionTypes')val=interactionTypes||[]; else if(key==='relationTags')val=relationTags||[]; else if(key==='relationGroups')val=relationGroups||[]; else if(key==='dayPlan')val=dayPlan; else return; sbUpsert('config',key,val).catch(function(e){console.error('sbSaveConfig '+key,e);}); }
-function sbSaveAllConfig(){ ['actionsConfig','activites','recettesPatine','taches','techniques','matieres','typesOeuvres','creationActions','lieux','fonderies','rangements','galeries','interactionTypes','relationTags','relationGroups'].forEach(sbSaveConfig); }
+function sbSaveConfig(key){ var val; if(key==='actionsConfig')val=actionsConfig; else if(key==='activites')val=activites; else if(key==='recettesPatine')val=recettesPatine; else if(key==='taches')val=taches; else if(key==='techniques')val=techniques||[]; else if(key==='matieres')val=matieres||[]; else if(key==='typesOeuvres')val=typesOeuvres||[]; else if(key==='creationActions')val=creationActions||[]; else if(key==='lieux')val=lieux||[]; else if(key==='fonderies')val=fonderies||[]; else if(key==='rangements')val=rangements||[]; else if(key==='galeries')val=galeries||[]; else if(key==='planEvts')val=planEvts||[]; else if(key==='finances')val=finances||[]; else if(key==='finTypes')val=finTypes||[]; else if(key==='interactionTypes')val=interactionTypes||[]; else if(key==='relationTags')val=relationTags||[]; else if(key==='relationGroups')val=relationGroups||[]; else if(key==='dedupIgnored')val=dedupIgnored||[]; else if(key==='dayPlan')val=dayPlan; else return; sbUpsert('config',key,val).catch(function(e){console.error('sbSaveConfig '+key,e);}); }
+function sbSaveAllConfig(){ ['actionsConfig','activites','recettesPatine','taches','techniques','matieres','typesOeuvres','creationActions','lieux','fonderies','rangements','galeries','interactionTypes','relationTags','relationGroups','dedupIgnored'].forEach(sbSaveConfig); }
 
 async function persistSupabase() {
   // Oeuvres — par paquets de 10
@@ -593,6 +594,7 @@ async function persistSupabase() {
   await sbUpsert('config', 'interactionTypes', interactionTypes||[]);
   await sbUpsert('config', 'relationTags', relationTags||[]);
   await sbUpsert('config', 'relationGroups', relationGroups||[]);
+  await sbUpsert('config', 'dedupIgnored', dedupIgnored||[]);
 }
 </script>
 </head>
@@ -1967,7 +1969,8 @@ const CERCLE_TRANCHES = [
 // ══ STATE ══
 let oeuvres, exemplaires, sessions;
 let actionsConfig, projets, clients, activites, typesOeuvres, taches, techniques, matieres, creationActions;
-let interactionTypes, relationTags, relationGroups;
+let interactionTypes, relationTags, relationGroups, dedupIgnored;
+var dedupFuzzy=false;
 let finances = [], finTypes = [], lieux = [], fonderies = [], rangements = [], galeries = [];
 let recettesPatine = [];
 function load(){
@@ -1996,6 +1999,7 @@ function load(){
   interactionTypes = JSON.parse(JSON.stringify(DEFAULT_INTERACTION_TYPES));
   relationTags      = DEFAULT_RELATION_TAGS.slice();
   relationGroups    = [];
+  dedupIgnored      = [];
   // Migration : anciens types avec emoji sans color → couleur par défaut
   finTypes.forEach(function(t){ if(!t.color) t.color = '#a08050'; });
 
@@ -4804,6 +4808,130 @@ function renderConfig(){
     +'<button class="btn btn-sm btn-primary" onclick="openGroupModal(null)">+ Nouveau groupe</button>'
     +cfgFt();
   cfgEl.innerHTML += groupsHtml;
+
+  // Dédoublonner les clients
+  var dupPairs = findDuplicatePairs(dedupFuzzy);
+  var dupBadge = dupPairs.length ? '<span style="font-size:.72rem;background:#fff0ee;color:var(--red);border:1px solid #f5c6c2;padding:2px 10px;border-radius:20px;">'+dupPairs.length+' suspecte'+(dupPairs.length>1?'s':'')+'</span>' : '';
+  var dedupHtml = cfgHd('cercles-dedup','🧹 Dédoublonner les clients',dupBadge,dupPairs.length>0)
+    +'<label style="display:flex;align-items:center;gap:6px;font-size:.78rem;margin-bottom:12px;"><input type="checkbox" id="dedup-fuzzy" '+(dedupFuzzy?'checked':'')+' onchange="toggleDedupFuzzy()" style="width:auto;"> Scan large (repère aussi les fautes de frappe proches)</label>'
+    +(dupPairs.length ? dupPairs.map(function(p){
+        return '<div style="border:1px solid var(--border);border-radius:var(--r);padding:10px;margin-bottom:8px;">'
+          +'<div style="font-size:.68rem;color:var(--gold);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em;">'+p.reason+'</div>'
+          +'<div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap;">'
+          +clientDedupCard(p.a)
+          +'<div style="align-self:center;font-size:1.1rem;color:var(--faint);">↔</div>'
+          +clientDedupCard(p.b)
+          +'</div>'
+          +'<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">'
+          +'<button class="btn btn-sm btn-primary" onclick="mergeClients(\''+p.a._id+'\',\''+p.b._id+'\')">Fusionner dans « '+clientDisplayName(p.a)+' »</button>'
+          +'<button class="btn btn-sm btn-primary" onclick="mergeClients(\''+p.b._id+'\',\''+p.a._id+'\')">Fusionner dans « '+clientDisplayName(p.b)+' »</button>'
+          +'<button class="btn btn-sm" onclick="ignoreDuplicatePair(\''+p.key+'\')">Ce sont deux personnes différentes</button>'
+          +'</div>'
+          +'</div>';
+      }).join('')
+      : '<div style="font-size:.78rem;color:var(--faint);font-style:italic;padding:10px;">Aucun doublon détecté pour l\'instant. 👍</div>')
+    +cfgFt();
+  cfgEl.innerHTML += dedupHtml;
+}
+
+function clientDedupCard(c){
+  var score=Math.round(computeClientScore(c));
+  var nInt=(c.interactions||[]).length;
+  return '<div style="flex:1;min-width:170px;font-size:.78rem;">'
+    +'<div style="font-weight:600;margin-bottom:2px;">'+clientDisplayName(c)+'</div>'
+    +(c.tel?'<div>📞 '+c.tel+'</div>':'')
+    +(c.email?'<div>✉️ '+c.email+'</div>':'')
+    +(c.tags&&c.tags.length?'<div style="color:var(--faint);">'+c.tags.join(', ')+'</div>':'')
+    +'<div style="color:var(--faint);">'+nInt+' interaction'+(nInt>1?'s':'')+' · score '+score+'</div>'
+    +'</div>';
+}
+
+function normPhoneDedup(s){ return (s||'').replace(/[^\d]/g,''); }
+function normEmailDedup(s){ return (s||'').trim().toLowerCase(); }
+function normNameDedup(s){ return (s||'').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+function levenshteinDedup(a,b){
+  var m=a.length,n=b.length;
+  if(!m)return n; if(!n)return m;
+  var dp=[]; var i,j;
+  for(i=0;i<=m;i++){dp.push([i]);}
+  for(j=0;j<=n;j++){dp[0][j]=j;}
+  for(i=1;i<=m;i++){
+    for(j=1;j<=n;j++){
+      dp[i][j]=Math.min(dp[i-1][j]+1, dp[i][j-1]+1, dp[i-1][j-1]+(a[i-1]===b[j-1]?0:1));
+    }
+  }
+  return dp[m][n];
+}
+function findDuplicatePairs(fuzzy){
+  var pairs=[];
+  var list=clients||[];
+  for(var i=0;i<list.length;i++){
+    for(var j=i+1;j<list.length;j++){
+      var a=list[i], b=list[j];
+      var key=[a._id,b._id].sort().join('|');
+      if((dedupIgnored||[]).indexOf(key)>=0) continue;
+      var reason=null;
+      var pa=normPhoneDedup(a.tel), pb=normPhoneDedup(b.tel);
+      var ea=normEmailDedup(a.email), eb=normEmailDedup(b.email);
+      var na=(normNameDedup(a.nom)+' '+normNameDedup(a.prenom)).trim();
+      var nb=(normNameDedup(b.nom)+' '+normNameDedup(b.prenom)).trim();
+      if(pa && pa.length>=6 && pa===pb) reason='Même téléphone';
+      else if(ea && ea===eb) reason='Même email';
+      else if(na && na===nb) reason='Nom et prénom identiques';
+      else if(fuzzy && na && nb && Math.abs(na.length-nb.length)<=2){
+        var dist=levenshteinDedup(na,nb);
+        if(dist>0 && dist<=2) reason='Nom proche (à vérifier)';
+      }
+      if(reason) pairs.push({a:a,b:b,reason:reason,key:key});
+    }
+  }
+  return pairs;
+}
+function toggleDedupFuzzy(){
+  dedupFuzzy=document.getElementById('dedup-fuzzy').checked;
+  renderConfig();
+}
+function ignoreDuplicatePair(key){
+  if(!dedupIgnored)dedupIgnored=[];
+  if(dedupIgnored.indexOf(key)<0)dedupIgnored.push(key);
+  sbSaveConfig('dedupIgnored');
+  renderConfig();
+}
+function mergeClients(keepId, removeId){
+  var keep=clients.find(function(c){return c._id===keepId;});
+  var remove=clients.find(function(c){return c._id===removeId;});
+  if(!keep||!remove)return;
+  if(!confirm('Fusionner "'+clientDisplayName(remove)+'" dans "'+clientDisplayName(keep)+'" ?\n\nL\'historique et les tags seront combinés. Cette action est irréversible.'))return;
+  ['societe','nom','prenom','tel','email','ville','anniversaire','adresse','notes','photo'].forEach(function(f){
+    if(!keep[f] && remove[f]) keep[f]=remove[f];
+  });
+  var tagSet={};
+  (keep.tags||[]).concat(remove.tags||[]).forEach(function(t){tagSet[t]=true;});
+  keep.tags=Object.keys(tagSet);
+  keep.interactions=(keep.interactions||[]).concat(remove.interactions||[]);
+  (relationGroups||[]).forEach(function(g){
+    if((g.memberIds||[]).indexOf(removeId)>=0){
+      g.memberIds=g.memberIds.filter(function(id){return id!==removeId;});
+      if(g.memberIds.indexOf(keepId)<0)g.memberIds.push(keepId);
+    }
+  });
+  sbSaveConfig('relationGroups');
+  (projets||[]).forEach(function(p){
+    if(p.clientIds && p.clientIds.indexOf(removeId)>=0){
+      p.clientIds=p.clientIds.filter(function(id){return id!==removeId;});
+      if(p.clientIds.indexOf(keepId)<0)p.clientIds.push(keepId);
+      if(p.echanges && p.echanges[removeId]){
+        p.echanges[keepId]=(p.echanges[keepId]||[]).concat(p.echanges[removeId]);
+        delete p.echanges[removeId];
+      }
+      sbSaveProjet(p);
+    }
+  });
+  clients=clients.filter(function(c){return c._id!==removeId;});
+  sbSaveClient(keep);
+  sbDelete('clients', removeId).catch(function(e){console.error('mergeClients delete:',e);});
+  renderConfig();
+  if(document.getElementById('zone-cercles').style.display!=='none') renderCercles();
 }
 
 function moveInteractionType(i,dir){
@@ -8200,7 +8328,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260725 - v108 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260725 - v109 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
