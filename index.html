@@ -5908,6 +5908,17 @@ function saveClient(){
     photo:tmpClientPhoto||(existing?existing.photo:null)||null,
     interactions:existing?(existing.interactions||[]):[]
   };
+  if(editClientIsNew){
+    var msgType=(interactionTypes||[]).find(function(x){return x.id==='message';})||(interactionTypes||[])[0];
+    c.interactions.push({
+      _id:'int-'+Date.now(),
+      date:TODAY,
+      typeId:msgType?msgType.id:'message',
+      points:10,
+      bonus:0,
+      note:'Nouveau contact ajouté'
+    });
+  }
   var i=clients.findIndex(function(x){return x._id===editClientId;});
   if(i>=0)clients[i]=c; else clients.push(c);
   sbSaveClient(c);
@@ -8143,7 +8154,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260725 - v103 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260725 - v104 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
