@@ -5808,6 +5808,7 @@ function openNewClientModal(pid){
   document.getElementById('cli-interactions-section').style.display='none';
   renderClientTagsCheckboxes([]);
   openM('mo-client');
+  setTimeout(function(){document.getElementById('cli-nom').focus();},50);
 }
 
 function editClientBtn(cid,origin){
@@ -8154,7 +8155,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260725 - v104 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260725 - v105 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
