@@ -6061,6 +6061,8 @@ function openInteractionModal(presetClientId){
   groupSel.innerHTML=(relationGroups||[]).map(function(g){return '<option value="'+g.id+'">'+g.label+' ('+(g.memberIds||[]).length+')</option>';}).join('');
   var typeSel=document.getElementById('int-type');
   typeSel.innerHTML=(interactionTypes||[]).map(function(t){return '<option value="'+t.id+'">'+t.label+' ('+t.points+' pts)</option>';}).join('');
+  var defaultType=(interactionTypes||[]).find(function(x){return x.id==='message';});
+  if(defaultType) typeSel.value='message';
   document.getElementById('int-date').value=TODAY;
   document.getElementById('int-bonus').value=0;
   document.getElementById('int-note').value='';
@@ -6262,6 +6264,11 @@ function renderCerJournal(){
     zone.innerHTML='<div style="font-size:.78rem;color:var(--faint);font-style:italic;padding:6px 0;">Aucune interaction ce jour-là.</div>';
     return;
   }
+  rows.sort(function(a,b){
+    var ta=parseInt((a.it._id||'').split('-')[1])||0;
+    var tb=parseInt((b.it._id||'').split('-')[1])||0;
+    return tb-ta;
+  });
   var totalPts=0;
   var html=rows.map(function(r){
     var t=(interactionTypes||[]).find(function(x){return x.id===r.it.typeId;});
@@ -8193,7 +8200,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260725 - v106 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260725 - v108 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
