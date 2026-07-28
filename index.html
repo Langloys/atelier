@@ -846,7 +846,11 @@ function doLogout(){
   <div id="zone-cercles" style="display:none;padding:20px 0 60px;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:8px;">
       <div style="font-family:'Playfair Display',serif;font-size:1.1rem;font-style:italic;color:var(--mid);">Cercles de relations</div>
-      <div style="display:flex;gap:8px;">
+      <div style="display:flex;gap:8px;align-items:center;position:relative;">
+        <div style="position:relative;">
+          <input type="text" id="cer-quick-search" placeholder="🔍 Chercher un nom…" oninput="renderQuickSearchResults()" onfocus="renderQuickSearchResults()" style="width:180px;">
+          <div id="cer-quick-search-results" style="display:none;position:absolute;top:100%;left:0;margin-top:2px;width:260px;max-height:260px;overflow-y:auto;background:var(--w);border:1px solid var(--border);border-radius:var(--r);box-shadow:0 4px 14px rgba(0,0,0,.12);z-index:50;"></div>
+        </div>
         <button class="btn" onclick="openInteractionModal(null)">+ Interaction</button>
         <button class="btn" onclick="openGroupModal(null)">+ Groupe</button>
         <button class="btn btn-primary" onclick="openAddClientBtn()">+ Personne</button>
@@ -5765,8 +5769,36 @@ var tmpClientPhoto=null;
 
 function openAddClientBtn(){
   clientOrigin='cercles';
-  openNewClientModal(null);
+  var q=(document.getElementById('cer-quick-search')||{value:''}).value.trim();
+  openNewClientModal(null, q);
 }
+
+function renderQuickSearchResults(){
+  var input=document.getElementById('cer-quick-search');
+  var box=document.getElementById('cer-quick-search-results');
+  var q=(input.value||'').trim().toLowerCase();
+  if(!q){ box.style.display='none'; box.innerHTML=''; return; }
+  var matches=clients.filter(function(c){return clientDisplayName(c).toLowerCase().indexOf(q)>=0;}).slice(0,15);
+  if(!matches.length){
+    box.innerHTML='<div style="padding:10px 12px;font-size:.8rem;color:var(--faint);font-style:italic;">Aucun client existant — clique sur "+ Personne" pour le créer.</div>';
+    box.style.display='block';
+    return;
+  }
+  box.innerHTML=matches.map(function(c){
+    return '<div style="padding:8px 12px;font-size:.82rem;cursor:pointer;border-bottom:1px solid var(--border);" onmousedown="event.preventDefault();selectQuickSearchClient(\''+c._id+'\')">'+clientDisplayName(c)+'</div>';
+  }).join('');
+  box.style.display='block';
+}
+function selectQuickSearchClient(cid){
+  document.getElementById('cer-quick-search-results').style.display='none';
+  document.getElementById('cer-quick-search').value='';
+  editClientBtn(cid,'cercles');
+}
+document.addEventListener('click',function(ev){
+  var wrap=document.getElementById('cer-quick-search-results');
+  if(!wrap)return;
+  if(ev.target.id!=='cer-quick-search' && !wrap.contains(ev.target)) wrap.style.display='none';
+});
 
 function openAddClientToProjet(pid){
   currentClientProjetId=pid;
@@ -5793,7 +5825,7 @@ function openAddClientToProjet(pid){
 
 var editClientIsNew=false;
 
-function openNewClientModal(pid){
+function openNewClientModal(pid, prefillNom){
   currentClientProjetId=pid;
   if(!pid) clientOrigin='cercles'; else clientOrigin='projet';
   editClientId='c-'+Date.now();
@@ -5808,7 +5840,12 @@ function openNewClientModal(pid){
   document.getElementById('cli-interactions-section').style.display='none';
   renderClientTagsCheckboxes([]);
   openM('mo-client');
-  setTimeout(function(){document.getElementById('cli-nom').focus();},50);
+  if(prefillNom){
+    document.getElementById('cli-nom').value=prefillNom;
+    setTimeout(function(){document.getElementById('cli-prenom').focus();},50);
+  } else {
+    setTimeout(function(){document.getElementById('cli-nom').focus();},50);
+  }
 }
 
 function editClientBtn(cid,origin){
@@ -5925,6 +5962,7 @@ function saveClient(){
   sbSaveClient(c);
   closeM('mo-client');
   if(clientOrigin==='cercles'){
+    var qs=document.getElementById('cer-quick-search'); if(qs) qs.value='';
     renderCercles();
   } else if(currentClientProjetId&&editClientIsNew){
     linkClientToProjet(currentClientProjetId,c._id);
@@ -8155,7 +8193,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260725 - v105 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260725 - v106 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
