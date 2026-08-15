@@ -1339,6 +1339,9 @@ function doLogout(){
         <div class="fg"><label>Date fin prévue</label><input type="date" id="proj-fin"></div>
         <div class="fg"><label>Budget (€)</label><input type="number" id="proj-budget" placeholder="0"></div>
         <div class="fg"><label>Temps restant (h)</label><input type="number" id="proj-est" placeholder="0" min="0" step="0.5"></div>
+        <div class="fg"><label>Relance</label>
+          <input type="date" id="proj-relance" title="Date avant laquelle ce projet n'apparaît pas dans le Planning.">
+        </div>
       </div>
       <div class="fg"><label>Description / contexte</label><textarea id="proj-desc" placeholder="Contexte de la commande, objectifs…"></textarea></div>
       <div class="fg">
@@ -1646,6 +1649,14 @@ function doLogout(){
           <input type="date" id="ow-retour" title="Date avant laquelle cette œuvre n'apparaît pas dans le Planning (retour fonderie, ou simple relance à date ultérieure).">
         </div>
       </div>
+      <div class="fr">
+        <div class="fg"><label>Début</label>
+          <input type="date" id="ow-debut" readonly title="Calculé automatiquement : date de la première session enregistrée sur cette œuvre.">
+        </div>
+        <div class="fg"><label>Fin</label>
+          <input type="date" id="ow-fin" readonly title="Calculé automatiquement : date de la dernière session enregistrée sur cette œuvre.">
+        </div>
+      </div>
       <!-- Zone fonderie oeuvre -->
       <div id="ow-fonderie-zone" style="display:none;" class="fr">
         <div class="fg grow"><label>Fonderie</label>
@@ -1795,8 +1806,8 @@ function doLogout(){
       <div class="fr">
         <div class="fg"><label>Temps restant (h)</label><input type="number" id="ex-est" placeholder="0"></div>
         <div class="fg"><label>Temps avant base (h)</label><input type="number" id="ex-avant-base" placeholder="0" min="0" title="Temps passé avant d'utiliser cette base"></div>
-        <div class="fg"><label>Début</label><input type="date" id="ex-debut"></div>
-        <div class="fg"><label>Fin</label><input type="date" id="ex-fin"></div>
+        <div class="fg"><label>Début</label><input type="date" id="ex-debut" readonly title="Calculé automatiquement : date de la première session enregistrée sur cet exemplaire."></div>
+        <div class="fg"><label>Fin</label><input type="date" id="ex-fin" readonly title="Calculé automatiquement : date de la dernière session enregistrée sur cet exemplaire."></div>
       </div>
       <div class="fr">
         <div class="fg"><label>Dimensions (cm)</label><input type="text" id="ex-dim" placeholder="H×L×P" title="Hérité de l'œuvre — modifiable si différent"></div>
@@ -2069,6 +2080,7 @@ function startApp(){
     try {
       const ok = await loadFromSupabase();
       if(ok) {
+        migrateDebutFinFromSessions();
         render();
         renderToday();
         updateCounts();
@@ -2098,6 +2110,49 @@ function oeuvreTotalMin(o){
   var t=oeuvreSess(o).reduce(function(a,s){return a+(s.dur||0);},0);
   exemplaires.filter(function(e){return e.oeuvreId===o._id;}).forEach(function(e){t+=exTotalMin(e);});
   return t;
+}
+
+// ══ DÉBUT / FIN AUTOMATIQUES (calculés à partir des sessions) ══
+// Retourne la 1ère et la dernière date de session pour un item (oeuvre ou exemplaire).
+// S'il n'y a aucune session, retourne {debut:null, fin:null} (on ne met rien).
+function sessDebutFin(itemId){
+  var ds = sessions.filter(function(s){return s.exId===itemId;}).map(function(s){return s.date;}).filter(Boolean).sort();
+  return ds.length ? {debut:ds[0], fin:ds[ds.length-1]} : {debut:null, fin:null};
+}
+// Recalcule et persiste Début/Fin pour un item donné (oeuvre ou exemplaire), à partir de ses sessions.
+// À appeler après tout ajout/suppression de session touchant cet item.
+function syncDebutFin(itemId){
+  if(!itemId) return;
+  var r = sessDebutFin(itemId);
+  var o = oeuvres.find(function(x){return x._id===itemId;});
+  if(o){
+    if(o.debut!==r.debut || o.fin!==r.fin){ o.debut=r.debut; o.fin=r.fin; sbSaveOeuvre(o); }
+    var owDe=document.getElementById('ow-debut'), owFi=document.getElementById('ow-fin');
+    if(editOeuvreId===itemId && owDe && owFi){ owDe.value=r.debut||''; owFi.value=r.fin||''; }
+    return;
+  }
+  var e = exemplaires.find(function(x){return x._id===itemId;});
+  if(e){
+    if(e.debut!==r.debut || e.fin!==r.fin){ e.debut=r.debut; e.fin=r.fin; sbSaveEx(e); }
+    var exDe=document.getElementById('ex-debut'), exFi=document.getElementById('ex-fin');
+    if(editExId===itemId && exDe && exFi){ exDe.value=r.debut||''; exFi.value=r.fin||''; }
+  }
+}
+// Migration une fois au chargement : remplit Début/Fin pour les œuvres/exemplaires
+// qui n'en ont jamais eu (ne touche jamais un item déjà rempli, même manuellement).
+function migrateDebutFinFromSessions(){
+  oeuvres.forEach(function(o){
+    if(!o.debut && !o.fin){
+      var r=sessDebutFin(o._id);
+      if(r.debut||r.fin){ o.debut=r.debut; o.fin=r.fin; sbSaveOeuvre(o); }
+    }
+  });
+  exemplaires.forEach(function(e){
+    if(!e.debut && !e.fin){
+      var r=sessDebutFin(e._id);
+      if(r.debut||r.fin){ e.debut=r.debut; e.fin=r.fin; sbSaveEx(e); }
+    }
+  });
 }
 
 // ══ TABS ══
@@ -2543,7 +2598,7 @@ function addSessionToday(){
       else if(id.indexOf('activ-')===0){activId=id.replace('activ-','');realExId=id;}
       // Last item gets the remainder
       var itemDur = (idx===checked.length-1) ? dur - durPerItem*(checked.length-1) : durPerItem;
-      var _ns={_id:Date.now()+idx,date:sessionDate,exId:realExId,projetId:projetId,activId:activId,label:label,action:action,dur:itemDur,com:com,createdAt:(function(){var n=new Date();return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0')+' '+String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');})()};sessions.push(_ns);sbSaveSession(_ns);
+      var _ns={_id:Date.now()+idx,date:sessionDate,exId:realExId,projetId:projetId,activId:activId,label:label,action:action,dur:itemDur,com:com,createdAt:(function(){var n=new Date();return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0')+' '+String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');})()};sessions.push(_ns);sbSaveSession(_ns);syncDebutFin(realExId);
     });
     document.getElementById('j-dur').value='';
     document.getElementById('j-com').value='';
@@ -2561,7 +2616,7 @@ function addSessionToday(){
   var projetId=null, activId=null, realExId=exSel;
   if(exSel.indexOf('proj-')===0){projetId=exSel.replace('proj-','');realExId=exSel;}
   else if(exSel.indexOf('activ-')===0){activId=exSel.replace('activ-','');realExId=exSel;}
-  var _ns2={_id:Date.now(),date:sessionDate,exId:realExId,projetId:projetId,activId:activId,label:label,action:action,dur:dur,com:com,createdAt:(function(){var n=new Date();return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0')+' '+String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');})()};sessions.push(_ns2);sbSaveSession(_ns2);
+  var _ns2={_id:Date.now(),date:sessionDate,exId:realExId,projetId:projetId,activId:activId,label:label,action:action,dur:dur,com:com,createdAt:(function(){var n=new Date();return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0')+' '+String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');})()};sessions.push(_ns2);sbSaveSession(_ns2);syncDebutFin(realExId);
   document.getElementById('j-dur').value='';
   document.getElementById('j-com').value='';
   updateCounts();renderToday();
@@ -2571,8 +2626,10 @@ function openEditSessToday(sid){
   openEditSess(sid);
 }
 function delSess(sid){
+  var _s=sessions.find(function(s){return s._id==sid;});
   sessions=sessions.filter(s=>s._id!=sid);
   sbDelete('sessions', String(sid)).catch(function(e){console.error('delSess Supabase:',e);});
+  if(_s)syncDebutFin(_s.exId);
   updateCounts();renderToday();
 }
 
@@ -2735,8 +2792,10 @@ function toggleSessGroupe(id){
   if(el) el.style.display=el.style.display==='none'?'block':'none';
 }
 function delSessJournal(sid){
+  var _s=sessions.find(function(s){return s._id==sid;});
   sessions=sessions.filter(function(s){return s._id!=sid;});
   sbDelete('sessions', String(sid)).catch(function(e){console.error('delSessJournal Supabase:',e);});
+  if(_s)syncDebutFin(_s.exId);
   updateCounts();renderJournal();
 }
 function openEditSess(sid){
@@ -2813,6 +2872,7 @@ function refreshSesActions(exId, currentAction){
 function saveSessEdit(){
   var s=sessions.find(function(x){return x._id==editSessId;});
   if(!s)return;
+  var oldExId=s.exId;
   s.date=document.getElementById('ses-date').value;
   s.dur=parseInt(document.getElementById('ses-dur').value)||0;
   s.com=document.getElementById('ses-com').value.trim();
@@ -2822,13 +2882,17 @@ function saveSessEdit(){
   s.label=exVal==='DIVERS'?'Divers':(selOpt?selOpt.text:'');
   s.action=document.getElementById('ses-action').value;
   sbSaveSession(s);closeM('mo-ses');updateCounts();renderJournal();if(currentTab==='today')renderToday();
+  syncDebutFin(oldExId);
+  if(exVal!==oldExId)syncDebutFin(exVal);
 }
 function delSessEdit(){
   if(!confirm('Supprimer cette session ?'))return;
   var sid = editSessId;
+  var _s=sessions.find(function(s){return s._id==sid;});
   sessions=sessions.filter(function(s){return s._id!=sid;});
   sbDelete('sessions', String(sid)).catch(function(e){console.error('delSessEdit Supabase:',e);});
   closeM('mo-ses');updateCounts();renderJournal();if(currentTab==='today')renderToday();
+  if(_s)syncDebutFin(_s.exId);
 }
 
 // ══ STATS ══
@@ -3330,6 +3394,7 @@ function addFonderieGroupSession(safeId, fondNom){
     var _ns={_id:Date.now()+idx,date:date,exId:id,projetId:null,activId:null,label:label,action:action,dur:itemDur,com:com,createdAt:(function(){var n=new Date();return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0')+' '+String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');})()};
     sessions.push(_ns);
     sbSaveSession(_ns);
+    syncDebutFin(id);
   });
   updateCounts();
   renderFonderies();
@@ -3683,6 +3748,7 @@ function confirmQuickSession(){
   var _ns={_id:Date.now(),date:date,exId:_qsItemId,projetId:null,activId:null,label:label,action:action,dur:dur,com:com,createdAt:(function(){var n=new Date();return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0')+' '+String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');})()};
   sessions.push(_ns);
   sbSaveSession(_ns);
+  syncDebutFin(_qsItemId);
   updateCounts();
   closeM('mo-quick-session');
   if(_qsItemType==='oeuvre') refreshOwStatsBloc(_qsItemId);
@@ -3731,6 +3797,8 @@ function openEditOeuvre(oid){
   document.getElementById('ow-fonderie').value=o.fonderie||'';
   document.getElementById('ow-depot').value=o.depot||'';
   document.getElementById('ow-retour').value=o.retour||'';
+  document.getElementById('ow-debut').value=o.debut||'';
+  document.getElementById('ow-fin').value=o.fin||'';
   document.getElementById('ow-rangement').value=o.rangement||'';
   document.getElementById('ow-galerie-nom').value=o.galerie||'';
   updateOwStatutZone();
@@ -3770,7 +3838,7 @@ function openAddOeuvre(){
   var owStats2=document.getElementById('ow-stats-bloc'); if(owStats2){owStats2.style.display='none';owStats2.innerHTML='';}
   var owAddSess=document.getElementById('ow-addsession-row'); if(owAddSess) owAddSess.style.display='none';
   document.getElementById('mo-oeuvre-title').textContent='Nouvelle œuvre';
-  ['ow-nom','ow-num','ow-desc','ow-dim','ow-poids','ow-poids-cire','ow-lieu','ow-est','ow-avant-base','ow-rangement','ow-galerie-nom','ow-fonderie','ow-depot','ow-retour'].forEach(function(i){document.getElementById(i).value='';});
+  ['ow-nom','ow-num','ow-desc','ow-dim','ow-poids','ow-poids-cire','ow-lieu','ow-est','ow-avant-base','ow-rangement','ow-galerie-nom','ow-fonderie','ow-depot','ow-retour','ow-debut','ow-fin'].forEach(function(i){document.getElementById(i).value='';});
   document.getElementById('ow-type').value='BUSTE';
   document.getElementById('ow-prio').value='';
   document.getElementById('ow-actif').value='encours';
@@ -3802,6 +3870,8 @@ function saveOeuvre(){
   var owFonderie  = statut==='fonderie' ? document.getElementById('ow-fonderie').value.trim() : null;
   var owDepot     = statut==='fonderie' ? document.getElementById('ow-depot').value||null : null;
   var owRetour    = document.getElementById('ow-retour').value||null;
+  var owDebut     = document.getElementById('ow-debut').value||null;
+  var owFin       = document.getElementById('ow-fin').value||null;
   if(owRangement && rangements.indexOf(owRangement)<0){ rangements.push(owRangement); updateRangementsDatalist(); }
   if(owGalerie && galeries.indexOf(owGalerie)<0){ galeries.push(owGalerie); updateGaleriesDatalist(); }
   if(owFonderie && fonderies.indexOf(owFonderie)<0){ fonderies.push(owFonderie); updateFonderiesDatalist(); }
@@ -3819,6 +3889,8 @@ function saveOeuvre(){
     fonderie:owFonderie||null,
     depot:owDepot||null,
     retour:owRetour||null,
+    debut:owDebut||null,
+    fin:owFin||null,
     estMin:Math.round((parseFloat(document.getElementById('ow-est').value)||0)*60)||null,
     avantBase:Math.round((parseFloat(document.getElementById('ow-avant-base').value)||0)*60)||null,
     desc:document.getElementById('ow-desc').value.trim(),
@@ -5141,7 +5213,7 @@ function getAllRappels(){
 function openAddProjet(){
   editProjetId=null; tmpProjOeuvres=[];
   document.getElementById('mo-proj-title').textContent='Nouveau projet';
-  ['proj-titre','proj-desc','proj-debut','proj-fin','proj-budget','proj-est'].forEach(function(i){document.getElementById(i).value='';});
+  ['proj-titre','proj-desc','proj-debut','proj-fin','proj-budget','proj-est','proj-relance'].forEach(function(i){document.getElementById(i).value='';});
   document.getElementById('proj-status').value='encours';
   document.getElementById('proj-del-btn').style.display='none';
   renderProjOeuvresSel();
@@ -5194,6 +5266,7 @@ function saveProjet(){
     status:document.getElementById('proj-status').value,
     debut:document.getElementById('proj-debut').value||null,
     fin:document.getElementById('proj-fin').value||null,
+    relance:document.getElementById('proj-relance').value||null,
     budget:parseFloat(document.getElementById('proj-budget').value)||null,
     estMin:Math.round((parseFloat(document.getElementById('proj-est').value)||0)*60)||null,
     desc:document.getElementById('proj-desc').value.trim(),
@@ -5217,6 +5290,7 @@ function editProjFromDetail(){
   document.getElementById('proj-status').value=p.status||'encours';
   document.getElementById('proj-debut').value=p.debut||'';
   document.getElementById('proj-fin').value=p.fin||'';
+  document.getElementById('proj-relance').value=p.relance||'';
   document.getElementById('proj-budget').value=p.budget||'';
   document.getElementById('proj-est').value=p.estMin?(p.estMin/60).toFixed(1).replace(/\.0$/,''):'';
   document.getElementById('proj-desc').value=p.desc||'';
@@ -7492,7 +7566,10 @@ function saveQuickEntry(){
     else if(item.exId.indexOf('activ-')===0){activId=item.exId.replace('activ-','');}
     var lbl=getLabelForId(item.exId,item.label);
     var label=(lbl.code?lbl.code+' — ':'')+lbl.nom;
-    sessions.push({_id:Date.now()+added,date:date,exId:realExId,projetId:projetId,activId:activId,label:label,action:action,dur:dur,com:'',createdAt:(function(){var n=new Date();return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0')+' '+String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');})()});
+    var _nsQ={_id:Date.now()+added,date:date,exId:realExId,projetId:projetId,activId:activId,label:label,action:action,dur:dur,com:'',createdAt:(function(){var n=new Date();return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0')+' '+String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');})()};
+    sessions.push(_nsQ);
+    sbSaveSession(_nsQ);
+    syncDebutFin(realExId);
     added++;
   });
   if(!added){alert('Aucune durée saisie.');return;}
@@ -7592,6 +7669,7 @@ function confirmReassign(sid){
     s.label=oe?(oe.nom||oe.num)+(ex?' · '+(ex.mat||''):''):'?';
     sbSaveSession(s);
   }
+  syncDebutFin(newVal);
   renderConfig();
 }
 
@@ -8098,7 +8176,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260815 - v102 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260815 - v103 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -8516,7 +8594,7 @@ function planBuildQueue(){
   });
   (projets||[]).filter(function(p){ return p.status==='encours' && p.estMin; }).forEach(function(p){
     var h = planHeuresRestantes(p);
-    if(h>0) items.push({_id:p._id, label:'📁 '+p.titre, prio:p.prio||99, heures:h, type:'projet', color:null, heuresRestantesInit:h});
+    if(h>0) items.push({_id:p._id, label:'📁 '+p.titre, prio:p.prio||99, heures:h, type:'projet', color:null, heuresRestantesInit:h, pasAvant:(p.relance||undefined)});
   });
 
   // Trier : priorité d'abord, puis moins d'heures (on finit les courts en premier à égalité)
@@ -9198,6 +9276,7 @@ function confirmDpLog(){
   var _ns={_id:Date.now(),date:TODAY,exId:exId,projetId:projetId,activId:activId,label:label,action:action,dur:dur,com:com,createdAt:(function(){var n=new Date();return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0')+' '+String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');})()};
   sessions.push(_ns);
   sbSaveSession(_ns);
+  syncDebutFin(exId);
   b.done = true;
   b.realDur = dur;
   b.sessionId = _ns._id;
@@ -9212,8 +9291,10 @@ function dpUndoLog(id){
   if(!b || !b.done) return;
   if(!confirm('Annuler cette session ? Elle sera supprimée du Journal.')) return;
   if(b.sessionId){
+    var _s=sessions.find(function(s){return s._id==b.sessionId;});
     sessions = sessions.filter(function(s){return s._id!=b.sessionId;});
     sbDelete('sessions', String(b.sessionId)).catch(function(e){console.error('dpUndoLog delete session',e);});
+    if(_s)syncDebutFin(_s.exId);
   }
   b.done = false;
   b.realDur = null;
