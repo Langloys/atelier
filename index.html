@@ -2805,32 +2805,15 @@ function openEditSess(sid){
   document.getElementById('ses-date').value=s.date||'';
   document.getElementById('ses-dur').value=s.dur||'';
   document.getElementById('ses-com').value=s.com||'';
-  // Fill select with same options as j-ex
+  // Même liste organisée (groupes + tri) que pour la création d'une session
   var sel=document.getElementById('ses-ex');
-  var opts='<option value="">— Choisir —</option>';
-  // Activités
-  opts+='<optgroup label="── Activités ──">';
-  (activites||[]).forEach(function(a){opts+='<option value="activ-'+a.id+'">'+a.label+'</option>';});
-  opts+='</optgroup>';
-  // Projets
-  var actifProjets=(projets||[]).filter(function(p){return p.status==='encours';});
-  if(actifProjets.length){
-    opts+='<optgroup label="── Projets ──">';
-    actifProjets.forEach(function(p){opts+='<option value="proj-'+p._id+'">📁 '+p.titre+'</option>';});
-    opts+='</optgroup>';
+  var opts=buildJExOptionsHTML();
+  opts=opts.replace('<option value="">— Choisir —</option>','<option value="">— Choisir —</option><option value="DIVERS">Divers / Admin</option>');
+  // Si l'élément actuel de la session n'apparaît pas dans cette liste (statut fonderie/rangé/vendu, projet terminé…),
+  // on l'ajoute quand même à part pour ne pas perdre l'affectation existante.
+  if(s.exId && s.exId!=='DIVERS' && opts.indexOf('value="'+s.exId+'"')<0){
+    opts+='<optgroup label="── Autre (statut différent) ──"><option value="'+s.exId+'">'+buildSessLabelFallback(s.exId,s.label)+'</option></optgroup>';
   }
-  // Oeuvres
-  opts+='<optgroup label="── Oeuvres ──">';
-  oeuvres.filter(function(o){return (o.statut!=='vendu')&&o.nom;}).forEach(function(o){opts+='<option value="'+o._id+'">'+typeEmoji(o.type)+' '+o.num+' — '+o.nom+'</option>';});
-  opts+='</optgroup>';
-  // Exemplaires
-  opts+='<optgroup label="── Exemplaires ──">';
-  exemplaires.forEach(function(e){
-    var o=oeuvres.find(function(x){return x._id===e.oeuvreId;});
-    if(!o)return;
-    opts+='<option value="'+e._id+'">'+matEmoji(e.mat)+' '+e.exId+' — '+(o.nom||o.num)+'</option>';
-  });
-  opts+='</optgroup>';
   sel.innerHTML=opts;
   sel.value=s.exId||'';
   // Add onchange to refresh actions
@@ -2838,6 +2821,28 @@ function openEditSess(sid){
   // Fill action select
   refreshSesActions(s.exId, s.action);
   openM('mo-ses');
+}
+function buildSessLabelFallback(exId,storedLabel){
+  if(exId.indexOf('o-')===0){
+    var o=oeuvres.find(function(x){return x._id===exId;});
+    if(o)return typeEmoji(o.type)+' '+o.num+' — '+(o.nom||o.num);
+  }
+  if(exId.indexOf('e-')===0){
+    var e=exemplaires.find(function(x){return x._id===exId;});
+    if(e){
+      var o2=oeuvres.find(function(x){return x._id===e.oeuvreId;});
+      return matEmoji(e.mat)+' '+e.exId+' — '+(o2?(o2.nom||o2.num):'?');
+    }
+  }
+  if(exId.indexOf('proj-')===0){
+    var p=projets.find(function(x){return x._id===exId.replace('proj-','');});
+    if(p)return '📁 '+p.titre;
+  }
+  if(exId.indexOf('activ-')===0){
+    var a=(activites||[]).find(function(x){return 'activ-'+x.id===exId;});
+    if(a)return a.label;
+  }
+  return storedLabel||exId;
 }
 function refreshSesActions(exId, currentAction){
   var sel=document.getElementById('ses-action');
@@ -8176,7 +8181,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260815 - v104 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260815 - v105 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
