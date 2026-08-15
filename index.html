@@ -2592,7 +2592,7 @@ function addSessionToday(){
     var durPerItem=Math.round(dur/checked.length);
     checked.forEach(function(cb,idx){
       var id=cb.value;
-      var label=cb.getAttribute('data-label')||id;
+      var label=(cb.getAttribute('data-label')||id).split(' — ').pop();
       var projetId=null,activId=null,realExId=id;
       if(id.indexOf('proj-')===0){projetId=id.replace('proj-','');realExId=id;}
       else if(id.indexOf('activ-')===0){activId=id.replace('activ-','');realExId=id;}
@@ -3387,12 +3387,12 @@ function addFonderieGroupSession(safeId, fondNom){
     var label=id;
     if(isOeuvre){
       var o=oeuvres.find(function(x){return x._id===id;});
-      if(o) label=o.num+' — '+(o.nom||o.num);
+      if(o) label=o.nom||o.num;
     } else {
       var e=exemplaires.find(function(x){return x._id===id;});
       if(e){
         var o2=oeuvres.find(function(x){return x._id===e.oeuvreId;});
-        label=e.exId+' — '+(o2?(o2.nom||o2.num):'?')+(e.fonderie?' ['+e.fonderie+']':'');
+        label=(o2?(o2.nom||o2.num):'?')+(e.fonderie?' ['+e.fonderie+']':'');
       }
     }
     var itemDur=(idx===checked.length-1) ? dur - durPerItem*(checked.length-1) : durPerItem;
@@ -3742,12 +3742,12 @@ function confirmQuickSession(){
   var label = _qsItemId;
   if(_qsItemType==='oeuvre'){
     var o = oeuvres.find(function(x){return x._id===_qsItemId;});
-    if(o) label = o.num+' — '+(o.nom||o.num);
+    if(o) label = o.nom||o.num;
   } else {
     var e = exemplaires.find(function(x){return x._id===_qsItemId;});
     if(e){
       var op = oeuvres.find(function(x){return x._id===e.oeuvreId;});
-      label = e.exId+' — '+(op?(op.nom||op.num):'?')+(e.fonderie?' ['+e.fonderie+']':'');
+      label = (op?(op.nom||op.num):'?')+(e.fonderie?' ['+e.fonderie+']':'');
     }
   }
   var _ns={_id:Date.now(),date:date,exId:_qsItemId,projetId:null,activId:null,label:label,action:action,dur:dur,com:com,createdAt:(function(){var n=new Date();return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0')+' '+String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');})()};
@@ -3755,6 +3755,8 @@ function confirmQuickSession(){
   sbSaveSession(_ns);
   syncDebutFin(_qsItemId);
   updateCounts();
+  renderJournal();
+  if(currentTab==='today')renderToday();
   closeM('mo-quick-session');
   if(_qsItemType==='oeuvre') refreshOwStatsBloc(_qsItemId);
   else refreshExStatsBloc(_qsItemId);
@@ -7570,7 +7572,7 @@ function saveQuickEntry(){
     if(item.exId.indexOf('proj-')===0){projetId=item.exId.replace('proj-','');}
     else if(item.exId.indexOf('activ-')===0){activId=item.exId.replace('activ-','');}
     var lbl=getLabelForId(item.exId,item.label);
-    var label=(lbl.code?lbl.code+' — ':'')+lbl.nom;
+    var label=lbl.nom;
     var _nsQ={_id:Date.now()+added,date:date,exId:realExId,projetId:projetId,activId:activId,label:label,action:action,dur:dur,com:'',createdAt:(function(){var n=new Date();return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0')+' '+String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');})()};
     sessions.push(_nsQ);
     sbSaveSession(_nsQ);
@@ -8181,7 +8183,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260815 - v105 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260815 - v106 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -9260,7 +9262,7 @@ function confirmDpLog(){
       exId=itemVal; projetId=null; activId=null;
       var itemSel2 = document.getElementById('dp-log-item');
       var opt2 = itemSel2.options[itemSel2.selectedIndex];
-      label = opt2 ? opt2.textContent : b.label;
+      label = opt2 ? opt2.textContent.split(' — ').pop() : b.label;
     }
   } else if(b.type==='tache'){
     var t = (taches||[]).find(function(x){return x._id===b.refId;});
