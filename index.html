@@ -2879,7 +2879,7 @@ function saveSessEdit(){
   var exVal=document.getElementById('ses-ex').value;
   s.exId=exVal;
   var selOpt=document.getElementById('ses-ex').selectedOptions[0];
-  s.label=exVal==='DIVERS'?'Divers':(selOpt?selOpt.text:'');
+  s.label=exVal==='DIVERS'?'Divers':(selOpt?selOpt.text.split(' — ').pop():'');
   s.action=document.getElementById('ses-action').value;
   sbSaveSession(s);closeM('mo-ses');updateCounts();renderJournal();if(currentTab==='today')renderToday();
   syncDebutFin(oldExId);
@@ -8176,7 +8176,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260815 - v103 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260815 - v104 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
