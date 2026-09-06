@@ -504,6 +504,7 @@ async function loadFromSupabase() {
         if(row.key === 'dayPlan' && row.data) dayPlan = row.data;
       });
     }
+    ensureMatiereActions();
     // ── Migration : sessions pointant vers une activité disparue → remap par label ──
     var activIdSet=new Set((activites||[]).map(function(a){return 'activ-'+a.id;}));
     var labelToActivExId={};
@@ -1948,8 +1949,23 @@ const DEFAULT_ACTIONS = {
   'ACRYLIQUE': ['Dessin','Retouche','Encadrement','Emballage','Photos modèle'],
   'HUILE':     ['Dessin','Retouche','Encadrement','Emballage','Photos modèle'],
   'CRAYON':    ['Dessin','Retouche','Encadrement','Emballage','Photos modèle'],
+  'PLÂTRE':    ['Démoulage','Patine','Socle/Feutrine','Emballage'],
+  'ARGILE':    ['Terre','Vider','Restauration','Chape','Elasto','Isoler','Défaire','Socle/Feutrine','Patine','Emballage','Photos modèle'],
+  'CÉRAMIQUE': ['Démoulage','Patine','Socle/Feutrine','Emballage'],
+  'AUTRE':     ['Socle/Feutrine','Emballage'],
   'COMMUN':    ['Commercial','Communication','Accueil galerie','Déplacement','Nettoyer','Planning','Autre']
 };
+// Garantit que chaque matière connue (par défaut ou ajoutée par l'utilisateur) a une entrée
+// dans actionsConfig, pour que la sélection multiple ne retombe jamais sur les seules actions communes.
+function ensureMatiereActions(){
+  if(!actionsConfig) return;
+  (matieres||[]).forEach(function(mat){
+    if(!mat) return;
+    if(!actionsConfig[mat] || !actionsConfig[mat].length){
+      actionsConfig[mat] = (DEFAULT_ACTIONS[mat] ? DEFAULT_ACTIONS[mat].slice() : ['Socle/Feutrine','Emballage']);
+    }
+  });
+}
 // ══ CERCLES (relations) ══
 const DEFAULT_INTERACTION_TYPES = [
   {id:'dej',      label:'Déjeuner / Dîner', points:365},
@@ -1991,6 +2007,7 @@ function load(){
   taches      = [];
   techniques  = DEFAULT_TECHNIQUES.slice();
   matieres        = DEFAULT_MATIERES.slice();
+  ensureMatiereActions();
   creationActions = ['Réflexion'];
   finances        = [];
   finTypes        = JSON.parse(JSON.stringify(DEFAULT_FIN_TYPES));
@@ -2239,6 +2256,7 @@ async function refreshToday(btn){
       if(row.key==='planEvts'&&row.data) planEvts=row.data;
       if(row.key==='dayPlan'&&row.data) dayPlan=row.data;
     });}
+    ensureMatiereActions();
   } catch(e){ console.error('refreshToday',e); }
   if(btn){ btn.disabled=false; btn.textContent='↺ Actualiser'; }
   updateCounts(); renderToday();
@@ -4944,8 +4962,9 @@ function addMatiere(){
   if(!val)return;
   if((matieres||[]).indexOf(val)>=0){alert('Cette matière existe déjà.');return;}
   matieres.push(val);
+  ensureMatiereActions();
   document.getElementById('new-mat-input').value='';
-  sbSaveConfig('matieres');renderConfig();
+  sbSaveConfig('matieres');sbSaveConfig('actionsConfig');renderConfig();
 }
 function delMatiere(idx){
   matieres.splice(idx,1);
@@ -8183,7 +8202,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260815 - v106 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260906 - v107 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
