@@ -930,6 +930,7 @@ function doLogout(){
         <div style="display:flex;gap:4px;background:var(--off);border-radius:20px;padding:3px;">
           <button class="btn btn-sm btn-primary" id="pm-btn-jour" onclick="setPlanningMode('jour')" style="border-radius:16px;">📆 Vue Journée</button>
           <button class="btn btn-sm" id="pm-btn-algo" onclick="setPlanningMode('algo')" style="border-radius:16px;">📊 Vue Algorithme</button>
+          <button class="btn btn-sm" id="pm-btn-perso" onclick="setPlanningMode('perso')" style="border-radius:16px;">🗒️ Vue Perso</button>
         </div>
       </div>
       <div style="display:flex;gap:8px;">
@@ -945,6 +946,9 @@ function doLogout(){
     </div>
     <div class="planning-wrap" id="planning-wrap" style="display:none;">
       <div id="planning-content"></div>
+    </div>
+    <div id="planning-perso-wrap" style="display:none;">
+      <div id="planning-perso-content"></div>
     </div>
   </div>
 
@@ -2208,7 +2212,7 @@ function setTab(t){
   else if(t==='stats'){renderStatsPeriodSel();renderStats2();}
   else if(t==='taches')renderTaches();
   else if(t==='temps')renderTemps();
-  else if(t==='planning'){ if(planningMode==='jour') renderPlanningJour(); else renderPlanning(); }
+  else if(t==='planning'){ if(planningMode==='jour') renderPlanningJour(); else if(planningMode==='perso') renderPlanningPerso(); else renderPlanning(); }
   else if(t==='finances')renderFinances();
   else if(t==='export')renderExport();
   else render();
@@ -8205,7 +8209,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260906 - v109 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260906 - v110 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -8760,6 +8764,55 @@ function planCalcul(){
   return {lignes:slots, jours:jours};
 }
 
+// ══ PLANNING — VUE PERSO (liste des événements, mois par mois) ══
+function renderPlanningPerso(){
+  var wrap = document.getElementById('planning-perso-content');
+  if(!wrap) return;
+  if(!planEvts || !planEvts.length){
+    wrap.innerHTML = '<div style="text-align:center;padding:60px;color:var(--faint);font-style:italic;">Aucun événement perso enregistré.<br>Utilise "+ Événement perso" pour en ajouter.</div>';
+    return;
+  }
+  var moisFR=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  var joursFR=['dim','lun','mar','mer','jeu','ven','sam'];
+  function fmtDate(ds){
+    var d=new Date(ds+'T00:00:00');
+    return joursFR[d.getDay()]+' '+d.getDate()+' '+moisFR[d.getMonth()].slice(0,3);
+  }
+  // Grouper par mois (clé YYYY-MM de la date de début)
+  var groups = {};
+  planEvts.forEach(function(evt){
+    var key = (evt.debut||'').slice(0,7);
+    if(!key) return;
+    if(!groups[key]) groups[key]=[];
+    groups[key].push(evt);
+  });
+  var monthKeys = Object.keys(groups).sort().reverse(); // mois le plus récent en premier
+  var html='';
+  monthKeys.forEach(function(mk){
+    var evts = groups[mk].slice().sort(function(a,b){ return (b.debut||'').localeCompare(a.debut||''); });
+    var parts = mk.split('-');
+    var mLabel = moisFR[parseInt(parts[1],10)-1] + ' ' + parts[0];
+    var estMoisPasse = mk < TODAY.slice(0,7);
+    html += '<div style="font-family:\'Playfair Display\',serif;font-style:italic;font-size:1rem;color:var(--mid);margin:18px 0 8px;padding-bottom:4px;border-bottom:1px solid var(--border);text-transform:capitalize;'+(estMoisPasse?'opacity:.65;':'')+'">'+mLabel+(mk===TODAY.slice(0,7)?' · en cours':'')+'</div>';
+    evts.forEach(function(evt){
+      var multi = evt.debut !== evt.fin;
+      var d1=new Date(evt.debut+'T00:00:00'), d2=new Date(evt.fin+'T00:00:00');
+      var nbJours = Math.round((d2-d1)/86400000)+1;
+      var dateTxt = fmtDate(evt.debut) + (multi ? ' → '+fmtDate(evt.fin)+' ('+nbJours+'\u00A0j)' : '');
+      var heureTxt = evt.heureDebut ? (' · '+evt.heureDebut+(evt.heureFin?'–'+evt.heureFin:'')) : '';
+      var heuresBloc = evt.heures ? (' · −'+evt.heures+'h/j') : '';
+      html += '<div onclick="openEditEvtPlanning(\''+evt._id+'\')" style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;cursor:pointer;margin-bottom:2px;transition:background .15s;" onmouseover="this.style.background=\'var(--off)\'" onmouseout="this.style.background=\'\'">';
+      html += '<span style="width:10px;height:10px;border-radius:50%;background:'+(evt.color||'#e8a87c')+';flex-shrink:0;"></span>';
+      html += '<span style="min-width:190px;font-size:.78rem;color:var(--faint);">'+dateTxt+'</span>';
+      html += '<span style="flex:1;font-weight:500;">'+(evt.label||'')+'</span>';
+      html += '<span style="font-size:.72rem;color:var(--faint);white-space:nowrap;">'+heureTxt+heuresBloc+'</span>';
+      if(evt.note) html += '<span style="font-size:.72rem;color:var(--faint);font-style:italic;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">· '+evt.note+'</span>';
+      html += '</div>';
+    });
+  });
+  wrap.innerHTML = html;
+}
+
 async function refreshPlanning(btn){
   var orig = btn.innerHTML;
   btn.disabled = true;
@@ -8786,19 +8839,26 @@ var _dpLogId = null;
 
 function setPlanningMode(mode){
   planningMode = mode;
-  var bj=document.getElementById('pm-btn-jour'), ba=document.getElementById('pm-btn-algo');
-  var wj=document.getElementById('planning-jour-wrap'), wa=document.getElementById('planning-wrap');
+  var bj=document.getElementById('pm-btn-jour'), ba=document.getElementById('pm-btn-algo'), bp=document.getElementById('pm-btn-perso');
+  var wj=document.getElementById('planning-jour-wrap'), wa=document.getElementById('planning-wrap'), wp=document.getElementById('planning-perso-wrap');
   var rc=document.getElementById('pm-btn-recalc');
   var pPrev=document.getElementById('pm-btn-prev'), pToday=document.getElementById('pm-btn-today'), pNext=document.getElementById('pm-btn-next');
+  bj.classList.remove('btn-primary'); ba.classList.remove('btn-primary'); bp.classList.remove('btn-primary');
+  wj.style.display='none'; wa.style.display='none'; wp.style.display='none';
+  rc.style.display='none';
+  if(pPrev){pPrev.style.display='none';pToday.style.display='none';pNext.style.display='none';}
   if(mode==='jour'){
-    wj.style.display=''; wa.style.display='none'; rc.style.display='none';
-    if(pPrev){pPrev.style.display='none';pToday.style.display='none';pNext.style.display='none';}
-    bj.classList.add('btn-primary'); ba.classList.remove('btn-primary');
+    wj.style.display='';
+    bj.classList.add('btn-primary');
     renderPlanningJour();
+  } else if(mode==='perso'){
+    wp.style.display='';
+    bp.classList.add('btn-primary');
+    renderPlanningPerso();
   } else {
-    wj.style.display='none'; wa.style.display=''; rc.style.display='';
+    wa.style.display=''; rc.style.display='';
     if(pPrev){pPrev.style.display='';pToday.style.display='';pNext.style.display='';}
-    ba.classList.add('btn-primary'); bj.classList.remove('btn-primary');
+    ba.classList.add('btn-primary');
     renderPlanning();
   }
 }
@@ -9831,7 +9891,7 @@ function saveEvtPlanning(){
   persistPlanEvts();
   dpSyncEvtBlock(targetId);
   closeM('mo-planning-evt');
-  if(planningMode==='jour') renderPlanningJour(); else renderPlanning();
+  if(planningMode==='jour') renderPlanningJour(); else if(planningMode==='perso') renderPlanningPerso(); else renderPlanning();
 }
 function deleteEvtPlanning(){
   if(!confirm('Supprimer cet événement ?'))return;
@@ -9840,7 +9900,7 @@ function deleteEvtPlanning(){
   persistPlanEvts();
   dpSyncEvtBlock(delId);
   closeM('mo-planning-evt');
-  if(planningMode==='jour') renderPlanningJour(); else renderPlanning();
+  if(planningMode==='jour') renderPlanningJour(); else if(planningMode==='perso') renderPlanningPerso(); else renderPlanning();
 }
 
 var editFinId = null;
