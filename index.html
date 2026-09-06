@@ -934,6 +934,9 @@ function doLogout(){
       </div>
       <div style="display:flex;gap:8px;">
         <button class="btn" onclick="openAddEvtPlanning()">+ Événement perso</button>
+        <button class="btn" id="pm-btn-prev" onclick="planScrollBy(-7)" style="display:none;">← Avant</button>
+        <button class="btn" id="pm-btn-today" onclick="planScrollToday()" style="display:none;">Aujourd'hui</button>
+        <button class="btn" id="pm-btn-next" onclick="planScrollBy(7)" style="display:none;">Après →</button>
         <button class="btn btn-primary" id="pm-btn-recalc" onclick="refreshPlanning(this)" style="display:none;">↺ Recalculer</button>
       </div>
     </div>
@@ -8202,7 +8205,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260906 - v108 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260906 - v109 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -8786,15 +8789,31 @@ function setPlanningMode(mode){
   var bj=document.getElementById('pm-btn-jour'), ba=document.getElementById('pm-btn-algo');
   var wj=document.getElementById('planning-jour-wrap'), wa=document.getElementById('planning-wrap');
   var rc=document.getElementById('pm-btn-recalc');
+  var pPrev=document.getElementById('pm-btn-prev'), pToday=document.getElementById('pm-btn-today'), pNext=document.getElementById('pm-btn-next');
   if(mode==='jour'){
     wj.style.display=''; wa.style.display='none'; rc.style.display='none';
+    if(pPrev){pPrev.style.display='none';pToday.style.display='none';pNext.style.display='none';}
     bj.classList.add('btn-primary'); ba.classList.remove('btn-primary');
     renderPlanningJour();
   } else {
     wj.style.display='none'; wa.style.display=''; rc.style.display='';
+    if(pPrev){pPrev.style.display='';pToday.style.display='';pNext.style.display='';}
     ba.classList.add('btn-primary'); bj.classList.remove('btn-primary');
     renderPlanning();
   }
+}
+
+// Navigation dans le planning (boutons — plus fiable que le glisser sur mobile/trackpad)
+function planScrollBy(nbJours){
+  var pw = document.getElementById('planning-wrap');
+  if(!pw) return;
+  pw.scrollBy({left: nbJours*36, behavior:'smooth'});
+}
+function planScrollToday(){
+  var pw = document.getElementById('planning-wrap');
+  if(!pw) return;
+  var todayCol = pw.querySelector('.today-col');
+  if(todayCol) pw.scrollTo({left: todayCol.offsetLeft, behavior:'smooth'});
 }
 
 function dpSaveRemote(){
@@ -8889,6 +8908,8 @@ function dpComputeLayout(blocks){
 function renderPlanningJour(){
   var wrap = document.getElementById('planning-jour-content');
   if(!wrap) return;
+  var pPrev=document.getElementById('pm-btn-prev'), pToday=document.getElementById('pm-btn-today'), pNext=document.getElementById('pm-btn-next');
+  if(pPrev){pPrev.style.display='none';pToday.style.display='none';pNext.style.display='none';}
   if(!dayPlan || dayPlan.date !== TODAY){
     // Ce qui n'a pas été validé (hors RDV, recalculés séparément à partir des événements)
     // est reporté sur la nouvelle journée, pour ne rien perdre de ce qui traîne.
@@ -9333,6 +9354,8 @@ function dpUndoLog(id){
 function renderPlanning(){
   var wrap = document.getElementById('planning-content');
   if(!wrap) return;
+  var pPrev=document.getElementById('pm-btn-prev'), pToday=document.getElementById('pm-btn-today'), pNext=document.getElementById('pm-btn-next');
+  if(pPrev){pPrev.style.display='';pToday.style.display='';pNext.style.display='';}
 
   var result = planCalcul();
   var jours = result.jours;
