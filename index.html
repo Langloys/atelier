@@ -8202,7 +8202,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260906 - v107 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260906 - v108 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -9343,8 +9343,16 @@ function renderPlanning(){
     return;
   }
 
-  // Garder uniquement les jours >= aujourd'hui
-  jours = jours.filter(function(j){ return j.dateStr >= TODAY; });
+  // Ajouter les jours passés pour pouvoir remonter dans le temps (agenda perso + jours chômés)
+  var PLAN_PAST_DAYS = 30;
+  var joursPasses = [];
+  var dPast = new Date(TODAY+'T00:00:00');
+  for(var jp=0; jp<PLAN_PAST_DAYS; jp++){
+    dPast.setDate(dPast.getDate()-1);
+    var dsPast = dPast.toISOString().slice(0,10);
+    joursPasses.unshift({dateStr:dsPast, dispo:planHeuresdispo(dsPast)});
+  }
+  jours = joursPasses.concat(jours.filter(function(j){ return j.dateStr >= TODAY; }));
   var joursSet = {};
   jours.forEach(function(j){ joursSet[j.dateStr]=true; });
   planEvts.forEach(function(evt){
@@ -9373,11 +9381,9 @@ function renderPlanning(){
     var idx = jours.findIndex(function(j){ return j.dateStr===evt.fin; });
     if(idx < 0){
       // L'événement dépasse le calcul — étendre jours jusqu'à la fin de l'événement
-      var d3 = new Date(TODAY+'T00:00:00');
-      for(var k=0; k<jours.length; k++) d3.setDate(d3.getDate()+1);
       var evtFin = new Date(evt.fin+'T00:00:00');
       var today0 = new Date(TODAY+'T00:00:00');
-      var jExtra = Math.round((evtFin-today0)/86400000);
+      var jExtra = Math.round((evtFin-today0)/86400000) + PLAN_PAST_DAYS;
       if(jExtra > dernierJourUtile) dernierJourUtile = Math.min(jExtra, jours.length-1);
     } else {
       dernierJourUtile = Math.max(dernierJourUtile, idx);
