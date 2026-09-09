@@ -8209,7 +8209,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260906 - v110 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260906 - v111 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -9573,7 +9573,8 @@ function renderPlanning(){
         }
         html+='<td class="plan-evt-cell" onclick="openEditEvtPlanning(\''+evt._id+'\')" style="background:'+evt.color+';cursor:pointer;position:relative;height:28px;" onmouseenter="showPlanEvtTooltip(event,\''+evt._id+'\')" onmouseleave="hidePlanTooltip()">';
         if(!evtLabelEcrit){
-          html+='<span style="position:absolute;left:3px;top:50%;transform:translateY(-50%);white-space:nowrap;font-size:.58rem;color:#000;font-weight:600;pointer-events:none;z-index:1;text-shadow:0 0 3px rgba(255,255,255,.7);">'+evt.label+'</span>';
+          var evtHeureTxt = evt.heureDebut ? (' <span style="opacity:.75;font-weight:500;">'+evt.heureDebut+(evt.heureFin?'–'+evt.heureFin:'')+'</span>') : '';
+          html+='<span style="position:absolute;left:3px;top:50%;transform:translateY(-50%);white-space:nowrap;font-size:.58rem;color:#000;font-weight:600;pointer-events:none;z-index:1;text-shadow:0 0 3px rgba(255,255,255,.7);">'+evt.label+evtHeureTxt+'</span>';
           evtLabelEcrit=true;
         }
         html+='</td>';
