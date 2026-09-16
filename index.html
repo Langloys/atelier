@@ -1134,7 +1134,7 @@ function doLogout(){
 <!-- MODAL AJOUT RAPIDE — VUE JOURNÉE (clic sur un créneau) -->
 <div class="mo" id="mo-dp-quickadd">
   <div class="modal" style="max-width:340px;">
-    <div class="mh"><h2>Ajouter à <span id="dp-qa-heure"></span></h2><button class="mc" onclick="closeM('mo-dp-quickadd')">×</button></div>
+    <div class="mh"><h2><span id="dp-qa-title-add">Ajouter à <span id="dp-qa-heure"></span></span><span id="dp-qa-title-edit" style="display:none;">Modifier le créneau</span></h2><button class="mc" onclick="closeM('mo-dp-quickadd')">×</button></div>
     <div class="mb">
       <div class="fg"><label>Quoi ?</label>
         <input type="text" id="dp-qa-label" placeholder="Tape un nom libre (trajet, appel, courses…)" oninput="dpQaLabelInput()">
@@ -1144,7 +1144,7 @@ function doLogout(){
     </div>
     <div class="mfoot" style="display:flex;justify-content:flex-end;gap:8px;">
       <button class="btn" onclick="closeM('mo-dp-quickadd')">Annuler</button>
-      <button class="btn btn-primary" onclick="dpConfirmQuickAdd()">Ajouter</button>
+      <button class="btn btn-primary" id="dp-qa-confirm-btn" onclick="dpConfirmQuickAdd()">Ajouter</button>
     </div>
   </div>
 </div>
@@ -8220,7 +8220,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260906 - v112 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260906 - v113 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -9029,7 +9029,7 @@ function renderPlanningJour(){
     var widthPct = (100/lay.cols);
     html += '<div class="dp-block" data-id="'+b.id+'" title="'+dpMinToStr(b.start)+'–'+dpMinToStr(b.start+b.dur)+'" style="position:absolute;left:calc('+leftPct+'% + 2px);width:calc('+widthPct+'% - 4px);top:'+top+'px;height:'+height+'px;background:'+(b.done?'var(--off)':bg+'26')+';border-left:3px solid '+bg+';border-radius:4px;opacity:'+(b.done?'.55':'1')+';overflow:hidden;display:flex;align-items:center;justify-content:space-between;gap:4px;padding:0 6px;">';
     html += '<button onclick="event.stopPropagation();dpDeleteBlock(\''+b.id+'\')" title="'+(b.done?'Retirer de la journée (garde la session)':'Supprimer ce bloc')+'" style="flex-shrink:0;border:none;background:none;color:var(--red);padding:0;cursor:pointer;font-size:.72rem;line-height:1;">✕</button>';
-    if(b.refId && (b.type==='rdv'||b.type==='tache')){
+    if(b.type==='custom' || (b.refId && (b.type==='rdv'||b.type==='tache'))){
       html += '<button onclick="event.stopPropagation();dpEditBlock(\''+b.id+'\')" title="Modifier" style="flex-shrink:0;border:none;background:none;color:var(--faint);padding:0;cursor:pointer;font-size:.68rem;line-height:1;">✏️</button>';
     }
     if(!b.done){
@@ -9065,13 +9065,6 @@ function renderPlanningJour(){
       window.scrollTo({top: Math.max(0, targetY), behavior:'auto'});
     });
   }
-}
-
-function dpEditBlock(id){
-  var b = dayPlan.blocks.find(function(x){return x.id===id;});
-  if(!b || !b.refId) return;
-  if(b.type==='rdv') openEditEvtPlanning(b.refId);
-  else if(b.type==='tache') openEditTache(b.refId);
 }
 
 function dpAttachHandlers(){
@@ -9232,6 +9225,7 @@ function dpStartResizeTop(ev, id){
 }
 
 var _dpQuickAddStart = null;
+var _dpEditBlockId = null;
 function dpGridClick(ev){
   if(ev.target.closest('.dp-block')) return; // clic sur un bloc existant : on ignore
   var grid = document.getElementById('dp-grid');
@@ -9294,6 +9288,13 @@ function dpQaLabelInput(){
 }
 function dpOpenQuickAdd(start){
   _dpQuickAddStart = start;
+  _dpEditBlockId = null;
+  document.getElementById('dp-qa-title-add').style.display='';
+  document.getElementById('dp-qa-title-edit').style.display='none';
+  var sel0 = document.getElementById('dp-qa-select');
+  if(sel0) sel0.style.display='';
+  var cb0 = document.getElementById('dp-qa-confirm-btn');
+  if(cb0) cb0.textContent='Ajouter';
   document.getElementById('dp-qa-heure').textContent = dpMinToStr(start);
   document.getElementById('dp-qa-dur').value='30';
   document.getElementById('dp-qa-label').value='';
@@ -9301,11 +9302,44 @@ function dpOpenQuickAdd(start){
   openM('mo-dp-quickadd');
   setTimeout(function(){ var el=document.getElementById('dp-qa-label'); if(el) el.focus(); }, 60);
 }
+function dpEditBlock(id){
+  var b = dayPlan.blocks.find(function(x){return x.id===id;});
+  if(!b) return;
+  if(b.type==='rdv'){ if(b.refId) openEditEvtPlanning(b.refId); return; }
+  if(b.type==='tache'){ if(b.refId) openEditTache(b.refId); return; }
+  if(b.type==='custom'){
+    _dpEditBlockId = id;
+    document.getElementById('dp-qa-title-add').style.display='none';
+    document.getElementById('dp-qa-title-edit').style.display='';
+    var sel = document.getElementById('dp-qa-select');
+    if(sel){ sel.innerHTML=''; sel.style.display='none'; }
+    var cb = document.getElementById('dp-qa-confirm-btn');
+    if(cb) cb.textContent='Enregistrer';
+    document.getElementById('dp-qa-label').value = b.label;
+    document.getElementById('dp-qa-dur').value = b.dur;
+    openM('mo-dp-quickadd');
+    setTimeout(function(){ var el=document.getElementById('dp-qa-label'); if(el) el.focus(); }, 60);
+  }
+  // type 'item' : lié à une œuvre/un exemplaire/un projet déjà programmé par l'algorithme —
+  // sa durée/position se change par glisser-déposer directement sur le bloc.
+}
 function dpConfirmQuickAdd(){
   var sel = document.getElementById('dp-qa-select');
-  var val = sel.value;
+  var val = sel ? sel.value : '';
   var freeLabel = document.getElementById('dp-qa-label').value.trim();
   var dur = parseInt(document.getElementById('dp-qa-dur').value)||30;
+  if(_dpEditBlockId){
+    var eb = dayPlan.blocks.find(function(x){return x.id===_dpEditBlockId;});
+    if(eb){
+      if(freeLabel) eb.label = freeLabel;
+      eb.dur = dur;
+      dpSaveRemote();
+    }
+    _dpEditBlockId = null;
+    closeM('mo-dp-quickadd');
+    renderPlanningJour();
+    return;
+  }
   var start = (_dpQuickAddStart!==null) ? _dpQuickAddStart : DP_START;
   start = Math.min(start, DP_END-dur);
   var block;
