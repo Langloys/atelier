@@ -2212,7 +2212,7 @@ function setTab(t){
   else if(t==='stats'){renderStatsPeriodSel();renderStats2();}
   else if(t==='taches')renderTaches();
   else if(t==='temps')renderTemps();
-  else if(t==='planning'){ if(planningMode==='jour') renderPlanningJour(); else if(planningMode==='perso') renderPlanningPerso(); else renderPlanning(); }
+  else if(t==='planning'){ if(planningMode==='jour'){ _dpAutoScrolled=false; renderPlanningJour(); } else if(planningMode==='perso') renderPlanningPerso(); else renderPlanning(); }
   else if(t==='finances')renderFinances();
   else if(t==='export')renderExport();
   else render();
@@ -7845,6 +7845,11 @@ function saveTache(){
   else taches.push(t);
   sbSaveConfig('taches');closeM('mo-tache');updateCounts();
   renderTaches();
+  if(dayPlan && dayPlan.blocks){
+    var blk = dayPlan.blocks.find(function(x){return x.type==='tache' && x.refId===t._id;});
+    if(blk){ blk.label=t.texte; dpSaveRemote(); }
+  }
+  if(planningMode==='jour') renderPlanningJour();
   if(detProjetId&&currentTab!=='taches')openProjetDetail(detProjetId);
 }
 
@@ -7862,6 +7867,12 @@ function delTache(){
   var tid = editTacheId;
   taches = (taches||[]).filter(function(x){return x._id!==tid;});
   sbSaveConfig('taches');closeM('mo-tache');updateCounts();renderTaches();
+  if(dayPlan && dayPlan.blocks){
+    var before = dayPlan.blocks.length;
+    dayPlan.blocks = dayPlan.blocks.filter(function(x){ return !(x.type==='tache' && x.refId===tid); });
+    if(dayPlan.blocks.length!==before) dpSaveRemote();
+  }
+  if(planningMode==='jour') renderPlanningJour();
 }
 
 // ══ EXPORT / IMPORT ══
@@ -8209,7 +8220,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260906 - v111 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260906 - v112 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -8829,13 +8840,14 @@ async function refreshPlanning(btn){
 // ═══════════════════════════════════════════════════════════
 // ══ PLANNING — VUE JOURNÉE (créneaux 1/4h, glisser-déposer) ══
 // ═══════════════════════════════════════════════════════════
-var DP_START = 7*60;    // 07:00 en minutes depuis minuit
-var DP_END   = 21*60;   // 21:00
+var DP_START = 0;       // 00:00 en minutes depuis minuit — la journée va de minuit à minuit
+var DP_END   = 24*60;   // 24:00
 var DP_SLOT  = 15;      // minutes par créneau
 var DP_PXSLOT= 20;      // pixels par créneau de 15 min
 var planningMode = 'jour';
 var dayPlan = null;     // {date:'YYYY-MM-DD', blocks:[...]}
 var _dpLogId = null;
+var _dpAutoScrolled = false; // n'auto-cale sur l'heure actuelle qu'à l'arrivée sur la vue, pas à chaque re-rendu
 
 function setPlanningMode(mode){
   planningMode = mode;
@@ -8850,6 +8862,7 @@ function setPlanningMode(mode){
   if(mode==='jour'){
     wj.style.display='';
     bj.classList.add('btn-primary');
+    _dpAutoScrolled = false;
     renderPlanningJour();
   } else if(mode==='perso'){
     wp.style.display='';
@@ -9000,8 +9013,10 @@ function renderPlanningJour(){
     html += '<div style="position:absolute;left:0;right:0;top:'+top+'px;height:1px;background:var(--bd);"></div>';
   }
   var now=new Date(), nowMin=now.getHours()*60+now.getMinutes();
-  if(TODAY===(function(){var n=new Date();return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0');})() && nowMin>=DP_START && nowMin<=DP_END){
-    var nowTop=((nowMin-DP_START)/DP_SLOT)*DP_PXSLOT;
+  var isToday = TODAY===(function(){var n=new Date();return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0');})();
+  var nowTop = null;
+  if(isToday && nowMin>=DP_START && nowMin<=DP_END){
+    nowTop=((nowMin-DP_START)/DP_SLOT)*DP_PXSLOT;
     html += '<div style="position:absolute;left:0;right:0;top:'+nowTop+'px;height:2px;background:var(--red);z-index:5;pointer-events:none;"></div>';
   }
   var dpLayout = dpComputeLayout(dayPlan.blocks);
@@ -9014,6 +9029,9 @@ function renderPlanningJour(){
     var widthPct = (100/lay.cols);
     html += '<div class="dp-block" data-id="'+b.id+'" title="'+dpMinToStr(b.start)+'–'+dpMinToStr(b.start+b.dur)+'" style="position:absolute;left:calc('+leftPct+'% + 2px);width:calc('+widthPct+'% - 4px);top:'+top+'px;height:'+height+'px;background:'+(b.done?'var(--off)':bg+'26')+';border-left:3px solid '+bg+';border-radius:4px;opacity:'+(b.done?'.55':'1')+';overflow:hidden;display:flex;align-items:center;justify-content:space-between;gap:4px;padding:0 6px;">';
     html += '<button onclick="event.stopPropagation();dpDeleteBlock(\''+b.id+'\')" title="'+(b.done?'Retirer de la journée (garde la session)':'Supprimer ce bloc')+'" style="flex-shrink:0;border:none;background:none;color:var(--red);padding:0;cursor:pointer;font-size:.72rem;line-height:1;">✕</button>';
+    if(b.refId && (b.type==='rdv'||b.type==='tache')){
+      html += '<button onclick="event.stopPropagation();dpEditBlock(\''+b.id+'\')" title="Modifier" style="flex-shrink:0;border:none;background:none;color:var(--faint);padding:0;cursor:pointer;font-size:.68rem;line-height:1;">✏️</button>';
+    }
     if(!b.done){
       var lockSvg = b.fixed
         ? '<svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>'
@@ -9035,6 +9053,25 @@ function renderPlanningJour(){
 
   wrap.innerHTML = html;
   dpAttachHandlers();
+  // Cale la vue sur l'heure actuelle à l'arrivée sur l'onglet (une seule fois), en laissant
+  // la possibilité de remonter dans la journée en scrollant vers le haut.
+  if(nowTop!==null && !_dpAutoScrolled){
+    _dpAutoScrolled = true;
+    requestAnimationFrame(function(){
+      var grid = document.getElementById('dp-grid');
+      if(!grid) return;
+      var rect = grid.getBoundingClientRect();
+      var targetY = window.scrollY + rect.top + nowTop - 120;
+      window.scrollTo({top: Math.max(0, targetY), behavior:'auto'});
+    });
+  }
+}
+
+function dpEditBlock(id){
+  var b = dayPlan.blocks.find(function(x){return x.id===id;});
+  if(!b || !b.refId) return;
+  if(b.type==='rdv') openEditEvtPlanning(b.refId);
+  else if(b.type==='tache') openEditTache(b.refId);
 }
 
 function dpAttachHandlers(){
