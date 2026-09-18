@@ -8225,7 +8225,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260906 - v115 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260906 - v116 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -8917,6 +8917,15 @@ function dpTodayInfoEvts(){
     return evt.debut<=TODAY && TODAY<=evt.fin && !evt.heureDebut;
   });
 }
+function dpTodayUnscheduledTaches(){
+  // Tâches du jour pas encore placées dans la grille (aucun bloc correspondant) —
+  // affichées en bannière cliquable au-dessus du planning pour pouvoir les y glisser.
+  if(!dayPlan) return [];
+  return (taches||[]).filter(function(t){
+    if(t.done || t.echeance!==TODAY) return false;
+    return !dayPlan.blocks.some(function(b){ return b.type==='tache' && b.refId===t._id; });
+  });
+}
 function dpBuildAuto(){
   var blocks = [];
   (planEvts||[]).forEach(function(evt){
@@ -8928,24 +8937,20 @@ function dpBuildAuto(){
       blocks.push({id:'rdv-'+evt._id, type:'rdv', label:evt.label, start:start, dur:dur, fixed:isFixed, color:evt.color||'#7a8ba6', done:false, refId:evt._id});
     }
   });
-  var cursor = DP_START;
-  (taches||[]).filter(function(t){ return !t.done && t.echeance===TODAY; }).forEach(function(t){
-    if(t.heureDebut){
-      var thd=t.heureDebut.split(':'); var tstart=parseInt(thd[0])*60+parseInt(thd[1]);
-      var tdur=30;
-      if(t.heureFin){ var thf=t.heureFin.split(':'); var tend=parseInt(thf[0])*60+parseInt(thf[1]); if(tend>tstart) tdur=tend-tstart; }
-      blocks.push({id:'tache-'+t._id, type:'tache', label:t.texte, start:tstart, dur:tdur, fixed:true, color:'#c9a876', done:false, refId:t._id});
-    } else {
-      var start = dpNextFreeSlot(cursor, 30, blocks);
-      blocks.push({id:'tache-'+t._id+'-'+Date.now()+Math.random().toString(36).slice(2,6), type:'tache', label:t.texte, start:start, dur:30, fixed:false, color:'#c9a876', done:false, refId:t._id});
-      cursor = start+30;
-    }
+  (taches||[]).filter(function(t){ return !t.done && t.echeance===TODAY && t.heureDebut; }).forEach(function(t){
+    var thd=t.heureDebut.split(':'); var tstart=parseInt(thd[0])*60+parseInt(thd[1]);
+    var tdur=30;
+    if(t.heureFin){ var thf=t.heureFin.split(':'); var tend=parseInt(thf[0])*60+parseInt(thf[1]); if(tend>tstart) tdur=tend-tstart; }
+    blocks.push({id:'tache-'+t._id, type:'tache', label:t.texte, start:tstart, dur:tdur, fixed:false, color:'#c9a876', done:false, refId:t._id});
   });
+  // Les tâches du jour sans heure ne sont PAS placées automatiquement : elles restent dans
+  // la bannière "à placer" au-dessus de la grille, jusqu'à ce qu'on clique dessus pour les y mettre.
   return {date:TODAY, blocks:blocks};
 }
 function dpSyncTacheBlock(tid){
-  // Répercute la création/modification/suppression d'une tâche (avec ou sans heure)
-  // sur le bloc correspondant dans la Vue Journée, sans reconstruire toute la journée.
+  // Répercute la création/modification/suppression d'une tâche sur le bloc correspondant
+  // dans la Vue Journée (sans reconstruire toute la journée). Une tâche reste toujours
+  // déplaçable/redimensionnable dans la grille, même une fois une heure fixée.
   if(!dayPlan || dayPlan.date !== TODAY) return;
   var t = (taches||[]).find(function(x){return x._id===tid;});
   var applies = t && !t.done && t.echeance===TODAY;
@@ -8957,25 +8962,38 @@ function dpSyncTacheBlock(tid){
     }
     return;
   }
-  if(t.heureDebut){
-    var hd=t.heureDebut.split(':'); var start=parseInt(hd[0])*60+parseInt(hd[1]);
-    var dur=30;
-    if(t.heureFin){ var hf=t.heureFin.split(':'); var end=parseInt(hf[0])*60+parseInt(hf[1]); if(end>start) dur=end-start; }
-    if(existing){
-      existing.start=start; existing.dur=dur; existing.label=t.texte; existing.fixed=true;
-    } else {
-      dayPlan.blocks.push({id:'tache-'+tid, type:'tache', label:t.texte, start:start, dur:dur, fixed:true, color:'#c9a876', done:false, refId:tid});
+  if(existing){
+    // On ne touche à la position que si une heure a été fixée depuis la fiche ; sinon on
+    // laisse le bloc où il a été placé/déplacé à la main dans la grille.
+    if(t.heureDebut){
+      var hd=t.heureDebut.split(':'); var start=parseInt(hd[0])*60+parseInt(hd[1]);
+      var dur=30;
+      if(t.heureFin){ var hf=t.heureFin.split(':'); var end=parseInt(hf[0])*60+parseInt(hf[1]); if(end>start) dur=end-start; }
+      existing.start=start; existing.dur=dur;
     }
-  } else {
-    if(existing){
-      existing.label = t.texte;
-      existing.fixed = false; // plus d'heure précise → redevient un créneau flexible (déplaçable)
-    } else {
-      var start2 = dpNextFreeSlot(DP_START, 30, dayPlan.blocks);
-      dayPlan.blocks.push({id:'tache-'+tid+'-'+Date.now(), type:'tache', label:t.texte, start:start2, dur:30, fixed:false, color:'#c9a876', done:false, refId:tid});
-    }
+    existing.label=t.texte; existing.fixed=false;
+  } else if(t.heureDebut){
+    var hd2=t.heureDebut.split(':'); var start2=parseInt(hd2[0])*60+parseInt(hd2[1]);
+    var dur2=30;
+    if(t.heureFin){ var hf2=t.heureFin.split(':'); var end2=parseInt(hf2[0])*60+parseInt(hf2[1]); if(end2>start2) dur2=end2-start2; }
+    dayPlan.blocks.push({id:'tache-'+tid, type:'tache', label:t.texte, start:start2, dur:dur2, fixed:false, color:'#c9a876', done:false, refId:tid});
   }
+  // Sans heure et sans bloc existant : la tâche reste dans la bannière "à placer",
+  // on ne la met pas de force dans la grille.
   dpSaveRemote();
+}
+function dpPlaceTache(tid){
+  // Clic sur une tâche "à placer" (sans heure) : on la met dans la grille au prochain
+  // créneau libre ; elle devient alors un bloc déplaçable/redimensionnable comme les autres.
+  if(!dayPlan) return;
+  var t = (taches||[]).find(function(x){return x._id===tid;});
+  if(!t) return;
+  var already = dayPlan.blocks.find(function(x){return x.type==='tache' && x.refId===tid;});
+  if(already) return;
+  var start = dpNextFreeSlot(DP_START, 30, dayPlan.blocks);
+  dayPlan.blocks.push({id:'tache-'+tid, type:'tache', label:t.texte, start:start, dur:30, fixed:false, color:'#c9a876', done:false, refId:tid});
+  dpSaveRemote();
+  renderPlanningJour();
 }
 function dpResolveOverlaps(){
   var blocks = dayPlan.blocks;
@@ -9051,6 +9069,16 @@ function renderPlanningJour(){
       html += '<div title="Info — ne bloque pas de créneau" style="background:'+c+'22;border-left:3px solid '+c+';border-radius:4px;padding:5px 10px;font-size:.72rem;color:var(--ink);">'+evt.label+(evt.heureDebut?' <span style="color:var(--faint);">· '+evt.heureDebut+(evt.heureFin?'–'+evt.heureFin:'')+'</span>':'')+'</div>';
     });
     html += '</div>';
+  }
+  var unschedTaches = dpTodayUnscheduledTaches();
+  if(unschedTaches.length){
+    html += '<div style="margin-bottom:12px;">';
+    html += '<div style="font-size:.65rem;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin-bottom:6px;">Tâches à placer — clique pour les mettre dans la journée</div>';
+    html += '<div style="display:flex;flex-wrap:wrap;gap:6px;">';
+    unschedTaches.forEach(function(t){
+      html += '<div onclick="dpPlaceTache(\''+t._id+'\')" title="Cliquer pour placer dans la journée" style="background:#c9a87622;border-left:3px solid #c9a876;border-radius:4px;padding:5px 10px;font-size:.72rem;color:var(--ink);cursor:pointer;">+ '+t.texte+'</div>';
+    });
+    html += '</div></div>';
   }
   html += '<div id="dp-grid" onclick="dpGridClick(event)" style="position:relative;height:'+totalPx+'px;border:1px solid var(--border);border-radius:var(--r);background:var(--w);background-image:repeating-linear-gradient(to bottom, var(--border) 0, var(--border) 1px, transparent 1px, transparent '+DP_PXSLOT+'px);margin-left:52px;cursor:copy;">';
   for(var h=Math.ceil(DP_START/60); h*60<=DP_END; h++){
