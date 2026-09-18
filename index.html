@@ -672,13 +672,13 @@ function doLogout(){
 <div class="tabs">
   <button class="tab active" onclick="setTab('today')"   id="tab-today">Aujourd'hui <span class="ct" id="ct-today">0</span></button>
   <button class="tab"        onclick="setTab('planning')" id="tab-planning">📅 Planning</button>
+  <button class="tab"        onclick="setTab('taches')"  id="tab-taches">Tâches <span class="ct" id="ct-taches">0</span></button>
   <button class="tab"        onclick="setTab('cercles')" id="tab-cercles">💫 Cercles</button>
   <button class="tab"        onclick="setTab('journal')" id="tab-journal">Journal <span class="ct" id="ct-jour">0</span></button>
   <button class="tab"        onclick="setTab('all')"     id="tab-all">Catalogue <span class="ct" id="ct-all">0</span></button>
   <button class="tab"        onclick="setTab('encours')" id="tab-encours">En cours <span class="ct" id="ct-enc">0</span></button>
   <button class="tab"        onclick="setTab('stock')" id="tab-stock">Stock <span class="ct" id="ct-stock">0</span></button>
   <button class="tab"        onclick="setTab('stats')"   id="tab-stats">Stats</button>
-  <button class="tab"        onclick="setTab('taches')"  id="tab-taches">Tâches <span class="ct" id="ct-taches">0</span></button>
   <button class="tab"        onclick="setTab('projets')" id="tab-projets">Projets <span class="ct" id="ct-proj">0</span></button>
   <button class="tab"        onclick="setTab('temps')"    id="tab-temps">⏱ Temps</button>
   <button class="tab"        onclick="setTab('finances')" id="tab-finances">Finances <span class="ct" id="ct-fin">€</span></button>
@@ -1575,6 +1575,11 @@ function doLogout(){
         </div>
       </div>
       <div class="fg"><label>Échéance</label><input type="date" id="tache-echeance"></div>
+      <div class="fr">
+        <div class="fg"><label>Heure début <span style="font-weight:400;color:var(--faint);">(optionnel)</span></label><input type="time" id="tache-heure-debut"></div>
+        <div class="fg"><label>Heure fin</label><input type="time" id="tache-heure-fin"></div>
+      </div>
+      <div style="font-size:.7rem;color:var(--faint);margin:-4px 0 8px;">Si une heure de début est renseignée et l'échéance est aujourd'hui, la tâche apparaît directement dans la Vue Journée du planning.</div>
       <div class="fg"><label>Notes</label><textarea id="tache-notes" placeholder="Détails…" style="min-height:50px;"></textarea></div>
     </div>
     <div class="mfoot">
@@ -7760,6 +7765,9 @@ function renderTaches(){
       var isLate = !t.done && t.echeance < TODAY;
       html += '<span style="font-size:.7rem;color:'+(isLate?'var(--red)':'var(--faint)')+';">📅 '+fmtShort(t.echeance)+(isLate?' ⚠️':'')+'</span>';
     }
+    if(t.heureDebut){
+      html += '<span style="font-size:.7rem;color:var(--faint);">🕐 '+t.heureDebut+(t.heureFin?'–'+t.heureFin:'')+'</span>';
+    }
     if(t.notes) html += '<span style="font-size:.7rem;color:var(--faint);font-style:italic;">'+t.notes+'</span>';
     html += '</div></div>';
     if(t.isRappel){
@@ -7799,7 +7807,7 @@ function openAddTacheForProjet(pid){
 function openAddTache(){
   editTacheId = null;
   document.getElementById('mo-tache-title').textContent = 'Nouvelle tâche';
-  ['tache-texte','tache-notes','tache-echeance'].forEach(function(i){document.getElementById(i).value='';});
+  ['tache-texte','tache-notes','tache-echeance','tache-heure-debut','tache-heure-fin'].forEach(function(i){document.getElementById(i).value='';});
   document.getElementById('tache-prio').value = '3';
   document.getElementById('tache-del-btn').style.display = 'none';
   fillTacheProjet(null);
@@ -7814,6 +7822,8 @@ function openEditTache(tid){
   document.getElementById('tache-texte').value    = t.texte||'';
   document.getElementById('tache-prio').value     = t.prio||'';
   document.getElementById('tache-echeance').value = t.echeance||'';
+  document.getElementById('tache-heure-debut').value = t.heureDebut||'';
+  document.getElementById('tache-heure-fin').value   = t.heureFin||'';
   document.getElementById('tache-notes').value    = t.notes||'';
   document.getElementById('tache-del-btn').style.display = 'inline-block';
   fillTacheProjet(t.projetId);
@@ -7837,6 +7847,8 @@ function saveTache(){
     prio:      document.getElementById('tache-prio').value,
     projetId:  document.getElementById('tache-projet').value||null,
     echeance:  document.getElementById('tache-echeance').value||null,
+    heureDebut: document.getElementById('tache-heure-debut').value||null,
+    heureFin:   document.getElementById('tache-heure-fin').value||null,
     notes:     document.getElementById('tache-notes').value.trim(),
     done:      editTacheId ? ((taches||[]).find(function(x){return x._id===editTacheId;})||{}).done||false : false,
     createdAt: editTacheId ? ((taches||[]).find(function(x){return x._id===editTacheId;})||{}).createdAt||Date.now() : Date.now()
@@ -7845,21 +7857,18 @@ function saveTache(){
   else taches.push(t);
   sbSaveConfig('taches');closeM('mo-tache');updateCounts();
   renderTaches();
-  if(dayPlan && dayPlan.blocks){
-    var blk = dayPlan.blocks.find(function(x){return x.type==='tache' && x.refId===t._id;});
-    if(blk){ blk.label=t.texte; dpSaveRemote(); }
-  }
+  dpSyncTacheBlock(t._id);
   if(planningMode==='jour') renderPlanningJour();
   if(detProjetId&&currentTab!=='taches')openProjetDetail(detProjetId);
 }
 
 function toggleTacheInProjet(tid, pid){
   var t=(taches||[]).find(function(x){return x._id===tid;});
-  if(t){t.done=!t.done;sbSaveConfig('taches');updateCounts();openProjetDetail(pid);}
+  if(t){t.done=!t.done;sbSaveConfig('taches');updateCounts();openProjetDetail(pid);dpSyncTacheBlock(tid);if(planningMode==='jour')renderPlanningJour();}
 }
 function toggleTache(tid){
   var t = (taches||[]).find(function(x){return x._id===tid;});
-  if(t){t.done=!t.done;sbSaveConfig('taches');updateCounts();renderTaches();}
+  if(t){t.done=!t.done;sbSaveConfig('taches');updateCounts();renderTaches();dpSyncTacheBlock(tid);if(planningMode==='jour')renderPlanningJour();}
 }
 
 function delTache(){
@@ -7867,11 +7876,7 @@ function delTache(){
   var tid = editTacheId;
   taches = (taches||[]).filter(function(x){return x._id!==tid;});
   sbSaveConfig('taches');closeM('mo-tache');updateCounts();renderTaches();
-  if(dayPlan && dayPlan.blocks){
-    var before = dayPlan.blocks.length;
-    dayPlan.blocks = dayPlan.blocks.filter(function(x){ return !(x.type==='tache' && x.refId===tid); });
-    if(dayPlan.blocks.length!==before) dpSaveRemote();
-  }
+  dpSyncTacheBlock(tid);
   if(planningMode==='jour') renderPlanningJour();
 }
 
@@ -8220,7 +8225,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260906 - v113 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260906 - v115 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -8925,11 +8930,52 @@ function dpBuildAuto(){
   });
   var cursor = DP_START;
   (taches||[]).filter(function(t){ return !t.done && t.echeance===TODAY; }).forEach(function(t){
-    var start = dpNextFreeSlot(cursor, 30, blocks);
-    blocks.push({id:'tache-'+t._id+'-'+Date.now()+Math.random().toString(36).slice(2,6), type:'tache', label:t.texte, start:start, dur:30, fixed:false, color:'#c9a876', done:false, refId:t._id});
-    cursor = start+30;
+    if(t.heureDebut){
+      var thd=t.heureDebut.split(':'); var tstart=parseInt(thd[0])*60+parseInt(thd[1]);
+      var tdur=30;
+      if(t.heureFin){ var thf=t.heureFin.split(':'); var tend=parseInt(thf[0])*60+parseInt(thf[1]); if(tend>tstart) tdur=tend-tstart; }
+      blocks.push({id:'tache-'+t._id, type:'tache', label:t.texte, start:tstart, dur:tdur, fixed:true, color:'#c9a876', done:false, refId:t._id});
+    } else {
+      var start = dpNextFreeSlot(cursor, 30, blocks);
+      blocks.push({id:'tache-'+t._id+'-'+Date.now()+Math.random().toString(36).slice(2,6), type:'tache', label:t.texte, start:start, dur:30, fixed:false, color:'#c9a876', done:false, refId:t._id});
+      cursor = start+30;
+    }
   });
   return {date:TODAY, blocks:blocks};
+}
+function dpSyncTacheBlock(tid){
+  // Répercute la création/modification/suppression d'une tâche (avec ou sans heure)
+  // sur le bloc correspondant dans la Vue Journée, sans reconstruire toute la journée.
+  if(!dayPlan || dayPlan.date !== TODAY) return;
+  var t = (taches||[]).find(function(x){return x._id===tid;});
+  var applies = t && !t.done && t.echeance===TODAY;
+  var existing = dayPlan.blocks.find(function(x){return x.type==='tache' && x.refId===tid;});
+  if(!applies){
+    if(existing && !existing.done){
+      dayPlan.blocks = dayPlan.blocks.filter(function(x){return x!==existing;});
+      dpSaveRemote();
+    }
+    return;
+  }
+  if(t.heureDebut){
+    var hd=t.heureDebut.split(':'); var start=parseInt(hd[0])*60+parseInt(hd[1]);
+    var dur=30;
+    if(t.heureFin){ var hf=t.heureFin.split(':'); var end=parseInt(hf[0])*60+parseInt(hf[1]); if(end>start) dur=end-start; }
+    if(existing){
+      existing.start=start; existing.dur=dur; existing.label=t.texte; existing.fixed=true;
+    } else {
+      dayPlan.blocks.push({id:'tache-'+tid, type:'tache', label:t.texte, start:start, dur:dur, fixed:true, color:'#c9a876', done:false, refId:tid});
+    }
+  } else {
+    if(existing){
+      existing.label = t.texte;
+      existing.fixed = false; // plus d'heure précise → redevient un créneau flexible (déplaçable)
+    } else {
+      var start2 = dpNextFreeSlot(DP_START, 30, dayPlan.blocks);
+      dayPlan.blocks.push({id:'tache-'+tid+'-'+Date.now(), type:'tache', label:t.texte, start:start2, dur:30, fixed:false, color:'#c9a876', done:false, refId:tid});
+    }
+  }
+  dpSaveRemote();
 }
 function dpResolveOverlaps(){
   var blocks = dayPlan.blocks;
