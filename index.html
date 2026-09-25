@@ -1561,8 +1561,8 @@ function doLogout(){
     <div class="mb">
       <div class="fg"><label>Tâche *</label><input type="text" id="tache-texte" placeholder="Décrire la tâche…"></div>
       <div class="fr">
-        <div class="fg"><label>Projet lié</label>
-          <select id="tache-projet"><option value="">— Aucun —</option></select>
+        <div class="fg"><label>Lié à</label>
+          <select id="tache-lien"><option value="">— Aucun —</option></select>
         </div>
         <div class="fg"><label>Priorité</label>
           <select id="tache-prio">
@@ -7750,7 +7750,7 @@ function renderTaches(){
   }
 
   function tacheRow(t){
-    var proj = t.projetId ? projets.find(function(p){return p._id===t.projetId;}) : null;
+    var lienInfo = tacheLienInfo(t);
     var html = '<div style="display:flex;align-items:flex-start;gap:10px;padding:12px 16px;background:var(--w);border:1px solid var(--border);border-radius:var(--r);margin-bottom:6px;'+(t.done?'opacity:.5;':'')+' transition:box-shadow .15s;">';
     // Checkbox
     html += '<div onclick="toggleTache(\'' + t._id + '\')"> '+(t.done?'<span style="color:var(--w);font-size:.65rem;">✓</span>':'')+'</div>';
@@ -7759,7 +7759,7 @@ function renderTaches(){
     html += '<div style="font-size:.88rem;color:var(--ink);'+(t.done?'text-decoration:line-through;':'')+'">'+t.texte+'</div>';
     html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;">';
     if(t.prio) html += '<span style="font-size:.7rem;">'+prioL[t.prio]+'</span>';
-    if(proj) html += '<span class="mtag" style="cursor:pointer;" onclick="setTab(\'projets\');setTimeout(function(){openProjetDetail(\'' + proj._id + '\');},100)">📁 '+proj.titre+'</span>';
+    if(lienInfo) html += '<span class="mtag"'+(lienInfo.onclick?' style="cursor:pointer;" onclick="'+lienInfo.onclick+'"':'')+'>'+lienInfo.icon+lienInfo.label+'</span>';
     if(t.echeance){
       var ec = new Date(t.echeance+'T00:00:00');
       var isLate = !t.done && t.echeance < TODAY;
@@ -7810,8 +7810,8 @@ function renderTaches(){
 function openAddTacheForProjet(pid){
   openAddTache();
   setTimeout(function(){
-    var sel=document.getElementById('tache-projet');
-    if(sel)sel.value=pid;
+    var sel=document.getElementById('tache-lien');
+    if(sel)sel.value='proj-'+pid;
   },50);
 }
 function openAddTache(){
@@ -7829,7 +7829,7 @@ function openAddTache(){
   function fmtHM(d){ return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); }
   document.getElementById('tache-heure-debut').value = fmtHM(hd);
   document.getElementById('tache-heure-fin').value = fmtHM(hf);
-  fillTacheProjet(null);
+  fillTacheLien(null);
   openM('mo-tache');
 }
 
@@ -7845,26 +7845,86 @@ function openEditTache(tid){
   document.getElementById('tache-heure-fin').value   = t.heureFin||'';
   document.getElementById('tache-notes').value    = t.notes||'';
   document.getElementById('tache-del-btn').style.display = 'inline-block';
-  fillTacheProjet(t.projetId);
+  fillTacheLien(t.lienId || (t.projetId ? 'proj-'+t.projetId : ''));
   openM('mo-tache');
 }
 
-function fillTacheProjet(currentId){
-  var sel = document.getElementById('tache-projet');
-  sel.innerHTML = '<option value="">— Aucun —</option>' +
-    (projets||[]).map(function(p){
-      return '<option value="'+p._id+'"'+(p._id===currentId?' selected':'')+'>'+p.titre+'</option>';
-    }).join('');
+function fillTacheLien(currentVal){
+  // Même liste complète que dans "Aujourd'hui" / le planning : activités, projets, œuvres, exemplaires…
+  var sel = document.getElementById('tache-lien');
+  sel.innerHTML = buildJExOptionsHTML();
+  sel.value = currentVal || '';
+  if(currentVal && sel.value !== currentVal){
+    // Le lien pointe vers un élément qui n'est plus dans la liste (terminé/filtré) —
+    // on l'ajoute à la volée pour ne pas perdre l'info.
+    var lbl = tacheLienLabelFromId(currentVal) || currentVal;
+    var opt = document.createElement('option');
+    opt.value = currentVal; opt.textContent = lbl; opt.selected = true;
+    sel.appendChild(opt);
+  }
+}
+function tacheLienLabelFromId(lien){
+  if(!lien) return '';
+  if(lien.indexOf('proj-')===0){
+    var p=(projets||[]).find(function(x){return x._id===lien.replace('proj-','');});
+    return p ? '📁 '+p.titre : '';
+  }
+  if(lien.indexOf('activ-')===0){
+    var a=(activites||[]).find(function(x){return x.id===lien.replace('activ-','');});
+    return a ? a.label : '';
+  }
+  if(lien.indexOf('o-')===0){
+    var o=(oeuvres||[]).find(function(x){return x._id===lien;});
+    return o ? typeEmoji(o.type)+' '+o.num+' — '+o.nom : '';
+  }
+  if(lien.indexOf('e-')===0){
+    var e=(exemplaires||[]).find(function(x){return x._id===lien;});
+    if(!e) return '';
+    var oe=(oeuvres||[]).find(function(x){return x._id===e.oeuvreId;});
+    return e.exId+' — '+(oe?(oe.nom||oe.num):'?');
+  }
+  return '';
+}
+function tacheLienInfo(t){
+  var lien = t.lienId || (t.projetId ? 'proj-'+t.projetId : '');
+  if(!lien) return null;
+  if(lien.indexOf('proj-')===0){
+    var pid=lien.replace('proj-','');
+    var p=(projets||[]).find(function(x){return x._id===pid;});
+    if(!p) return null;
+    return {icon:'📁 ', label:p.titre, onclick:"setTab('projets');setTimeout(function(){openProjetDetail('"+pid+"');},100)"};
+  }
+  if(lien.indexOf('activ-')===0){
+    var a=(activites||[]).find(function(x){return x.id===lien.replace('activ-','');});
+    if(!a) return null;
+    return {icon:'', label:a.label, onclick:null};
+  }
+  if(lien.indexOf('o-')===0){
+    var o=(oeuvres||[]).find(function(x){return x._id===lien;});
+    if(!o) return null;
+    return {icon:typeEmoji(o.type)+' ', label:o.nom||o.num, onclick:"openEditOeuvre('"+lien+"')"};
+  }
+  if(lien.indexOf('e-')===0){
+    var e=(exemplaires||[]).find(function(x){return x._id===lien;});
+    if(!e) return null;
+    var oe=(oeuvres||[]).find(function(x){return x._id===e.oeuvreId;});
+    return {icon:matEmoji(e.mat)+' ', label:e.exId+(oe?' — '+(oe.nom||oe.num):''), onclick:"openDetail('"+lien+"')"};
+  }
+  return null;
 }
 
 function saveTache(){
   var texte = document.getElementById('tache-texte').value.trim();
   if(!texte){alert('La tâche est obligatoire.');return;}
+  var lienVal = document.getElementById('tache-lien').value || null;
   var t = {
     _id:       editTacheId || 't-'+Date.now(),
     texte:     texte,
     prio:      document.getElementById('tache-prio').value,
-    projetId:  document.getElementById('tache-projet').value||null,
+    lienId:    lienVal,
+    // projetId reste alimenté (uniquement quand le lien est un projet) pour que la fiche
+    // projet continue de retrouver ses tâches liées comme avant.
+    projetId:  (lienVal && lienVal.indexOf('proj-')===0) ? lienVal.replace('proj-','') : null,
     echeance:  document.getElementById('tache-echeance').value||null,
     heureDebut: document.getElementById('tache-heure-debut').value||null,
     heureFin:   document.getElementById('tache-heure-fin').value||null,
@@ -8244,7 +8304,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260925 - v120 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260925 - v121 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -9493,7 +9553,7 @@ function openDpLog(id){
     defaultVal = (b.itemType==='projet') ? 'proj-'+b.refId : b.refId;
   } else if(b.type==='tache'){
     var t0 = (taches||[]).find(function(x){return x._id===b.refId;});
-    if(t0 && t0.projetId) defaultVal = 'proj-'+t0.projetId;
+    if(t0) defaultVal = t0.lienId || (t0.projetId ? 'proj-'+t0.projetId : '');
   }
   itemSel.value = defaultVal;
   if(defaultVal && itemSel.value !== defaultVal){
@@ -9541,10 +9601,19 @@ function confirmDpLog(){
     }
   } else if(b.type==='tache'){
     var t = (taches||[]).find(function(x){return x._id===b.refId;});
-    if(t && t.projetId){
-      var p3 = (projets||[]).find(function(x){return x._id===t.projetId;});
-      projetId = t.projetId; exId = 'proj-'+t.projetId; activId=null;
+    var tLien = t ? (t.lienId || (t.projetId ? 'proj-'+t.projetId : '')) : '';
+    if(tLien && tLien.indexOf('proj-')===0){
+      var pid3 = tLien.replace('proj-','');
+      var p3 = (projets||[]).find(function(x){return x._id===pid3;});
+      projetId = pid3; exId = tLien; activId=null;
       label = '📁 '+(p3?p3.titre:label);
+    } else if(tLien && tLien.indexOf('activ-')===0){
+      var aid3 = tLien.replace('activ-','');
+      var a3 = (activites||[]).find(function(x){return x.id===aid3;});
+      exId = tLien; projetId=null; activId=aid3;
+      label = a3 ? a3.label : label;
+    } else if(tLien){
+      exId = tLien; projetId=null; activId=null;
     }
   } else if(b.type==='item'){
     if(b.itemType==='projet'){
