@@ -8244,7 +8244,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260925 - v118 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260925 - v119 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -9562,6 +9562,11 @@ function confirmDpLog(){
   b.done = true;
   b.realDur = dur;
   b.sessionId = _ns._id;
+  // Valider une tâche dans le planning la coche aussi comme terminée dans l'onglet Tâches.
+  if(b.type==='tache' && b.refId){
+    var tDone = (taches||[]).find(function(x){return x._id===b.refId;});
+    if(tDone && !tDone.done){ tDone.done = true; sbSaveConfig('taches'); }
+  }
   dpSaveRemote();
   closeM('mo-dp-log');
   updateCounts();
@@ -9577,6 +9582,11 @@ function dpUndoLog(id){
     sessions = sessions.filter(function(s){return s._id!=b.sessionId;});
     sbDelete('sessions', String(b.sessionId)).catch(function(e){console.error('dpUndoLog delete session',e);});
     if(_s)syncDebutFin(_s.exId);
+  }
+  // Annuler la validation décoche aussi la tâche correspondante (elle redevient "à faire").
+  if(b.type==='tache' && b.refId){
+    var tUndo = (taches||[]).find(function(x){return x._id===b.refId;});
+    if(tUndo && tUndo.done){ tUndo.done = false; sbSaveConfig('taches'); }
   }
   b.done = false;
   b.realDur = null;
