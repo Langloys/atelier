@@ -836,7 +836,7 @@ function doLogout(){
       <input type="text" class="srch" id="proj-srch" placeholder="Rechercher…" oninput="renderProjets()" style="width:180px;">
       <select class="fsel" id="proj-status-f" onchange="renderProjets()">
         <option value="">Tous statuts</option>
-        <option value="encours">En cours</option>
+        <option value="encours" selected>En cours</option>
         <option value="termine">Terminé</option>
       </select>
     </div>
@@ -8244,7 +8244,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260925 - v119 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260925 - v120 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
