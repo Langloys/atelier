@@ -7780,12 +7780,22 @@ function renderTaches(){
   }
   var html = '';
   if(pending.length){
-    // Sort by priority then echeance
+    // Classement par urgence : en retard d'abord, puis aujourd'hui, puis à venir, puis sans échéance —
+    // et à l'intérieur de chaque groupe, priorité puis date/heure la plus proche.
+    function urgenceRang(t){
+      if(!t.echeance) return 3;
+      if(t.echeance < TODAY) return 0;
+      if(t.echeance === TODAY) return 1;
+      return 2;
+    }
     pending.sort(function(a,b){
-      var pa=parseInt(a.prio||9), pb=parseInt(b.prio||9);
-      if(pa!==pb)return pa-pb;
-      if(a.echeance&&b.echeance)return a.echeance.localeCompare(b.echeance);
-      return 0;
+      var ra=urgenceRang(a), rb=urgenceRang(b);
+      if(ra!==rb) return ra-rb;
+      var pa=parseInt(a.prio)||9, pb=parseInt(b.prio)||9;
+      if(pa!==pb) return pa-pb;
+      var da=(a.echeance||'')+'T'+(a.heureDebut||'00:00');
+      var db=(b.echeance||'')+'T'+(b.heureDebut||'00:00');
+      return da.localeCompare(db);
     });
     html += '<div style="font-size:.65rem;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin-bottom:8px;font-weight:500;">À faire ('+pending.length+')</div>';
     html += pending.map(tacheRow).join('');
@@ -7807,9 +7817,18 @@ function openAddTacheForProjet(pid){
 function openAddTache(){
   editTacheId = null;
   document.getElementById('mo-tache-title').textContent = 'Nouvelle tâche';
-  ['tache-texte','tache-notes','tache-echeance','tache-heure-debut','tache-heure-fin'].forEach(function(i){document.getElementById(i).value='';});
+  ['tache-texte','tache-notes'].forEach(function(i){document.getElementById(i).value='';});
   document.getElementById('tache-prio').value = '3';
   document.getElementById('tache-del-btn').style.display = 'none';
+  // Pré-remplissage : aujourd'hui, heure actuelle (arrondie au 1/4h) → +30 min
+  document.getElementById('tache-echeance').value = TODAY;
+  var now = new Date();
+  var roundedMin = Math.round(now.getMinutes()/15)*15;
+  var hd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), roundedMin, 0, 0);
+  var hf = new Date(hd.getTime() + 30*60000);
+  function fmtHM(d){ return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); }
+  document.getElementById('tache-heure-debut').value = fmtHM(hd);
+  document.getElementById('tache-heure-fin').value = fmtHM(hf);
   fillTacheProjet(null);
   openM('mo-tache');
 }
@@ -8225,7 +8244,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260906 - v117 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260925 - v118 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
