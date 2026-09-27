@@ -8304,7 +8304,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260927 - v122 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260927 - v123 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -8938,7 +8938,10 @@ function dpChangeDay(delta){
   if(!dpViewDate) dpViewDate = TODAY;
   var d = new Date(dpViewDate+'T00:00:00');
   d.setDate(d.getDate()+delta);
-  var ds = d.toISOString().slice(0,10);
+  // On reconstruit la date à partir des composantes LOCALES (et non toISOString, qui
+  // repasse par UTC et peut faire "reculer" la date dans les fuseaux horaires en avance
+  // sur UTC, comme la France — c'était le bug empêchant d'avancer au jour suivant).
+  var ds = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
   if(ds < TODAY) return; // on prépare les jours à venir, pas le passé (déjà dans le Journal)
   dpViewDate = ds;
   renderPlanningJour();
