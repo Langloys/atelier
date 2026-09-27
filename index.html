@@ -8332,7 +8332,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260927 - v127 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260927 - v128 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -9562,14 +9562,16 @@ function dpBuildQaOptions(){
       });
       html += '</optgroup>';
     }
-    var freeTasks = (taches||[]).filter(function(t){ return !t.done && !t.echeance; });
-    if(freeTasks.length){
-      html += '<optgroup label="Tâches sans date">';
-      freeTasks.forEach(function(t){
-        html += '<option value="tache|'+t._id+'">'+t.texte.replace(/</g,'&lt;')+'</option>';
-      });
-      html += '</optgroup>';
-    }
+  }
+  // "Tâches sans date" : disponible aussi les jours suivants — les choisir ici leur donne
+  // directement l'échéance et l'heure du jour affiché.
+  var freeTasks = (taches||[]).filter(function(t){ return !t.done && !t.echeance; });
+  if(freeTasks.length){
+    html += '<optgroup label="Tâches sans date">';
+    freeTasks.forEach(function(t){
+      html += '<option value="tache|'+t._id+'">'+t.texte.replace(/</g,'&lt;')+'</option>';
+    });
+    html += '</optgroup>';
   }
   sel.innerHTML = html;
   sel.value = '';
@@ -9643,6 +9645,21 @@ function dpConfirmQuickAdd(){
   }
   var start = (_dpQuickAddStart!==null) ? _dpQuickAddStart : DP_START;
   start = Math.min(start, DP_END-dur);
+  if(!isToday && val.indexOf('tache|')===0){
+    // Sur un jour suivant, choisir une tâche sans date lui donne directement l'échéance
+    // et l'heure de ce jour — elle réapparaîtra ensuite comme les autres tâches de l'aperçu.
+    var tid0 = val.slice(6);
+    var t0 = (taches||[]).find(function(x){return x._id===tid0;});
+    if(t0){
+      t0.echeance = dpViewDate;
+      t0.heureDebut = dpMinToStr(start);
+      t0.heureFin = dpMinToStr(start+dur);
+      sbSaveConfig('taches');
+    }
+    closeM('mo-dp-quickadd');
+    renderPlanningJour();
+    return;
+  }
   var block;
   if(freeLabel){
     block = {id:'custom-'+Date.now(), type:'custom', label:freeLabel, start:start, dur:dur, fixed:false, color:'#a89bc9', done:false, refId:null};
