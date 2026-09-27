@@ -502,6 +502,7 @@ async function loadFromSupabase() {
         if(row.key === 'galeries' && row.data) galeries = row.data;
         if(row.key === 'planEvts' && row.data) planEvts = row.data;
         if(row.key === 'dayPlan' && row.data) dayPlan = row.data;
+        if(row.key === 'dpFutureBlocks' && row.data) dpFutureBlocks = row.data;
       });
     }
     ensureMatiereActions();
@@ -559,7 +560,7 @@ function sbSaveOeuvre(o){ sbUpsert('oeuvres',o._id,o).catch(function(e){console.
 function sbSaveEx(e){ sbUpsert('exemplaires',e._id,e).catch(function(e2){console.error('sbSaveEx',e2);}); }
 function sbSaveProjet(p){ sbUpsert('projets',p._id,p).catch(function(e){console.error('sbSaveProjet',e);}); }
 function sbSaveClient(c){ sbUpsert('clients',c._id,c).catch(function(e){console.error('sbSaveClient',e);}); }
-function sbSaveConfig(key){ var val; if(key==='actionsConfig')val=actionsConfig; else if(key==='activites')val=activites; else if(key==='recettesPatine')val=recettesPatine; else if(key==='taches')val=taches; else if(key==='techniques')val=techniques||[]; else if(key==='matieres')val=matieres||[]; else if(key==='typesOeuvres')val=typesOeuvres||[]; else if(key==='creationActions')val=creationActions||[]; else if(key==='lieux')val=lieux||[]; else if(key==='fonderies')val=fonderies||[]; else if(key==='rangements')val=rangements||[]; else if(key==='galeries')val=galeries||[]; else if(key==='planEvts')val=planEvts||[]; else if(key==='finances')val=finances||[]; else if(key==='finTypes')val=finTypes||[]; else if(key==='interactionTypes')val=interactionTypes||[]; else if(key==='relationTags')val=relationTags||[]; else if(key==='relationGroups')val=relationGroups||[]; else if(key==='dayPlan')val=dayPlan; else return; sbUpsert('config',key,val).catch(function(e){console.error('sbSaveConfig '+key,e);}); }
+function sbSaveConfig(key){ var val; if(key==='actionsConfig')val=actionsConfig; else if(key==='activites')val=activites; else if(key==='recettesPatine')val=recettesPatine; else if(key==='taches')val=taches; else if(key==='techniques')val=techniques||[]; else if(key==='matieres')val=matieres||[]; else if(key==='typesOeuvres')val=typesOeuvres||[]; else if(key==='creationActions')val=creationActions||[]; else if(key==='lieux')val=lieux||[]; else if(key==='fonderies')val=fonderies||[]; else if(key==='rangements')val=rangements||[]; else if(key==='galeries')val=galeries||[]; else if(key==='planEvts')val=planEvts||[]; else if(key==='finances')val=finances||[]; else if(key==='finTypes')val=finTypes||[]; else if(key==='interactionTypes')val=interactionTypes||[]; else if(key==='relationTags')val=relationTags||[]; else if(key==='relationGroups')val=relationGroups||[]; else if(key==='dayPlan')val=dayPlan; else if(key==='dpFutureBlocks')val=dpFutureBlocks||{}; else return; sbUpsert('config',key,val).catch(function(e){console.error('sbSaveConfig '+key,e);}); }
 function sbSaveAllConfig(){ ['actionsConfig','activites','recettesPatine','taches','techniques','matieres','typesOeuvres','creationActions','lieux','fonderies','rangements','galeries','interactionTypes','relationTags','relationGroups'].forEach(sbSaveConfig); }
 
 async function persistSupabase() {
@@ -8311,7 +8312,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260927 - v125 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260927 - v126 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -8941,6 +8942,7 @@ var _dpLogId = null;
 var _dpAutoScrolled = false; // n'auto-cale sur l'heure actuelle qu'à l'arrivée sur la vue, pas à chaque re-rendu
 var dpViewDate = null; // date affichée dans la Vue Journée ; null = TODAY (initialisé au premier rendu)
 var dpCurBlocks = null; // tableau de blocs actuellement affiché (dayPlan.blocks pour aujourd'hui, aperçu sinon) — cible du drag/resize
+var dpFutureBlocks = {}; // { 'YYYY-MM-DD': [bloc libre, ...] } — éléments type "Trajet" ajoutés à la main sur un jour suivant (persistés, indépendants de dayPlan qui reste réservé à aujourd'hui)
 
 function dpChangeDay(delta){
   if(!dpViewDate) dpViewDate = TODAY;
@@ -8977,6 +8979,10 @@ function dpBuildPreview(dateStr){
     if(t.heureFin){ var hf=t.heureFin.split(':'); var end=parseInt(hf[0])*60+parseInt(hf[1]); if(end>start) dur=end-start; }
     blocks.push({id:'prev-tache-'+t._id, type:'tache', label:t.texte, start:start, dur:dur, fixed:false, color:'#c9a876', done:false, refId:t._id, preview:true});
   });
+  // Éléments libres ajoutés à la main pour ce jour-là (ex. "Trajet") — persistés dans
+  // dpFutureBlocks, indépendants de dayPlan. Mêmes objets par référence, pour que les
+  // modifications (glisser, éditer) s'appliquent directement au tableau stocké.
+  (dpFutureBlocks[dateStr]||[]).forEach(function(b){ blocks.push(b); });
   return blocks;
 }
 function dpPreviewUnscheduled(dateStr){
@@ -9212,8 +9218,8 @@ function renderPlanningJour(){
   if(!isViewingToday) html += '<button class="btn btn-sm" onclick="dpGoToday()" style="margin-left:4px;">Aujourd\'hui</button>';
   html += '</div>';
   if(!isViewingToday){
-    html += '<div style="text-align:center;font-size:.7rem;color:var(--faint);font-style:italic;margin-bottom:8px;">👁 Aperçu indicatif, non enregistré — les œuvres/exemplaires/projets à faire restent à consulter dans la Vue Algorithme.</div>';
-    html += '<div style="text-align:center;margin-bottom:12px;"><button class="btn btn-sm" onclick="openAddTache(\''+dpViewDate+'\')">+ Ajouter une tâche ce jour-là</button></div>';
+    html += '<div style="text-align:center;font-size:.7rem;color:var(--faint);font-style:italic;margin-bottom:8px;">👁 Tâches, rendez-vous et éléments ajoutés ici sont bien enregistrés — seules les œuvres/exemplaires/projets à faire restent à consulter dans la Vue Algorithme (pas recalculés sur cette page).</div>';
+    html += '<div style="text-align:center;margin-bottom:12px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;"><button class="btn btn-sm" onclick="openAddTache(\''+dpViewDate+'\')">+ Ajouter une tâche</button><button class="btn btn-sm" onclick="dpOpenQuickAdd(480)">+ Ajouter un élément (trajet…)</button></div>';
   }
 
   var infoEvts = isViewingToday ? dpTodayInfoEvts() : dpPreviewInfoEvts(dpViewDate);
@@ -9240,8 +9246,7 @@ function renderPlanningJour(){
     });
     html += '</div></div>';
   }
-  var gridClick = isViewingToday ? ' onclick="dpGridClick(event)"' : '';
-  html += '<div id="dp-grid"'+gridClick+' style="position:relative;height:'+totalPx+'px;border:1px solid var(--border);border-radius:var(--r);background:var(--w);background-image:repeating-linear-gradient(to bottom, var(--border) 0, var(--border) 1px, transparent 1px, transparent '+DP_PXSLOT+'px);margin-left:52px;'+(isViewingToday?'cursor:copy;':'')+'">';
+  html += '<div id="dp-grid" onclick="dpGridClick(event)" style="position:relative;height:'+totalPx+'px;border:1px solid var(--border);border-radius:var(--r);background:var(--w);background-image:repeating-linear-gradient(to bottom, var(--border) 0, var(--border) 1px, transparent 1px, transparent '+DP_PXSLOT+'px);margin-left:52px;cursor:copy;">';
   for(var h=Math.ceil(DP_START/60); h*60<=DP_END; h++){
     var top=((h*60-DP_START)/DP_SLOT)*DP_PXSLOT;
     html += '<div style="position:absolute;left:-52px;top:'+(top-7)+'px;width:44px;text-align:right;font-size:.68rem;color:var(--faint);">'+String(h).padStart(2,'0')+':00</div>';
@@ -9266,7 +9271,7 @@ function renderPlanningJour(){
     var widthPct = (100/lay.cols);
     if(b.preview && b.type==='rdv'){
       // Rendez-vous en aperçu : lecture seule (à modifier depuis Vue Perso/l'agenda), style discret en pointillés.
-      html += '<div title="'+dpMinToStr(b.start)+'–'+dpMinToStr(b.start+b.dur)+' (aperçu)" style="position:absolute;left:calc('+leftPct+'% + 2px);width:calc('+widthPct+'% - 4px);top:'+top+'px;height:'+height+'px;background:'+bg+'1a;border:1px dashed '+bg+';border-radius:4px;overflow:hidden;display:flex;align-items:center;padding:0 6px;">';
+      html += '<div class="dp-block" title="'+dpMinToStr(b.start)+'–'+dpMinToStr(b.start+b.dur)+' (aperçu)" style="position:absolute;left:calc('+leftPct+'% + 2px);width:calc('+widthPct+'% - 4px);top:'+top+'px;height:'+height+'px;background:'+bg+'1a;border:1px dashed '+bg+';border-radius:4px;overflow:hidden;display:flex;align-items:center;padding:0 6px;">';
       html += '<div style="flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:.7rem;font-weight:500;color:var(--mid);">'+b.label+'</div>';
       html += '</div>';
       return;
@@ -9288,7 +9293,7 @@ function renderPlanningJour(){
       html += '<button onclick="event.stopPropagation();dpToggleFixed(\''+b.id+'\')" title="'+(b.fixed?'Fixe — cliquer pour rendre flexible':'Flexible — cliquer pour figer')+'" style="flex-shrink:0;border:none;padding:0;cursor:pointer;width:15px;height:15px;border-radius:50%;background:'+(b.fixed?'var(--red)':'var(--green)')+';display:flex;align-items:center;justify-content:center;">'+lockSvg+'</button>';
     }
     html += '<div class="dp-block-drag" data-id="'+b.id+'" style="flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:.7rem;font-weight:600;color:var(--ink);'+(b.fixed?'':'cursor:grab;')+'">'+b.label+(b.done?' <span style="font-weight:400;color:var(--faint);">· fait '+fmtMin(b.realDur||b.dur)+'</span>':'')+'</div>';
-    if(!b.preview){
+    if(!b.preview && !b.future){
       if(!b.done) html += '<button onclick="event.stopPropagation();openDpLog(\''+b.id+'\')" style="flex-shrink:0;border:none;background:var(--ink);color:var(--w);font-size:.62rem;padding:3px 7px;border-radius:10px;cursor:pointer;">✓ '+fmtMin(b.dur)+'</button>';
       else html += '<button onclick="event.stopPropagation();dpUndoLog(\''+b.id+'\')" title="Annuler cette session" style="flex-shrink:0;border:none;background:none;color:var(--faint);font-size:.85rem;cursor:pointer;padding:0;">✓</button>';
     }
@@ -9337,20 +9342,25 @@ function dpAttachHandlers(){
 }
 
 function dpDeleteBlock(id){
-  var b = dayPlan.blocks.find(function(x){return x.id===id;});
+  var b = (dpCurBlocks||[]).find(function(x){return x.id===id;});
   if(!b) return;
-  var msg = b.done ? 'Retirer ce bloc de la journée ? La session déjà validée reste dans le Journal.' : 'Supprimer ce bloc de la journée ?';
+  var msg = b.done ? 'Retirer ce bloc de la journée ? La session déjà validée reste dans le Journal.' : 'Supprimer cet élément ?';
   if(!confirm(msg)) return;
-  dayPlan.blocks = dayPlan.blocks.filter(function(x){return x.id!==id;});
-  dpSaveRemote();
+  if(b.future){
+    dpFutureBlocks[dpViewDate] = (dpFutureBlocks[dpViewDate]||[]).filter(function(x){return x.id!==id;});
+    sbSaveConfig('dpFutureBlocks');
+  } else {
+    dayPlan.blocks = dayPlan.blocks.filter(function(x){return x.id!==id;});
+    dpSaveRemote();
+  }
   renderPlanningJour();
 }
 
 function dpToggleFixed(id){
-  var b = dayPlan.blocks.find(function(x){return x.id===id;});
+  var b = (dpCurBlocks||[]).find(function(x){return x.id===id;});
   if(!b) return;
   b.fixed = !b.fixed;
-  dpSaveRemote();
+  if(b.future) sbSaveConfig('dpFutureBlocks'); else dpSaveRemote();
   renderPlanningJour();
 }
 
@@ -9401,10 +9411,12 @@ function dpHideLabelBubble(){
 
 function dpEndBlockEdit(b){
   // Fin de glisser/redimensionner : sur aujourd'hui on sauvegarde dayPlan comme avant ;
-  // sur un aperçu de jour suivant, on répercute juste la nouvelle heure sur la tâche
-  // elle-même (dpSyncRdvToEvt s'en charge déjà et l'enregistre), rien d'autre à persister.
+  // pour une tâche en aperçu, on répercute la nouvelle heure sur la tâche elle-même
+  // (dpSyncRdvToEvt s'en charge et l'enregistre) ; pour un élément libre ajouté sur un
+  // jour suivant (ex. Trajet), on sauvegarde dans son propre stockage par jour.
   dpSyncRdvToEvt(b);
-  if(!b.preview) dpSaveRemote();
+  if(b.future) sbSaveConfig('dpFutureBlocks');
+  else if(!b.preview) dpSaveRemote();
   renderPlanningJour();
 }
 
@@ -9519,22 +9531,25 @@ function dpTodayScheduledItems(){
 function dpBuildQaOptions(){
   var sel = document.getElementById('dp-qa-select');
   if(!sel) return;
+  var isToday = (!dpViewDate || dpViewDate===TODAY);
   var html = '<option value="">— ou choisir dans la liste —</option><option value="trajet">🚗 Trajet</option>';
-  var todayItems = dpTodayScheduledItems();
-  if(todayItems.length){
-    html += '<optgroup label="Programmé aujourd\'hui">';
-    todayItems.forEach(function(it){
-      html += '<option value="item|'+it.itype+'|'+it.id+'">'+it.label+'</option>';
-    });
-    html += '</optgroup>';
-  }
-  var freeTasks = (taches||[]).filter(function(t){ return !t.done && !t.echeance; });
-  if(freeTasks.length){
-    html += '<optgroup label="Tâches sans date">';
-    freeTasks.forEach(function(t){
-      html += '<option value="tache|'+t._id+'">'+t.texte.replace(/</g,'&lt;')+'</option>';
-    });
-    html += '</optgroup>';
+  if(isToday){
+    var todayItems = dpTodayScheduledItems();
+    if(todayItems.length){
+      html += '<optgroup label="Programmé aujourd\'hui">';
+      todayItems.forEach(function(it){
+        html += '<option value="item|'+it.itype+'|'+it.id+'">'+it.label+'</option>';
+      });
+      html += '</optgroup>';
+    }
+    var freeTasks = (taches||[]).filter(function(t){ return !t.done && !t.echeance; });
+    if(freeTasks.length){
+      html += '<optgroup label="Tâches sans date">';
+      freeTasks.forEach(function(t){
+        html += '<option value="tache|'+t._id+'">'+t.texte.replace(/</g,'&lt;')+'</option>';
+      });
+      html += '</optgroup>';
+    }
   }
   sel.innerHTML = html;
   sel.value = '';
@@ -9559,7 +9574,8 @@ function dpOpenQuickAdd(start){
   if(sel0) sel0.style.display='';
   var cb0 = document.getElementById('dp-qa-confirm-btn');
   if(cb0) cb0.textContent='Ajouter';
-  document.getElementById('dp-qa-heure').textContent = dpMinToStr(start);
+  var isToday = (!dpViewDate || dpViewDate===TODAY);
+  document.getElementById('dp-qa-heure').textContent = dpMinToStr(start)+(isToday?'':' ('+dpViewDate.split('-').reverse().join('/')+')');
   document.getElementById('dp-qa-dur').value='30';
   document.getElementById('dp-qa-label').value='';
   dpBuildQaOptions();
@@ -9567,7 +9583,7 @@ function dpOpenQuickAdd(start){
   setTimeout(function(){ var el=document.getElementById('dp-qa-label'); if(el) el.focus(); }, 60);
 }
 function dpEditBlock(id){
-  var b = dayPlan.blocks.find(function(x){return x.id===id;});
+  var b = (dpCurBlocks||[]).find(function(x){return x.id===id;});
   if(!b) return;
   if(b.type==='rdv'){ if(b.refId) openEditEvtPlanning(b.refId); return; }
   if(b.type==='tache'){ if(b.refId) openEditTache(b.refId); return; }
@@ -9592,12 +9608,13 @@ function dpConfirmQuickAdd(){
   var val = sel ? sel.value : '';
   var freeLabel = document.getElementById('dp-qa-label').value.trim();
   var dur = parseInt(document.getElementById('dp-qa-dur').value)||30;
+  var isToday = (!dpViewDate || dpViewDate===TODAY);
   if(_dpEditBlockId){
-    var eb = dayPlan.blocks.find(function(x){return x.id===_dpEditBlockId;});
+    var eb = (dpCurBlocks||[]).find(function(x){return x.id===_dpEditBlockId;});
     if(eb){
       if(freeLabel) eb.label = freeLabel;
       eb.dur = dur;
-      dpSaveRemote();
+      if(eb.future) sbSaveConfig('dpFutureBlocks'); else dpSaveRemote();
     }
     _dpEditBlockId = null;
     closeM('mo-dp-quickadd');
@@ -9611,11 +9628,11 @@ function dpConfirmQuickAdd(){
     block = {id:'custom-'+Date.now(), type:'custom', label:freeLabel, start:start, dur:dur, fixed:false, color:'#a89bc9', done:false, refId:null};
   } else if(val==='trajet'){
     block = {id:'custom-'+Date.now(), type:'custom', label:'🚗 Trajet', start:start, dur:dur, fixed:false, color:'#a89bc9', done:false, refId:null};
-  } else if(val.indexOf('tache|')===0){
+  } else if(isToday && val.indexOf('tache|')===0){
     var tid = val.slice(6);
     var t = (taches||[]).find(function(x){return x._id===tid;});
     block = {id:'tache-'+tid+'-'+Date.now(), type:'tache', label:t?t.texte:'Tâche', start:start, dur:dur, fixed:false, color:'#c9a876', done:false, refId:tid};
-  } else if(val.indexOf('item|')===0){
+  } else if(isToday && val.indexOf('item|')===0){
     var parts = val.split('|'), itype=parts[1], id=parts[2];
     var opt = sel.options[sel.selectedIndex];
     var label = opt ? opt.textContent : id;
@@ -9625,8 +9642,15 @@ function dpConfirmQuickAdd(){
     alert('Tape un nom ou choisis quelque chose dans la liste.');
     return;
   }
-  dayPlan.blocks.push(block);
-  dpSaveRemote();
+  if(isToday){
+    dayPlan.blocks.push(block);
+    dpSaveRemote();
+  } else {
+    block.future = true;
+    if(!dpFutureBlocks[dpViewDate]) dpFutureBlocks[dpViewDate] = [];
+    dpFutureBlocks[dpViewDate].push(block);
+    sbSaveConfig('dpFutureBlocks');
+  }
   closeM('mo-dp-quickadd');
   renderPlanningJour();
 }
