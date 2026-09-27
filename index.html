@@ -1563,7 +1563,10 @@ function doLogout(){
       <div class="fg"><label>Tâche *</label><input type="text" id="tache-texte" placeholder="Décrire la tâche…"></div>
       <div class="fr">
         <div class="fg"><label>Lié à</label>
-          <select id="tache-lien"><option value="">— Aucun —</option></select>
+          <select id="tache-lien" onchange="tacheLienChange()"><option value="">— Aucun —</option></select>
+        </div>
+        <div class="fg"><label>Action <span style="font-weight:400;color:var(--faint);">(optionnel)</span></label>
+          <select id="tache-action"><option value="">—</option></select>
         </div>
         <div class="fg"><label>Priorité</label>
           <select id="tache-prio">
@@ -7853,11 +7856,11 @@ function openEditTache(tid){
   document.getElementById('tache-heure-fin').value   = t.heureFin||'';
   document.getElementById('tache-notes').value    = t.notes||'';
   document.getElementById('tache-del-btn').style.display = 'inline-block';
-  fillTacheLien(t.lienId || (t.projetId ? 'proj-'+t.projetId : ''));
+  fillTacheLien(t.lienId || (t.projetId ? 'proj-'+t.projetId : ''), t.action);
   openM('mo-tache');
 }
 
-function fillTacheLien(currentVal){
+function fillTacheLien(currentVal, currentAction){
   // Même liste complète que dans "Aujourd'hui" / le planning : activités, projets, œuvres, exemplaires…
   var sel = document.getElementById('tache-lien');
   sel.innerHTML = buildJExOptionsHTML();
@@ -7870,6 +7873,22 @@ function fillTacheLien(currentVal){
     opt.value = currentVal; opt.textContent = lbl; opt.selected = true;
     sel.appendChild(opt);
   }
+  tacheBuildActionOptions(sel.value, currentAction);
+}
+function tacheBuildActionOptions(lienVal, currentAction){
+  // Même logique que pour choisir l'action au moment de valider une session : dépend
+  // de ce à quoi la tâche est liée (activité/œuvre/exemplaire → ses actions ; sinon communes).
+  var actSel = document.getElementById('tache-action');
+  if(!actSel) return;
+  var acts = lienVal ? getActionsListForId(lienVal) : (actionsConfig['COMMUN']||[]);
+  var html = '<option value="">—</option>';
+  acts.forEach(function(a){ html += '<option value="'+a+'">'+a+'</option>'; });
+  actSel.innerHTML = html;
+  actSel.value = currentAction || '';
+}
+function tacheLienChange(){
+  var sel = document.getElementById('tache-lien');
+  tacheBuildActionOptions(sel.value, null);
 }
 function tacheLienLabelFromId(lien){
   if(!lien) return '';
@@ -7930,6 +7949,7 @@ function saveTache(){
     texte:     texte,
     prio:      document.getElementById('tache-prio').value,
     lienId:    lienVal,
+    action:    document.getElementById('tache-action').value||null,
     // projetId reste alimenté (uniquement quand le lien est un projet) pour que la fiche
     // projet continue de retrouver ses tâches liées comme avant.
     projetId:  (lienVal && lienVal.indexOf('proj-')===0) ? lienVal.replace('proj-','') : null,
@@ -8312,7 +8332,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260927 - v126 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260927 - v127 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -9685,16 +9705,23 @@ function openDpLog(id){
     var opt=document.createElement('option'); opt.value=defaultVal; opt.textContent=b.label; opt.selected=true;
     itemSel.appendChild(opt);
   }
-  dpLogItemChange();
+  // Si la tâche avait déjà une action choisie à sa création, on la reprend ici par défaut.
+  var defaultAction = '';
+  if(b.type==='tache'){
+    var t1 = (taches||[]).find(function(x){return x._id===b.refId;});
+    if(t1 && t1.action) defaultAction = t1.action;
+  }
+  dpLogItemChange(defaultAction);
   openM('mo-dp-log');
 }
 
-function dpLogItemChange(){
+function dpLogItemChange(defaultAction){
   var val = document.getElementById('dp-log-item').value;
   var acts = val ? getActionsListForId(val) : (actionsConfig['COMMUN']||[]);
   var sel = document.getElementById('dp-log-action');
   sel.innerHTML='';
   acts.forEach(function(a){ sel.innerHTML += '<option value="'+a+'">'+a+'</option>'; });
+  if(defaultAction && acts.indexOf(defaultAction)>=0) sel.value = defaultAction;
 }
 
 function confirmDpLog(){
