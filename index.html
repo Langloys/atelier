@@ -8332,7 +8332,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260927 - v128 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260927 - v129 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -9563,11 +9563,13 @@ function dpBuildQaOptions(){
       html += '</optgroup>';
     }
   }
-  // "Tâches sans date" : disponible aussi les jours suivants — les choisir ici leur donne
-  // directement l'échéance et l'heure du jour affiché.
-  var freeTasks = (taches||[]).filter(function(t){ return !t.done && !t.echeance; });
+  // Tâches pas encore placées à une heure : celles sans date du tout, ou déjà prévues
+  // pour CE jour précis mais sans heure fixée (celles du bandeau "à placer" au-dessus).
+  // Les choisir ici leur donne directement l'échéance (si besoin) et l'heure de ce jour.
+  var viewDs = dpViewDate || TODAY;
+  var freeTasks = (taches||[]).filter(function(t){ return !t.done && !t.heureDebut && (!t.echeance || t.echeance===viewDs); });
   if(freeTasks.length){
-    html += '<optgroup label="Tâches sans date">';
+    html += '<optgroup label="Tâches à placer">';
     freeTasks.forEach(function(t){
       html += '<option value="tache|'+t._id+'">'+t.texte.replace(/</g,'&lt;')+'</option>';
     });
