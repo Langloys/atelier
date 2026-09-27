@@ -8332,7 +8332,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260927 - v129 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260927 - v130 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -9563,15 +9563,18 @@ function dpBuildQaOptions(){
       html += '</optgroup>';
     }
   }
-  // Tâches pas encore placées à une heure : celles sans date du tout, ou déjà prévues
-  // pour CE jour précis mais sans heure fixée (celles du bandeau "à placer" au-dessus).
-  // Les choisir ici leur donne directement l'échéance (si besoin) et l'heure de ce jour.
+  // Toutes les tâches non terminées : les choisir ici leur donne (ou change) l'échéance
+  // et l'heure de ce jour précis — pratique pour glisser une tâche existante sur ce jour-là,
+  // même si elle avait déjà une autre date ou une autre heure.
   var viewDs = dpViewDate || TODAY;
-  var freeTasks = (taches||[]).filter(function(t){ return !t.done && !t.heureDebut && (!t.echeance || t.echeance===viewDs); });
+  var freeTasks = (taches||[]).filter(function(t){ return !t.done; }).sort(function(a,b){
+    return (a.echeance||'9999').localeCompare(b.echeance||'9999');
+  });
   if(freeTasks.length){
-    html += '<optgroup label="Tâches à placer">';
+    html += '<optgroup label="Tâches">';
     freeTasks.forEach(function(t){
-      html += '<option value="tache|'+t._id+'">'+t.texte.replace(/</g,'&lt;')+'</option>';
+      var suffix = (t.echeance && t.echeance!==viewDs) ? ' ('+t.echeance.split('-').reverse().join('/')+(t.heureDebut?' '+t.heureDebut:'')+')' : '';
+      html += '<option value="tache|'+t._id+'">'+t.texte.replace(/</g,'&lt;')+suffix+'</option>';
     });
     html += '</optgroup>';
   }
@@ -9647,16 +9650,18 @@ function dpConfirmQuickAdd(){
   }
   var start = (_dpQuickAddStart!==null) ? _dpQuickAddStart : DP_START;
   start = Math.min(start, DP_END-dur);
-  if(!isToday && val.indexOf('tache|')===0){
-    // Sur un jour suivant, choisir une tâche sans date lui donne directement l'échéance
-    // et l'heure de ce jour — elle réapparaîtra ensuite comme les autres tâches de l'aperçu.
+  if(val.indexOf('tache|')===0){
+    // Choisir une tâche dans la liste lui donne (ou change) directement l'échéance et
+    // l'heure de ce jour — que ce soit aujourd'hui ou un jour suivant. La tâche réapparaîtra
+    // ensuite au bon endroit, comme les autres tâches placées.
     var tid0 = val.slice(6);
     var t0 = (taches||[]).find(function(x){return x._id===tid0;});
     if(t0){
-      t0.echeance = dpViewDate;
+      t0.echeance = dpViewDate || TODAY;
       t0.heureDebut = dpMinToStr(start);
       t0.heureFin = dpMinToStr(start+dur);
       sbSaveConfig('taches');
+      dpSyncTacheBlock(tid0);
     }
     closeM('mo-dp-quickadd');
     renderPlanningJour();
@@ -9667,10 +9672,6 @@ function dpConfirmQuickAdd(){
     block = {id:'custom-'+Date.now(), type:'custom', label:freeLabel, start:start, dur:dur, fixed:false, color:'#a89bc9', done:false, refId:null};
   } else if(val==='trajet'){
     block = {id:'custom-'+Date.now(), type:'custom', label:'🚗 Trajet', start:start, dur:dur, fixed:false, color:'#a89bc9', done:false, refId:null};
-  } else if(isToday && val.indexOf('tache|')===0){
-    var tid = val.slice(6);
-    var t = (taches||[]).find(function(x){return x._id===tid;});
-    block = {id:'tache-'+tid+'-'+Date.now(), type:'tache', label:t?t.texte:'Tâche', start:start, dur:dur, fixed:false, color:'#c9a876', done:false, refId:tid};
   } else if(isToday && val.indexOf('item|')===0){
     var parts = val.split('|'), itype=parts[1], id=parts[2];
     var opt = sel.options[sel.selectedIndex];
