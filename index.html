@@ -8332,7 +8332,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260927 - v130 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260927 - v131 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -9554,14 +9554,10 @@ function dpBuildQaOptions(){
   var isToday = (!dpViewDate || dpViewDate===TODAY);
   var html = '<option value="">— ou choisir dans la liste —</option><option value="trajet">🚗 Trajet</option>';
   if(isToday){
-    var todayItems = dpTodayScheduledItems();
-    if(todayItems.length){
-      html += '<optgroup label="Programmé aujourd\'hui">';
-      todayItems.forEach(function(it){
-        html += '<option value="item|'+it.itype+'|'+it.id+'">'+it.label+'</option>';
-      });
-      html += '</optgroup>';
-    }
+    // Même liste complète qu'ailleurs (activités, projets, œuvres, exemplaires, cires) —
+    // pour retrouver ici tout ce à quoi on peut rattacher une session, pas seulement ce
+    // que l'algorithme a programmé aujourd'hui.
+    html += buildJExOptionsHTML().replace('<option value="">— Choisir —</option>','');
   }
   // Toutes les tâches non terminées : les choisir ici leur donne (ou change) l'échéance
   // et l'heure de ce jour précis — pratique pour glisser une tâche existante sur ce jour-là,
@@ -9672,12 +9668,14 @@ function dpConfirmQuickAdd(){
     block = {id:'custom-'+Date.now(), type:'custom', label:freeLabel, start:start, dur:dur, fixed:false, color:'#a89bc9', done:false, refId:null};
   } else if(val==='trajet'){
     block = {id:'custom-'+Date.now(), type:'custom', label:'🚗 Trajet', start:start, dur:dur, fixed:false, color:'#a89bc9', done:false, refId:null};
-  } else if(isToday && val.indexOf('item|')===0){
-    var parts = val.split('|'), itype=parts[1], id=parts[2];
+  } else if(isToday && (val.indexOf('activ-')===0 || val.indexOf('proj-')===0 || val.indexOf('o-')===0 || val.indexOf('e-')===0)){
+    // Choix dans la liste complète (activités/projets/œuvres/exemplaires) — même liste
+    // que "Rattaché à" quand on valide une session.
     var opt = sel.options[sel.selectedIndex];
-    var label = opt ? opt.textContent : id;
-    var color = itype==='projet' ? '#8fae9e' : (itype==='oeuvre' ? '#c9a876' : '#6b8cba');
-    block = {id:'item-'+id+'-'+Date.now(), type:'item', itemType:itype, label:label, start:start, dur:dur, fixed:false, color:color, done:false, refId:id};
+    var label = opt ? opt.textContent : val;
+    var itype = val.indexOf('activ-')===0 ? 'activite' : val.indexOf('proj-')===0 ? 'projet' : val.indexOf('o-')===0 ? 'oeuvre' : 'exemplaire';
+    var color = itype==='projet' ? '#8fae9e' : (itype==='activite' ? '#6b8cba' : '#c9a876');
+    block = {id:'item-'+val+'-'+Date.now(), type:'item', itemType:itype, label:label, start:start, dur:dur, fixed:false, color:color, done:false, refId:val};
   } else {
     alert('Tape un nom ou choisis quelque chose dans la liste.');
     return;
@@ -9714,7 +9712,9 @@ function openDpLog(id){
   itemSel.innerHTML = buildJExOptionsHTML();
   var defaultVal = '';
   if(b.type==='item'){
-    defaultVal = (b.itemType==='projet') ? 'proj-'+b.refId : b.refId;
+    // Le refId porte déjà le bon préfixe (activ-/proj-/o-/e-) depuis la liste complète du
+    // quick-add ; on garde la reconstruction "proj-"+refId en secours pour d'anciens blocs.
+    defaultVal = (b.refId && /^(activ-|proj-|o-|e-)/.test(b.refId)) ? b.refId : ((b.itemType==='projet') ? 'proj-'+b.refId : b.refId);
   } else if(b.type==='tache'){
     var t0 = (taches||[]).find(function(x){return x._id===b.refId;});
     if(t0) defaultVal = t0.lienId || (t0.projetId ? 'proj-'+t0.projetId : '');
