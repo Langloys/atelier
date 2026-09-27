@@ -7814,21 +7814,28 @@ function openAddTacheForProjet(pid){
     if(sel)sel.value='proj-'+pid;
   },50);
 }
-function openAddTache(){
+function openAddTache(dateStr){
   editTacheId = null;
   document.getElementById('mo-tache-title').textContent = 'Nouvelle tâche';
   ['tache-texte','tache-notes'].forEach(function(i){document.getElementById(i).value='';});
   document.getElementById('tache-prio').value = '3';
   document.getElementById('tache-del-btn').style.display = 'none';
-  // Pré-remplissage : aujourd'hui, heure actuelle (arrondie au 1/4h) → +30 min
-  document.getElementById('tache-echeance').value = TODAY;
-  var now = new Date();
-  var roundedMin = Math.round(now.getMinutes()/15)*15;
-  var hd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), roundedMin, 0, 0);
-  var hf = new Date(hd.getTime() + 30*60000);
-  function fmtHM(d){ return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); }
-  document.getElementById('tache-heure-debut').value = fmtHM(hd);
-  document.getElementById('tache-heure-fin').value = fmtHM(hf);
+  var d = dateStr || TODAY;
+  document.getElementById('tache-echeance').value = d;
+  if(d===TODAY){
+    // Pré-remplissage : heure actuelle (arrondie au 1/4h) → +30 min
+    var now = new Date();
+    var roundedMin = Math.round(now.getMinutes()/15)*15;
+    var hd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), roundedMin, 0, 0);
+    var hf = new Date(hd.getTime() + 30*60000);
+    function fmtHM(dt){ return String(dt.getHours()).padStart(2,'0')+':'+String(dt.getMinutes()).padStart(2,'0'); }
+    document.getElementById('tache-heure-debut').value = fmtHM(hd);
+    document.getElementById('tache-heure-fin').value = fmtHM(hf);
+  } else {
+    // Sur un autre jour : pas d'heure imposée, la tâche apparaîtra "à placer" pour ce jour-là.
+    document.getElementById('tache-heure-debut').value = '';
+    document.getElementById('tache-heure-fin').value = '';
+  }
   fillTacheLien(null);
   openM('mo-tache');
 }
@@ -8304,7 +8311,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260927 - v123 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260927 - v124 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -8951,9 +8958,9 @@ function dpGoToday(){
   renderPlanningJour();
 }
 function dpBuildPreview(dateStr){
-  // Aperçu non enregistré d'un jour futur : événements perso et tâches à heure fixe ce
-  // jour-là, complétés par les œuvres/exemplaires que l'algorithme de planning y placerait
-  // d'après le temps restant. Ne touche jamais à dayPlan (qui reste réservé à aujourd'hui).
+  // Aperçu non enregistré d'un jour futur : uniquement les événements perso et les tâches
+  // à heure fixe ce jour-là. Les œuvres/exemplaires/projets à faire ne sont PAS recalculés
+  // ici : ça reste l'affaire de la Vue Algorithme. Ne touche jamais à dayPlan (réservé à aujourd'hui).
   var blocks = [];
   (planEvts||[]).forEach(function(evt){
     if(evt.debut<=dateStr && dateStr<=evt.fin && evt.heureDebut){
@@ -8969,20 +8976,6 @@ function dpBuildPreview(dateStr){
     if(t.heureFin){ var hf=t.heureFin.split(':'); var end=parseInt(hf[0])*60+parseInt(hf[1]); if(end>start) dur=end-start; }
     blocks.push({id:'prev-tache-'+t._id, type:'tache', label:t.texte, start:start, dur:dur, fixed:true, color:'#c9a876', done:false, refId:t._id, preview:true});
   });
-  try{
-    var result = planCalcul();
-    var cursor = DP_START;
-    (result.lignes||[]).forEach(function(l){
-      (l.segments||[]).forEach(function(seg){
-        if(seg.dateStr!==dateStr) return;
-        var dur = Math.max(DP_SLOT, Math.round((seg.hPrise||1)*60));
-        var start = dpNextFreeSlot(cursor, dur, blocks);
-        start = Math.min(start, DP_END-dur);
-        blocks.push({id:'prev-item-'+seg.itype+'-'+seg._id, type:'item-preview', label:seg.label, start:start, dur:dur, fixed:true, color:seg.color||'#8fae9e', done:false, refId:seg._id, preview:true});
-        cursor = start+dur;
-      });
-    });
-  }catch(e){ console.error('dpBuildPreview planCalcul', e); }
   return blocks;
 }
 function dpPreviewUnscheduled(dateStr){
@@ -9217,7 +9210,8 @@ function renderPlanningJour(){
   if(!isViewingToday) html += '<button class="btn btn-sm" onclick="dpGoToday()" style="margin-left:4px;">Aujourd\'hui</button>';
   html += '</div>';
   if(!isViewingToday){
-    html += '<div style="text-align:center;font-size:.7rem;color:var(--faint);font-style:italic;margin-bottom:12px;">👁 Aperçu indicatif, non enregistré — recalculé à chaque ouverture d\'après le temps restant et les tâches de ce jour.</div>';
+    html += '<div style="text-align:center;font-size:.7rem;color:var(--faint);font-style:italic;margin-bottom:8px;">👁 Aperçu indicatif, non enregistré — les œuvres/exemplaires/projets à faire restent à consulter dans la Vue Algorithme.</div>';
+    html += '<div style="text-align:center;margin-bottom:12px;"><button class="btn btn-sm" onclick="openAddTache(\''+dpViewDate+'\')">+ Ajouter une tâche ce jour-là</button></div>';
   }
 
   var infoEvts = isViewingToday ? dpTodayInfoEvts() : dpPreviewInfoEvts(dpViewDate);
@@ -9232,15 +9226,13 @@ function renderPlanningJour(){
   var unschedTaches = isViewingToday ? dpTodayUnscheduledTaches() : dpPreviewUnscheduled(dpViewDate);
   if(unschedTaches.length){
     html += '<div style="margin-bottom:12px;">';
-    html += '<div style="font-size:.65rem;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin-bottom:6px;">Tâches à placer'+(isViewingToday?' — clique sur le nom pour l\'ouvrir, sur + pour la placer maintenant':' (sans heure fixée)')+'</div>';
+    html += '<div style="font-size:.65rem;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin-bottom:6px;">Tâches à placer — clique sur le nom pour l\'ouvrir'+(isViewingToday?', sur + pour la placer maintenant':'')+'</div>';
     html += '<div style="display:flex;flex-wrap:wrap;gap:6px;">';
     unschedTaches.forEach(function(t){
       html += '<div style="display:flex;align-items:stretch;background:#c9a87622;border-left:3px solid #c9a876;border-radius:4px;overflow:hidden;">';
+      html += '<span onclick="openEditTache(\''+t._id+'\')" title="Ouvrir la tâche pour lui donner une heure précise" style="padding:5px 8px;font-size:.72rem;color:var(--ink);cursor:pointer;">'+t.texte+'</span>';
       if(isViewingToday){
-        html += '<span onclick="openEditTache(\''+t._id+'\')" title="Ouvrir la tâche pour lui donner une heure précise" style="padding:5px 8px;font-size:.72rem;color:var(--ink);cursor:pointer;">'+t.texte+'</span>';
         html += '<button onclick="dpPlaceTache(\''+t._id+'\')" title="Placer maintenant au prochain créneau libre" style="border:none;border-left:1px solid #c9a87655;background:none;color:var(--ink);font-size:.78rem;font-weight:600;padding:5px 9px;cursor:pointer;">+</button>';
-      } else {
-        html += '<span style="padding:5px 10px;font-size:.72rem;color:var(--ink);">'+t.texte+'</span>';
       }
       html += '</div>';
     });
