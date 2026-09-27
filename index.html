@@ -8311,7 +8311,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260927 - v124 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20260927 - v125 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -8940,6 +8940,7 @@ var dayPlan = null;     // {date:'YYYY-MM-DD', blocks:[...]}
 var _dpLogId = null;
 var _dpAutoScrolled = false; // n'auto-cale sur l'heure actuelle qu'à l'arrivée sur la vue, pas à chaque re-rendu
 var dpViewDate = null; // date affichée dans la Vue Journée ; null = TODAY (initialisé au premier rendu)
+var dpCurBlocks = null; // tableau de blocs actuellement affiché (dayPlan.blocks pour aujourd'hui, aperçu sinon) — cible du drag/resize
 
 function dpChangeDay(delta){
   if(!dpViewDate) dpViewDate = TODAY;
@@ -8974,7 +8975,7 @@ function dpBuildPreview(dateStr){
     var hd=t.heureDebut.split(':'); var start=parseInt(hd[0])*60+parseInt(hd[1]);
     var dur=30;
     if(t.heureFin){ var hf=t.heureFin.split(':'); var end=parseInt(hf[0])*60+parseInt(hf[1]); if(end>start) dur=end-start; }
-    blocks.push({id:'prev-tache-'+t._id, type:'tache', label:t.texte, start:start, dur:dur, fixed:true, color:'#c9a876', done:false, refId:t._id, preview:true});
+    blocks.push({id:'prev-tache-'+t._id, type:'tache', label:t.texte, start:start, dur:dur, fixed:false, color:'#c9a876', done:false, refId:t._id, preview:true});
   });
   return blocks;
 }
@@ -9129,7 +9130,7 @@ function dpPlaceTache(tid){
   renderPlanningJour();
 }
 function dpResolveOverlaps(){
-  var blocks = dayPlan.blocks;
+  var blocks = dpCurBlocks || dayPlan.blocks;
   for(var pass=0; pass<3; pass++){
     blocks.sort(function(a,b){return a.start-b.start;});
     var cursor=null;
@@ -9194,6 +9195,7 @@ function renderPlanningJour(){
     dpSaveRemote();
   }
   var blocks = isViewingToday ? dayPlan.blocks : dpBuildPreview(dpViewDate);
+  dpCurBlocks = blocks;
   var totalPx = ((DP_END-DP_START)/DP_SLOT)*DP_PXSLOT;
 
   var html = '<div>';
@@ -9262,27 +9264,34 @@ function renderPlanningJour(){
     var lay = dpLayout[b.id] || {col:0, cols:1};
     var leftPct = (lay.col/lay.cols*100);
     var widthPct = (100/lay.cols);
-    if(b.preview){
-      // Bloc d'aperçu : lecture seule, aucune action, style discret en pointillés.
+    if(b.preview && b.type==='rdv'){
+      // Rendez-vous en aperçu : lecture seule (à modifier depuis Vue Perso/l'agenda), style discret en pointillés.
       html += '<div title="'+dpMinToStr(b.start)+'–'+dpMinToStr(b.start+b.dur)+' (aperçu)" style="position:absolute;left:calc('+leftPct+'% + 2px);width:calc('+widthPct+'% - 4px);top:'+top+'px;height:'+height+'px;background:'+bg+'1a;border:1px dashed '+bg+';border-radius:4px;overflow:hidden;display:flex;align-items:center;padding:0 6px;">';
       html += '<div style="flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:.7rem;font-weight:500;color:var(--mid);">'+b.label+'</div>';
       html += '</div>';
       return;
     }
-    html += '<div class="dp-block" data-id="'+b.id+'" title="'+dpMinToStr(b.start)+'–'+dpMinToStr(b.start+b.dur)+'" style="position:absolute;left:calc('+leftPct+'% + 2px);width:calc('+widthPct+'% - 4px);top:'+top+'px;height:'+height+'px;background:'+(b.done?'var(--off)':bg+'26')+';border-left:3px solid '+bg+';border-radius:4px;opacity:'+(b.done?'.55':'1')+';overflow:hidden;display:flex;align-items:center;justify-content:space-between;gap:4px;padding:0 6px;">';
-    html += '<button onclick="event.stopPropagation();dpDeleteBlock(\''+b.id+'\')" title="'+(b.done?'Retirer de la journée (garde la session)':'Supprimer ce bloc')+'" style="flex-shrink:0;border:none;background:none;color:var(--red);padding:0;cursor:pointer;font-size:.72rem;line-height:1;">✕</button>';
-    if(b.type==='custom' || (b.refId && (b.type==='rdv'||b.type==='tache'))){
-      html += '<button onclick="event.stopPropagation();dpEditBlock(\''+b.id+'\')" title="Modifier" style="flex-shrink:0;border:none;background:none;color:var(--faint);padding:0;cursor:pointer;font-size:.68rem;line-height:1;">✏️</button>';
+    // Bloc de tâche (aujourd'hui, ou aperçu d'un jour suivant) : déplaçable/redimensionnable.
+    // En aperçu, on masque juste les actions qui n'ont pas de sens hors "aujourd'hui"
+    // (valider une session, figer, supprimer) — seuls glisser-déposer et l'édition restent.
+    html += '<div class="dp-block" data-id="'+b.id+'" title="'+dpMinToStr(b.start)+'–'+dpMinToStr(b.start+b.dur)+(b.preview?' (aperçu)':'')+'" style="position:absolute;left:calc('+leftPct+'% + 2px);width:calc('+widthPct+'% - 4px);top:'+top+'px;height:'+height+'px;background:'+(b.done?'var(--off)':bg+(b.preview?'1a':'26'))+';border-left:3px solid '+bg+';'+(b.preview?'border-top:1px dashed '+bg+';border-right:1px dashed '+bg+';border-bottom:1px dashed '+bg+';':'')+'border-radius:4px;opacity:'+(b.done?'.55':'1')+';overflow:hidden;display:flex;align-items:center;justify-content:space-between;gap:4px;padding:0 6px;">';
+    if(!b.preview){
+      html += '<button onclick="event.stopPropagation();dpDeleteBlock(\''+b.id+'\')" title="'+(b.done?'Retirer de la journée (garde la session)':'Supprimer ce bloc')+'" style="flex-shrink:0;border:none;background:none;color:var(--red);padding:0;cursor:pointer;font-size:.72rem;line-height:1;">✕</button>';
     }
-    if(!b.done){
+    if(b.type==='custom' || (b.refId && (b.type==='rdv'||b.type==='tache'))){
+      html += '<button onclick="event.stopPropagation();'+(b.preview?'openEditTache(\''+b.refId+'\')':'dpEditBlock(\''+b.id+'\')')+'" title="Modifier" style="flex-shrink:0;border:none;background:none;color:var(--faint);padding:0;cursor:pointer;font-size:.68rem;line-height:1;">✏️</button>';
+    }
+    if(!b.done && !b.preview){
       var lockSvg = b.fixed
         ? '<svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>'
         : '<svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 7.75-1.5"></path></svg>';
       html += '<button onclick="event.stopPropagation();dpToggleFixed(\''+b.id+'\')" title="'+(b.fixed?'Fixe — cliquer pour rendre flexible':'Flexible — cliquer pour figer')+'" style="flex-shrink:0;border:none;padding:0;cursor:pointer;width:15px;height:15px;border-radius:50%;background:'+(b.fixed?'var(--red)':'var(--green)')+';display:flex;align-items:center;justify-content:center;">'+lockSvg+'</button>';
     }
     html += '<div class="dp-block-drag" data-id="'+b.id+'" style="flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:.7rem;font-weight:600;color:var(--ink);'+(b.fixed?'':'cursor:grab;')+'">'+b.label+(b.done?' <span style="font-weight:400;color:var(--faint);">· fait '+fmtMin(b.realDur||b.dur)+'</span>':'')+'</div>';
-    if(!b.done) html += '<button onclick="event.stopPropagation();openDpLog(\''+b.id+'\')" style="flex-shrink:0;border:none;background:var(--ink);color:var(--w);font-size:.62rem;padding:3px 7px;border-radius:10px;cursor:pointer;">✓ '+fmtMin(b.dur)+'</button>';
-    else html += '<button onclick="event.stopPropagation();dpUndoLog(\''+b.id+'\')" title="Annuler cette session" style="flex-shrink:0;border:none;background:none;color:var(--faint);font-size:.85rem;cursor:pointer;padding:0;">✓</button>';
+    if(!b.preview){
+      if(!b.done) html += '<button onclick="event.stopPropagation();openDpLog(\''+b.id+'\')" style="flex-shrink:0;border:none;background:var(--ink);color:var(--w);font-size:.62rem;padding:3px 7px;border-radius:10px;cursor:pointer;">✓ '+fmtMin(b.dur)+'</button>';
+      else html += '<button onclick="event.stopPropagation();dpUndoLog(\''+b.id+'\')" title="Annuler cette session" style="flex-shrink:0;border:none;background:none;color:var(--faint);font-size:.85rem;cursor:pointer;padding:0;">✓</button>';
+    }
     if(!b.fixed && !b.done){
       html += '<div class="dp-resize-top" data-id="'+b.id+'" style="position:absolute;left:50%;top:-2px;transform:translateX(-50%);width:36px;height:12px;cursor:ns-resize;display:flex;align-items:center;justify-content:center;z-index:2;"><div style="width:24px;height:4px;border-radius:2px;background:'+bg+';opacity:.6;"></div></div>';
       html += '<div class="dp-resize" data-id="'+b.id+'" style="position:absolute;left:50%;bottom:-2px;transform:translateX(-50%);width:36px;height:12px;cursor:ns-resize;display:flex;align-items:center;justify-content:center;z-index:2;"><div style="width:24px;height:4px;border-radius:2px;background:'+bg+';opacity:.6;"></div></div>';
@@ -9315,7 +9324,7 @@ function dpAttachHandlers(){
   var grid = document.getElementById('dp-grid');
   if(!grid) return;
   grid.querySelectorAll('.dp-block-drag').forEach(function(el){
-    var b = dayPlan.blocks.find(function(x){return x.id===el.dataset.id;});
+    var b = (dpCurBlocks||[]).find(function(x){return x.id===el.dataset.id;});
     if(b && b.fixed) return;
     el.addEventListener('pointerdown', function(ev){ dpStartDrag(ev, el.dataset.id); });
   });
@@ -9348,7 +9357,7 @@ function dpToggleFixed(id){
 function dpQuickRedraw(){
   var grid = document.getElementById('dp-grid');
   if(!grid) return;
-  dayPlan.blocks.forEach(function(b){
+  (dpCurBlocks||[]).forEach(function(b){
     var el = grid.querySelector('.dp-block[data-id="'+b.id+'"]');
     if(!el) return;
     el.style.top = (((b.start-DP_START)/DP_SLOT)*DP_PXSLOT)+'px';
@@ -9390,9 +9399,18 @@ function dpHideLabelBubble(){
   if(_dpBubbleEl){ _dpBubbleEl.remove(); _dpBubbleEl=null; }
 }
 
+function dpEndBlockEdit(b){
+  // Fin de glisser/redimensionner : sur aujourd'hui on sauvegarde dayPlan comme avant ;
+  // sur un aperçu de jour suivant, on répercute juste la nouvelle heure sur la tâche
+  // elle-même (dpSyncRdvToEvt s'en charge déjà et l'enregistre), rien d'autre à persister.
+  dpSyncRdvToEvt(b);
+  if(!b.preview) dpSaveRemote();
+  renderPlanningJour();
+}
+
 function dpStartDrag(ev, id){
   ev.preventDefault();
-  var b = dayPlan.blocks.find(function(x){return x.id===id;});
+  var b = (dpCurBlocks||[]).find(function(x){return x.id===id;});
   if(!b) return;
   var startY = ev.clientY, origStart = b.start;
   dpShowLabelBubble(b.label, ev.clientX, ev.clientY);
@@ -9409,9 +9427,7 @@ function dpStartDrag(ev, id){
     document.removeEventListener('pointermove', onMove);
     document.removeEventListener('pointerup', onUp);
     dpHideLabelBubble();
-    dpSyncRdvToEvt(b);
-    dpSaveRemote();
-    renderPlanningJour();
+    dpEndBlockEdit(b);
   }
   document.addEventListener('pointermove', onMove);
   document.addEventListener('pointerup', onUp);
@@ -9419,7 +9435,7 @@ function dpStartDrag(ev, id){
 
 function dpStartResize(ev, id){
   ev.preventDefault(); ev.stopPropagation();
-  var b = dayPlan.blocks.find(function(x){return x.id===id;});
+  var b = (dpCurBlocks||[]).find(function(x){return x.id===id;});
   if(!b) return;
   var startY = ev.clientY, origDur = b.dur;
   dpShowLabelBubble(b.label+' — '+fmtMin(b.dur), ev.clientX, ev.clientY);
@@ -9438,9 +9454,7 @@ function dpStartResize(ev, id){
     document.removeEventListener('pointerup', onUp);
     dpHideLabelBubble();
     dpResolveOverlaps();
-    dpSyncRdvToEvt(b);
-    dpSaveRemote();
-    renderPlanningJour();
+    dpEndBlockEdit(b);
   }
   document.addEventListener('pointermove', onMove);
   document.addEventListener('pointerup', onUp);
@@ -9449,7 +9463,7 @@ function dpStartResize(ev, id){
 
 function dpStartResizeTop(ev, id){
   ev.preventDefault(); ev.stopPropagation();
-  var b = dayPlan.blocks.find(function(x){return x.id===id;});
+  var b = (dpCurBlocks||[]).find(function(x){return x.id===id;});
   if(!b) return;
   var startY = ev.clientY, origStart=b.start, fixedEnd=b.start+b.dur;
   dpShowLabelBubble(b.label+' — '+fmtMin(fixedEnd-b.start), ev.clientX, ev.clientY);
@@ -9468,9 +9482,7 @@ function dpStartResizeTop(ev, id){
     document.removeEventListener('pointermove', onMove);
     document.removeEventListener('pointerup', onUp);
     dpHideLabelBubble();
-    dpSyncRdvToEvt(b);
-    dpSaveRemote();
-    renderPlanningJour();
+    dpEndBlockEdit(b);
   }
   document.addEventListener('pointermove', onMove);
   document.addEventListener('pointerup', onUp);
