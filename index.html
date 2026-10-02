@@ -8332,7 +8332,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20260927 - v131 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20261002 - v133 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -9105,6 +9105,19 @@ function dpBuildAuto(){
   });
   // Les tâches du jour sans heure ne sont PAS placées automatiquement : elles restent dans
   // la bannière "à placer" au-dessus de la grille, jusqu'à ce qu'on clique dessus pour les y mettre.
+  // Éléments libres (ex. Trajet) ajoutés à l'avance quand ce jour était encore "un jour suivant" :
+  // on les récupère ici pour qu'ils ne disparaissent pas le jour où ils deviennent "aujourd'hui".
+  var fbChanged = false;
+  (dpFutureBlocks[TODAY]||[]).forEach(function(b){
+    var copy = Object.assign({}, b);
+    delete copy.future;
+    blocks.push(copy);
+  });
+  if(dpFutureBlocks[TODAY]){ delete dpFutureBlocks[TODAY]; fbChanged = true; }
+  // Nettoyage : les éléments libres restés sur des jours maintenant passés ne seront plus
+  // jamais affichés (la Vue Journée ne prépare que les jours à venir) — autant les oublier.
+  Object.keys(dpFutureBlocks).forEach(function(ds){ if(ds < TODAY){ delete dpFutureBlocks[ds]; fbChanged = true; } });
+  if(fbChanged) sbSaveConfig('dpFutureBlocks');
   return {date:TODAY, blocks:blocks};
 }
 function dpSyncTacheBlock(tid){
@@ -9553,12 +9566,9 @@ function dpBuildQaOptions(){
   if(!sel) return;
   var isToday = (!dpViewDate || dpViewDate===TODAY);
   var html = '<option value="">— ou choisir dans la liste —</option><option value="trajet">🚗 Trajet</option>';
-  if(isToday){
-    // Même liste complète qu'ailleurs (activités, projets, œuvres, exemplaires, cires) —
-    // pour retrouver ici tout ce à quoi on peut rattacher une session, pas seulement ce
-    // que l'algorithme a programmé aujourd'hui.
-    html += buildJExOptionsHTML().replace('<option value="">— Choisir —</option>','');
-  }
+  // Même liste complète qu'ailleurs (activités, projets, œuvres, exemplaires, cires) — tous
+  // les jours, pas seulement aujourd'hui, pour pouvoir rattacher une session à n'importe quoi.
+  html += buildJExOptionsHTML().replace('<option value="">— Choisir —</option>','');
   // Toutes les tâches non terminées : les choisir ici leur donne (ou change) l'échéance
   // et l'heure de ce jour précis — pratique pour glisser une tâche existante sur ce jour-là,
   // même si elle avait déjà une autre date ou une autre heure.
@@ -9668,7 +9678,7 @@ function dpConfirmQuickAdd(){
     block = {id:'custom-'+Date.now(), type:'custom', label:freeLabel, start:start, dur:dur, fixed:false, color:'#a89bc9', done:false, refId:null};
   } else if(val==='trajet'){
     block = {id:'custom-'+Date.now(), type:'custom', label:'🚗 Trajet', start:start, dur:dur, fixed:false, color:'#a89bc9', done:false, refId:null};
-  } else if(isToday && (val.indexOf('activ-')===0 || val.indexOf('proj-')===0 || val.indexOf('o-')===0 || val.indexOf('e-')===0)){
+  } else if(val.indexOf('activ-')===0 || val.indexOf('proj-')===0 || val.indexOf('o-')===0 || val.indexOf('e-')===0){
     // Choix dans la liste complète (activités/projets/œuvres/exemplaires) — même liste
     // que "Rattaché à" quand on valide une session.
     var opt = sel.options[sel.selectedIndex];
