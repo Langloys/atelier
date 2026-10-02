@@ -2131,6 +2131,13 @@ if(window._pendingAutoStart) startApp();
 
 let currentTab='today', currentView='oeuvre', editOeuvreId=null, editExId=null, detExId=null, tmpPhoto=null, tmpPhotoOw=null, photoExDeleted=false;
 const TODAY = new Date().toISOString().slice(0,10);
+// Construit une date-string YYYY-MM-DD à partir des composantes LOCALES d'un objet Date,
+// plutôt que via toISOString() (qui repasse par UTC et peut faire "reculer" la date d'un
+// jour dans les fuseaux horaires en avance sur UTC, comme la France) — à utiliser partout
+// où l'on fait avancer/reculer un objet Date construit sur une date locale (T00:00:00).
+function localDateStr(d){
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
 
 // ══ HELPERS ══
 function fmtMin(m){if(!m||m===0)return'—';if(m<60)return m+'min';const h=Math.floor(m/60);const mn=m%60;return h+'h'+(mn?mn+'':'');}
@@ -7365,7 +7372,7 @@ function buildHeatmap(sessList){
   while(d<=end){
     var week=[];
     for(var i=0;i<7;i++){
-      var ds=d.toISOString().slice(0,10);
+      var ds=localDateStr(d);
       var dur=byDate[ds]||0;
       var level=dur===0?0:dur<30?1:dur<60?2:dur<120?3:4;
       week.push({date:ds,dur:dur,level:level});
@@ -7461,7 +7468,7 @@ function setTodayMode(mode){
 function getRecentItems(days){
   var cutoff = new Date();
   cutoff.setDate(cutoff.getDate()-days);
-  var cutoffStr = cutoff.toISOString().slice(0,10);
+  var cutoffStr = localDateStr(cutoff);
   // Get all exIds used recently, with their last action
   var byId = {};
   sessions.filter(function(s){return s.date>=cutoffStr;})
@@ -8332,7 +8339,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20261002 - v133 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20261002 - v134 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -8811,7 +8818,7 @@ function planCalcul(){
   var d = new Date(TODAY+'T00:00:00');
 
   for(var j=0; j<maxJours; j++){
-    var ds = d.toISOString().slice(0,10);
+    var ds = localDateStr(d);
     var dispo = planHeuresdispo(ds);
     jours.push({dateStr:ds, dispo:dispo});
 
@@ -8968,10 +8975,7 @@ function dpChangeDay(delta){
   if(!dpViewDate) dpViewDate = TODAY;
   var d = new Date(dpViewDate+'T00:00:00');
   d.setDate(d.getDate()+delta);
-  // On reconstruit la date à partir des composantes LOCALES (et non toISOString, qui
-  // repasse par UTC et peut faire "reculer" la date dans les fuseaux horaires en avance
-  // sur UTC, comme la France — c'était le bug empêchant d'avancer au jour suivant).
-  var ds = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  var ds = localDateStr(d);
   if(ds < TODAY) return; // on prépare les jours à venir, pas le passé (déjà dans le Journal)
   dpViewDate = ds;
   renderPlanningJour();
@@ -9867,7 +9871,7 @@ function renderPlanning(){
   var dPast = new Date(TODAY+'T00:00:00');
   for(var jp=0; jp<PLAN_PAST_DAYS; jp++){
     dPast.setDate(dPast.getDate()-1);
-    var dsPast = dPast.toISOString().slice(0,10);
+    var dsPast = localDateStr(dPast);
     joursPasses.unshift({dateStr:dsPast, dispo:planHeuresdispo(dsPast)});
   }
   jours = joursPasses.concat(jours.filter(function(j){ return j.dateStr >= TODAY; }));
@@ -9878,8 +9882,8 @@ function renderPlanning(){
       var dernierDs = jours.length ? jours[jours.length-1].dateStr : TODAY;
       var cur2 = new Date(dernierDs+'T00:00:00');
       cur2.setDate(cur2.getDate()+1);
-      while(cur2.toISOString().slice(0,10) <= evt.fin){
-        var ds2 = cur2.toISOString().slice(0,10);
+      while(localDateStr(cur2) <= evt.fin){
+        var ds2 = localDateStr(cur2);
         if(!joursSet[ds2]){ jours.push({dateStr:ds2, dispo:planHeuresdispo(ds2)}); joursSet[ds2]=true; }
         cur2.setDate(cur2.getDate()+1);
       }
@@ -10428,7 +10432,7 @@ function materializeRecurOccs(){
       var cur = new Date(parent.date+'T00:00:00');
       var limiteRecur = parent.recurFin ? new Date(parent.recurFin+'T00:00:00') : new Date(aujourd.getTime()+366*86400000);
       while(cur < aujourd && cur <= limiteRecur){
-        var ds = cur.toISOString().slice(0,10);
+        var ds = localDateStr(cur);
         if(!dejaMat.has(ds)){
           finances.push({
             _id:      'fo-'+parent._id+'-'+ds,
@@ -10533,7 +10537,7 @@ function finCoutJour(f, dateStr){
       .map(function(c){ return c.occDate; });
     var occs = finOccurrencesPourDate(f, dateStr);
     return occs.reduce(function(sum, occ){
-      var occDs = occ.toISOString().slice(0,10);
+      var occDs = localDateStr(occ);
       if(occ < aujourd || dejaMat.indexOf(occDs) >= 0) return sum;
       // Durée jusqu'à la prochaine occurrence
       var next2 = new Date(occ);
@@ -10733,18 +10737,18 @@ function renderFinKPIs(){
     var sum=0;
     for(var i=0;i<30;i++){
       var d=new Date(); d.setDate(d.getDate()+i);
-      sum+=finTotalJour(d.toISOString().slice(0,10));
+      sum+=finTotalJour(localDateStr(d));
     }
     return sum;
   })();
   var dep30 = (function(){
     var cutoff=new Date(); cutoff.setDate(cutoff.getDate()-30);
-    var cutStr=cutoff.toISOString().slice(0,10);
+    var cutStr=localDateStr(cutoff);
     return depot.filter(function(f){ return f.date>=cutStr; }).reduce(function(a,f){ return a+f.montant; },0);
   })();
   var ren30 = (function(){
     var cutoff=new Date(); cutoff.setDate(cutoff.getDate()-30);
-    var cutStr=cutoff.toISOString().slice(0,10);
+    var cutStr=localDateStr(cutoff);
     return rents.filter(function(f){ return f.date>=cutStr; }).reduce(function(a,f){ return a+f.montant; },0);
   })();
   var kpis=[
@@ -10905,7 +10909,7 @@ function renderFinChart(){
   var labels=[], dataDep=[], dataEnt=[], dataSolde=[], soldeCumul=0, todayIdx=-1;
 
   for(var cur=new Date(start); cur<=end; cur.setDate(cur.getDate()+1)){
-    var ds = cur.toISOString().slice(0,10);
+    var ds = localDateStr(cur);
     var dep = parseFloat(finTotalJour(ds).toFixed(4));
     var ent = parseFloat(finEntreeJour(ds).toFixed(4));
     if(ds >= TODAY) soldeCumul = (ent - dep);
