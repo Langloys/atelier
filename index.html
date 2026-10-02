@@ -503,6 +503,7 @@ async function loadFromSupabase() {
         if(row.key === 'planEvts' && row.data) planEvts = row.data;
         if(row.key === 'dayPlan' && row.data) dayPlan = row.data;
         if(row.key === 'dpFutureBlocks' && row.data) dpFutureBlocks = row.data;
+        if(row.key === 'dpItemSkip' && row.data) dpItemSkip = row.data;
       });
     }
     ensureMatiereActions();
@@ -560,7 +561,7 @@ function sbSaveOeuvre(o){ sbUpsert('oeuvres',o._id,o).catch(function(e){console.
 function sbSaveEx(e){ sbUpsert('exemplaires',e._id,e).catch(function(e2){console.error('sbSaveEx',e2);}); }
 function sbSaveProjet(p){ sbUpsert('projets',p._id,p).catch(function(e){console.error('sbSaveProjet',e);}); }
 function sbSaveClient(c){ sbUpsert('clients',c._id,c).catch(function(e){console.error('sbSaveClient',e);}); }
-function sbSaveConfig(key){ var val; if(key==='actionsConfig')val=actionsConfig; else if(key==='activites')val=activites; else if(key==='recettesPatine')val=recettesPatine; else if(key==='taches')val=taches; else if(key==='techniques')val=techniques||[]; else if(key==='matieres')val=matieres||[]; else if(key==='typesOeuvres')val=typesOeuvres||[]; else if(key==='creationActions')val=creationActions||[]; else if(key==='lieux')val=lieux||[]; else if(key==='fonderies')val=fonderies||[]; else if(key==='rangements')val=rangements||[]; else if(key==='galeries')val=galeries||[]; else if(key==='planEvts')val=planEvts||[]; else if(key==='finances')val=finances||[]; else if(key==='finTypes')val=finTypes||[]; else if(key==='interactionTypes')val=interactionTypes||[]; else if(key==='relationTags')val=relationTags||[]; else if(key==='relationGroups')val=relationGroups||[]; else if(key==='dayPlan')val=dayPlan; else if(key==='dpFutureBlocks')val=dpFutureBlocks||{}; else return; sbUpsert('config',key,val).catch(function(e){console.error('sbSaveConfig '+key,e);}); }
+function sbSaveConfig(key){ var val; if(key==='actionsConfig')val=actionsConfig; else if(key==='activites')val=activites; else if(key==='recettesPatine')val=recettesPatine; else if(key==='taches')val=taches; else if(key==='techniques')val=techniques||[]; else if(key==='matieres')val=matieres||[]; else if(key==='typesOeuvres')val=typesOeuvres||[]; else if(key==='creationActions')val=creationActions||[]; else if(key==='lieux')val=lieux||[]; else if(key==='fonderies')val=fonderies||[]; else if(key==='rangements')val=rangements||[]; else if(key==='galeries')val=galeries||[]; else if(key==='planEvts')val=planEvts||[]; else if(key==='finances')val=finances||[]; else if(key==='finTypes')val=finTypes||[]; else if(key==='interactionTypes')val=interactionTypes||[]; else if(key==='relationTags')val=relationTags||[]; else if(key==='relationGroups')val=relationGroups||[]; else if(key==='dayPlan')val=dayPlan; else if(key==='dpFutureBlocks')val=dpFutureBlocks||{}; else if(key==='dpItemSkip')val=dpItemSkip||{}; else return; sbUpsert('config',key,val).catch(function(e){console.error('sbSaveConfig '+key,e);}); }
 function sbSaveAllConfig(){ ['actionsConfig','activites','recettesPatine','taches','techniques','matieres','typesOeuvres','creationActions','lieux','fonderies','rangements','galeries','interactionTypes','relationTags','relationGroups'].forEach(sbSaveConfig); }
 
 async function persistSupabase() {
@@ -8339,7 +8340,7 @@ function genererPlanchePDF(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20261002 - v135 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20261002 - v136 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -8724,13 +8725,23 @@ function planHeuresRestantes(item){
 }
 
 // Construit la file d'attente triée
+function planSkipAvant(type, id, pasAvant){
+  // Si l'élément a été supprimé manuellement d'une journée (Vue Journée), on le fait
+  // reprendre seulement le lendemain de ce jour-là, sans toucher à son pasAvant d'origine
+  // (date de retour fonderie / relance) si celui-ci est déjà plus tardif.
+  var skipDs = dpItemSkip[type+'|'+id];
+  if(!skipDs) return pasAvant;
+  var d = new Date(skipDs+'T00:00:00'); d.setDate(d.getDate()+1);
+  var resume = localDateStr(d);
+  return (!pasAvant || resume > pasAvant) ? resume : pasAvant;
+}
 function planBuildQueue(){
   var items = [];
 
   // Œuvres en cours avec temps estimé
   oeuvres.filter(function(o){ return o.statut==='encours' && o.estMin; }).forEach(function(o){
     var h = planHeuresRestantes(o);
-    if(h>0) items.push({_id:o._id, label:typeEmoji(o.type)+' '+(o.nom||o.num), prio:o.prio||99, heures:h, type:'oeuvre', color:null, heuresRestantesInit:h, pasAvant:(o.retour||undefined)});
+    if(h>0) items.push({_id:o._id, label:typeEmoji(o.type)+' '+(o.nom||o.num), prio:o.prio||99, heures:h, type:'oeuvre', color:null, heuresRestantesInit:h, pasAvant:planSkipAvant('oeuvre', o._id, o.retour||undefined)});
   });
 
   // Exemplaires en cours (pas en fonderie, rangé, galerie) avec temps estimé
@@ -8743,7 +8754,7 @@ function planBuildQueue(){
     var pasAvant = e.debut||undefined;
     if(e.retour && (!pasAvant || e.retour>pasAvant)) pasAvant = e.retour;
     var h = planHeuresRestantes(e);
-    if(h>0) items.push({_id:e._id, label:matEmoji(e.mat)+' '+e.exId+(o?' — '+(o.nom||o.num):''), prio:e.prio||99, heures:h, type:'ex', color:null, heuresRestantesInit:h, pasAvant:pasAvant});
+    if(h>0) items.push({_id:e._id, label:matEmoji(e.mat)+' '+e.exId+(o?' — '+(o.nom||o.num):''), prio:e.prio||99, heures:h, type:'ex', color:null, heuresRestantesInit:h, pasAvant:planSkipAvant('ex', e._id, pasAvant)});
   });
 
   // Exemplaires en fonderie avec date de retour prévue et temps estimé
@@ -8753,11 +8764,11 @@ function planBuildQueue(){
   }).forEach(function(e){
     var o=oeuvres.find(function(x){return x._id===e.oeuvreId;});
     var h = planHeuresRestantes(e);
-    if(h>0) items.push({_id:e._id, label:'🔥 '+e.exId+(o?' — '+(o.nom||o.num):''), prio:e.prio||99, heures:h, type:'ex', color:null, heuresRestantesInit:h, pasAvant:e.retour});
+    if(h>0) items.push({_id:e._id, label:'🔥 '+e.exId+(o?' — '+(o.nom||o.num):''), prio:e.prio||99, heures:h, type:'ex', color:null, heuresRestantesInit:h, pasAvant:planSkipAvant('ex', e._id, e.retour)});
   });
   (projets||[]).filter(function(p){ return p.status==='encours' && p.estMin; }).forEach(function(p){
     var h = planHeuresRestantes(p);
-    if(h>0) items.push({_id:p._id, label:'📁 '+p.titre, prio:p.prio||99, heures:h, type:'projet', color:null, heuresRestantesInit:h, pasAvant:(p.relance||undefined)});
+    if(h>0) items.push({_id:p._id, label:'📁 '+p.titre, prio:p.prio||99, heures:h, type:'projet', color:null, heuresRestantesInit:h, pasAvant:planSkipAvant('projet', p._id, p.relance||undefined)});
   });
 
   // Trier : priorité d'abord, puis moins d'heures (on finit les courts en premier à égalité)
@@ -8970,6 +8981,7 @@ var _dpAutoScrolled = false; // n'auto-cale sur l'heure actuelle qu'à l'arrivé
 var dpViewDate = null; // date affichée dans la Vue Journée ; null = TODAY (initialisé au premier rendu)
 var dpCurBlocks = null; // tableau de blocs actuellement affiché (dayPlan.blocks pour aujourd'hui, aperçu sinon) — cible du drag/resize
 var dpFutureBlocks = {}; // { 'YYYY-MM-DD': [bloc libre, ...] } — éléments type "Trajet" ajoutés à la main sur un jour suivant (persistés, indépendants de dayPlan qui reste réservé à aujourd'hui)
+var dpItemSkip = {}; // { 'oeuvre|o-xxx': 'YYYY-MM-DD' } — quand on supprime un élément (œuvre/exemplaire/projet) placé manuellement un jour donné, la Vue Algorithme ne le proposera plus CE jour-là (il reprend normalement le lendemain)
 
 function dpChangeDay(delta){
   if(!dpViewDate) dpViewDate = TODAY;
@@ -9122,6 +9134,10 @@ function dpBuildAuto(){
   // jamais affichés (la Vue Journée ne prépare que les jours à venir) — autant les oublier.
   Object.keys(dpFutureBlocks).forEach(function(ds){ if(ds < TODAY){ delete dpFutureBlocks[ds]; fbChanged = true; } });
   if(fbChanged) sbSaveConfig('dpFutureBlocks');
+  // Pareil pour les suppressions "pas aujourd'hui" devenues obsolètes (le jour concerné est passé).
+  var skChanged = false;
+  Object.keys(dpItemSkip).forEach(function(k){ if(dpItemSkip[k] < TODAY){ delete dpItemSkip[k]; skChanged = true; } });
+  if(skChanged) sbSaveConfig('dpItemSkip');
   return {date:TODAY, blocks:blocks};
 }
 function dpSyncTacheBlock(tid){
@@ -9386,6 +9402,15 @@ function dpDeleteBlock(id){
   if(!b) return;
   var msg = b.done ? 'Retirer ce bloc de la journée ? La session déjà validée reste dans le Journal.' : 'Supprimer cet élément ?';
   if(!confirm(msg)) return;
+  if(b.type==='item' && !b.done && (b.itemType==='oeuvre' || b.itemType==='exemplaire' || b.itemType==='projet')){
+    // On enlève aussi cet élément de la Vue Algorithme pour CE jour précis (il reprendra
+    // normalement le lendemain) — une suppression veut dire "pas aujourd'hui", contrairement
+    // à une validation qui, elle, réduit vraiment le temps restant.
+    var skType = b.itemType==='exemplaire' ? 'ex' : b.itemType;
+    var skId = b.itemType==='projet' ? (b.refId||'').replace('proj-','') : b.refId;
+    dpItemSkip[skType+'|'+skId] = b.future ? dpViewDate : TODAY;
+    sbSaveConfig('dpItemSkip');
+  }
   if(b.future){
     dpFutureBlocks[dpViewDate] = (dpFutureBlocks[dpViewDate]||[]).filter(function(x){return x.id!==id;});
     sbSaveConfig('dpFutureBlocks');
