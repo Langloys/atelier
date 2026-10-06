@@ -1039,7 +1039,7 @@ function doLogout(){
             <option value="encours">En cours</option>
             <option value="stock">En stock</option>
             <option value="galerie">En galerie</option>
-            <option value="range">Rangé</option>
+            <option value="cire">Cire en stock</option>
             <option value="fonderie">En fonderie</option>
             <option value="vendu">Vendu</option>
             <option value="collection">Col. particulière</option>
@@ -1128,7 +1128,7 @@ function doLogout(){
       <div class="vtoggle" id="vtoggle-zone">
         <button class="vbtn active" id="vbtn-oeuvre" onclick="setView('oeuvre')">Œuvres</button>
         <button class="vbtn" id="vbtn-fonderie" onclick="setView('fonderie')">🔥 Fonderies</button>
-        <button class="vbtn" id="vbtn-range" onclick="setView('range')">📦 Rangés</button>
+        <button class="vbtn" id="vbtn-range" onclick="setView('range')">📦 Emplacements</button>
         <button class="vbtn" id="vbtn-galerie" onclick="setView('galerie')">🖼 Galeries</button>
       </div>
     </div>
@@ -1677,7 +1677,7 @@ function doLogout(){
           <select id="ow-actif" onchange="updateOwStatutZone()">
             <option value="encours">En cours</option>
             <option value="fonderie">En fonderie</option>
-            <option value="range">Rangé</option>
+            <option value="cire">Cire en stock</option>
             <option value="stock">En stock</option>
             <option value="galerie">En galerie</option>
             <option value="commande">Sur commande</option>
@@ -1685,7 +1685,7 @@ function doLogout(){
             <option value="collection">Collection particulière</option>
           </select>
         </div>
-        <div class="fg"><label>Emplacement</label>
+        <div class="fg" style="display:none;"><label>Emplacement</label>
           <input type="text" id="ow-lieu" list="lieux-list" placeholder="Atelier, Galerie…">
         </div>
         <div class="fg"><label>Retour / Relance</label>
@@ -1709,8 +1709,8 @@ function doLogout(){
       </div>
       <!-- Zone rangé oeuvre -->
       <div id="ow-range-zone" style="display:none;" class="fr">
-        <div class="fg grow"><label>Emplacement de rangement</label>
-          <input type="text" id="ow-rangement" list="rangements-list" placeholder="Atelier-B-1…">
+        <div class="fg grow"><label>Emplacement</label>
+          <input type="text" id="ow-rangement" list="rangements-list" placeholder="Atelier, Maison, Cave-3…">
         </div>
       </div>
       <!-- Zone galerie oeuvre -->
@@ -1795,7 +1795,7 @@ function doLogout(){
           <select id="ex-vente" onchange="updateExFonderieZone()">
             <option value="encours">En cours</option>
             <option value="fonderie">En fonderie</option>
-            <option value="range">Rangé</option>
+            <option value="cire">Cire en stock</option>
             <option value="stock">En stock</option>
             <option value="galerie">En galerie</option>
             <option value="commande">Sur commande</option>
@@ -1803,7 +1803,7 @@ function doLogout(){
             <option value="collection">Collection particulière</option>
           </select>
         </div>
-        <div class="fg"><label>Emplacement</label>
+        <div class="fg" style="display:none;"><label>Emplacement</label>
           <input type="text" id="ex-lieu" list="lieux-list" placeholder="Atelier, Galerie…">
         </div>
         <div class="fg" style="max-width:95px;"><label>Priorité</label>
@@ -1829,8 +1829,8 @@ function doLogout(){
       </div>
       <!-- Zone rangé -->
       <div id="ex-range-zone" style="display:none;" class="fr">
-        <div class="fg grow"><label>Emplacement de rangement</label>
-          <input type="text" id="ex-rangement" list="rangements-list" placeholder="Atelier-B-1, Cave-3…">
+        <div class="fg grow"><label>Emplacement</label>
+          <input type="text" id="ex-rangement" list="rangements-list" placeholder="Atelier, Maison, Cave-3…">
           <datalist id="rangements-list"></datalist>
         </div>
       </div>
@@ -2130,6 +2130,44 @@ updateLieuxDatalist();
 updateFonderiesDatalist();
 updateRangementsDatalist();
 updateGaleriesDatalist();
+// ── Migration emplacements (v140) ──
+// • statut « Rangé » → « En stock » (l'emplacement est gardé dans Rangement)
+// • fonderie « CIRE EN STOCK » → statut « Cire en stock »
+// • ancien champ « Lieu » → transféré dans Galerie (si en galerie) ou Rangement, puis vidé
+// Sans effet si déjà fait.
+function migrerEmplacements(){
+  var nb=0, rangChanged=false, galChanged=false;
+  function addRang(v){ if(v && rangements.indexOf(v)<0){ rangements.push(v); rangChanged=true; } }
+  function addGal(v){ if(v && galeries.indexOf(v)<0){ galeries.push(v); galChanged=true; } }
+  function fix(x, isEx){
+    var ch=false, st=isEx ? (x.statut||x.venteStatus||x.status) : x.statut, newSt=null;
+    if(String(x.fonderie||'').trim().toUpperCase()==='CIRE EN STOCK'){ newSt='cire'; x.fonderie=null; x.depot=null; ch=true; }
+    else if(st==='range'){ newSt='stock'; ch=true; }
+    var stFinal = newSt||st;
+    if(x.lieu){
+      var l=String(x.lieu).trim();
+      if(l){
+        if(stFinal==='galerie'){ if(!x.galerie){ x.galerie=l; addGal(l); } }
+        else if(!x.rangement){ x.rangement=l; addRang(l); }
+      }
+      x.lieu=null; ch=true;
+    }
+    if(!ch) return;
+    if(newSt){
+      x.statut=newSt;
+      if(isEx){ x.venteStatus=newSt; x.status='termine'; } else { x.actif=false; }
+    }
+    if(isEx) sbSaveEx(x); else sbSaveOeuvre(x);
+    nb++;
+  }
+  oeuvres.forEach(function(o){ fix(o,false); });
+  exemplaires.forEach(function(e){ fix(e,true); });
+  (lieux||[]).forEach(addRang);
+  if(rangChanged){ updateRangementsDatalist(); sbSaveConfig('rangements'); }
+  if(galChanged){ updateGaleriesDatalist(); sbSaveConfig('galeries'); }
+  if(nb) console.log('Migration emplacements :', nb, 'fiche(s) mise(s) à jour');
+}
+
 // Démarrage avec Supabase — appelé uniquement une fois l'utilisateur authentifié (voir login-screen)
 var _appStarted = false;
 function startApp(){
@@ -2140,6 +2178,7 @@ function startApp(){
       const ok = await loadFromSupabase();
       if(ok) {
         migrateDebutFinFromSessions();
+        migrerEmplacements();
         render();
         renderToday();
         updateCounts();
@@ -3115,7 +3154,7 @@ function renderStock(){
           html+='<div class="stock-info">';
           html+='<div class="stock-code">'+matEmoji(e.mat)+' '+e.exId+'</div>';
           html+='<div class="stock-nom">'+(oe?oe.nom||oe.num:'?')+'</div>';
-          html+='<div class="stock-sub">'+e.mat+' · '+shortSuf(e.num)+(e.lieu?' · 📍'+e.lieu:'')+'</div>';
+          html+='<div class="stock-sub">'+e.mat+' · '+shortSuf(e.num)+(e.rangement?' · 📍'+e.rangement:'')+'</div>';
           html+='</div>';
           html+='<div style="text-align:right;flex-shrink:0;">';
           html+='<div class="stock-prix">'+(e.prix?e.prix.toLocaleString('fr-FR')+' €':'—')+'</div>';
@@ -3198,10 +3237,10 @@ function deleteLieu(label){
 // Une oeuvre est "active" (en cours de travail) si son statut est 'encours'
 function renderRanges(){
   var zone=document.getElementById('range-zone');
-  var enRange=exemplaires.filter(function(e){ return (e.statut||e.venteStatus||e.status)==='range'; });
-  var oeuvresRangees=oeuvres.filter(function(o){ return o.statut==='range'; });
+  var enRange=exemplaires.filter(function(e){ var st=e.statut||e.venteStatus||e.status; return st==='stock'||st==='cire'; });
+  var oeuvresRangees=oeuvres.filter(function(o){ return o.statut==='stock'||o.statut==='cire'; });
   if(!enRange.length && !oeuvresRangees.length){
-    zone.innerHTML='<div class="empty-state" style="text-align:center;padding:50px;color:var(--faint);"><div class="ei">📦</div><h3>Aucun élément rangé</h3></div>';
+    zone.innerHTML='<div class="empty-state" style="text-align:center;padding:50px;color:var(--faint);"><div class="ei">📦</div><h3>Aucune pièce en stock</h3></div>';
     return;
   }
   var groupes={};
@@ -3290,14 +3329,14 @@ function updateGaleriesDatalist(){
 function updateOwStatutZone(){
   var st=document.getElementById('ow-actif').value;
   document.getElementById('ow-fonderie-zone').style.display = st==='fonderie' ? '' : 'none';
-  document.getElementById('ow-range-zone').style.display    = st==='range'    ? '' : 'none';
+  document.getElementById('ow-range-zone').style.display    = (st==='stock'||st==='cire') ? '' : 'none';
   document.getElementById('ow-galerie-zone').style.display  = st==='galerie'  ? '' : 'none';
 }
 
 function updateExFonderieZone(){
   var st = document.getElementById('ex-vente').value;
   document.getElementById('ex-fonderie-zone').style.display = st==='fonderie' ? '' : 'none';
-  document.getElementById('ex-range-zone').style.display   = st==='range'    ? '' : 'none';
+  document.getElementById('ex-range-zone').style.display   = (st==='stock'||st==='cire') ? '' : 'none';
   document.getElementById('ex-galerie-zone').style.display = st==='galerie'  ? '' : 'none';
 }
 
@@ -3360,7 +3399,7 @@ function renderFonderies(){
   var firstRender=false; // fermé par défaut
 
   var html='';
-  var STATUT_L2={encours:'En cours',fonderie:'Fonderie',range:'Rangé',stock:'En stock',galerie:'En galerie',commande:'Commande',vendu:'Vendu',collection:'Col. part.'};
+  var STATUT_L2={encours:'En cours',fonderie:'Fonderie',cire:'Cire en stock',stock:'En stock',galerie:'En galerie',commande:'Commande',vendu:'Vendu',collection:'Col. part.'};
 
   Object.keys(groupes).sort().forEach(function(fondNom){
     var items=groupes[fondNom];
@@ -3398,7 +3437,7 @@ function renderFonderies(){
       if(item.retour){var jR=Math.round((new Date(item.retour+'T00:00:00')-new Date(today+'T00:00:00'))/86400000);html+='<div style="font-size:.75rem;'+retardClass+'">'+(jR<0?'Retard '+Math.abs(jR)+'j':jR===0?'Aujourd\'hui':'Dans '+jR+'j')+'</div>';}
       if(item.prix)html+='<div style="font-size:.8rem;color:var(--gold);">'+item.prix.toLocaleString('fr-FR')+' €</div>';
       html+='<select class="temps-input" style="width:90px;margin-top:6px;" onchange="saveFonderieStatut(\''+item._id+'\',\''+(item.isOeuvre?'oeuvre':'ex')+'\',this.value)" onclick="event.stopPropagation()">';
-      ['encours','fonderie','range','stock','galerie','commande','vendu','collection'].forEach(function(s){html+='<option value="'+s+'"'+(s==='fonderie'?' selected':'')+'>'+STATUT_L2[s]+'</option>';});
+      ['encours','fonderie','cire','stock','galerie','commande','vendu','collection'].forEach(function(s){html+='<option value="'+s+'"'+(s==='fonderie'?' selected':'')+'>'+STATUT_L2[s]+'</option>';});
       html+='</select>';
       html+='</div></div>';
     });
@@ -3584,7 +3623,7 @@ function renderOeuvres(){
           if(s==='fonderie') return true;
           if(s==='encours') return true;
           // Inclure les moules rangés (num='99')
-          if(s==='range' && (e.num||'')==='99') return true;
+          if(s==='stock' && (e.num||'')==='99') return true;
           return false;
         }
         return true;
@@ -3606,10 +3645,10 @@ function renderOeuvres(){
       var oTotalAvecBase = oSessMin + (o.avantBase||0); // sessions + avant base
       var oRestantMin=o.estMin?o.estMin:null; // estMin = restant saisi directement
       var oStatut=o.statut||((o.actif===false||o.actif==='false')?'stock':'encours');
-      var VSL_OW={encours:'En cours',stock:'En stock',commande:'Sur commande',vendu:'Vendu',collection:'Col. part.'};
+      var VSL_OW={encours:'En cours',fonderie:'En fonderie',cire:'Cire en stock',galerie:'En galerie',stock:'En stock',commande:'Sur commande',vendu:'Vendu',collection:'Col. part.'};
       html+='<div class="oc-id">'+typeEmoji(o.type)+' '+(o.num||'')+' · '+(TL[o.type]||o.type)+(o.technique?' · '+o.technique:'')+stars+(oTotalAvecBase?' · ⏱ '+fmtMin(oTotalAvecBase):'')+(o.certificat?' <span title="Certificat fait" style="color:var(--green);">📜</span>':'')
         +(oStatut!=='encours'?' · <span style="color:var(--faint);font-size:.7em;">'+(VSL_OW[oStatut]||oStatut)+'</span>':'')
-        +(o.lieu?' · 📍'+o.lieu:'')
+        +(o.rangement&&(o.statut==='stock'||o.statut==='cire')?' · 📍'+o.rangement:'')
       +'</div>';
       var displayNom=o.nom?o.nom:'#'+o.num;
       html+='<div class="oc-titre" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+displayNom+'</div>';
@@ -3619,7 +3658,7 @@ function renderOeuvres(){
       html+='<button class="btn btn-sm" style="flex-shrink:0;margin-left:8px;" onclick="event.stopPropagation();openEditOeuvre(\'' + o._id + '\')">✏️</button>';
       html+='</div><div>';
       if(exs.length){
-        var VSL={encours:'En cours',range:'Rangé',stock:'En stock',commande:'Sur commande',vendu:'Vendu',collection:'Col. part.'};
+        var VSL={encours:'En cours',cire:'Cire en stock',stock:'En stock',galerie:'En galerie',commande:'Sur commande',vendu:'Vendu',collection:'Col. part.'};
         exs.forEach(function(e){
           var tm=exTotalMin(e);
           var tmAvecBase = tm + (e.avantBase||0);
@@ -3629,10 +3668,10 @@ function renderOeuvres(){
           var exRowBg=exNumInt>=97?'background:#f0f0ee;':exNumInt>=1&&exNumInt<=12?'background:#fdf0f0;':'';
           html+='<div class="ex-row" onclick="openDetail(\'' + e._id + '\')" style="'+exRowBg+'">'; 
           var fondLbl=(exStatut==='fonderie'&&e.fonderie)?' 🔥'+e.fonderie:'';
-          var exStatutLabel=exStatut==='fonderie'?(e.fonderie||'Fonderie'):exStatut==='range'?(e.rangement||'Rangé'):(VSL[exStatut]||exStatut);
-          var exStatusClass=exStatut==='encours'?'encours':exStatut==='range'?'range':exStatut==='vendu'||exStatut==='collection'?'archive':'termine';
+          var exStatutLabel=exStatut==='fonderie'?(e.fonderie||'Fonderie'):exStatut==='galerie'?(e.galerie||'En galerie'):(VSL[exStatut]||exStatut);
+          var exStatusClass=exStatut==='encours'?'encours':exStatut==='cire'?'range':exStatut==='vendu'||exStatut==='collection'?'archive':'termine';
           html+='<div style="flex:1;min-width:0;overflow:hidden;">';
-          html+='<span class="ex-mat">'+(e.mat||'—')+'</span> <span class="ex-num">'+shortSuf(e.num)+' · '+(e.exId||'')+(e.lieu?' 📍'+e.lieu:'')+fondLbl+(e.certificat?' <span title="Certificat fait" style="color:var(--green);font-size:.7rem;">📜</span>':'')+'</span>';
+          html+='<span class="ex-mat">'+(e.mat||'—')+'</span> <span class="ex-num">'+shortSuf(e.num)+' · '+(e.exId||'')+((e.rangement&&(exStatut==='stock'||exStatut==='cire'))?' 📍'+e.rangement:'')+fondLbl+(e.certificat?' <span title="Certificat fait" style="color:var(--green);font-size:.7rem;">📜</span>':'')+'</span>';
           html+='<div style="display:flex;align-items:center;gap:6px;margin-top:2px;">';
           html+='<span class="ex-status s-'+exStatusClass+'">'+exStatutLabel+'</span>';
           if(tmAvecBase) html+='<span class="ex-time">'+fmtMin(tmAvecBase)+'</span>';
@@ -3693,7 +3732,7 @@ function renderEx(){
       var tm=exTotalMin(e);
       var pct=e.estMin&&tm?Math.min(100,Math.round(tm/e.estMin*100)):0;
       var exSt=e.statut||e.venteStatus||e.status||'encours';
-      var VSL2={encours:'En cours',stock:'En stock',commande:'Sur commande',vendu:'Vendu',collection:'Col. part.'};
+      var VSL2={encours:'En cours',fonderie:'En fonderie',cire:'Cire en stock',galerie:'En galerie',stock:'En stock',commande:'Sur commande',vendu:'Vendu',collection:'Col. part.'};
       html+='<div class="ex-card" onclick="openDetail(\'' + e._id + '\')">'; 
       html+='<div class="ex-card-img">'+(e.photo?'<img src="'+e.photo+'">':"🖼️");
       html+='<div style="position:absolute;top:7px;left:7px;right:7px;display:flex;justify-content:space-between;">';
@@ -3702,7 +3741,7 @@ function renderEx(){
       html+='<div class="ex-card-body">';
       html+='<div class="ex-card-id">'+(e.exId||'')+' · '+shortSuf(e.num)+'</div>';
       html+='<div class="ex-card-titre">'+(o?o.nom||'?':'?')+'</div>';
-      html+='<div class="ex-card-sub">'+(e.mat||'')+(e.lieu?' · 📍'+e.lieu:'')+'</div>';
+      html+='<div class="ex-card-sub">'+(e.mat||'')+(e.rangement?' · 📍'+e.rangement:'')+'</div>';
       if(e.estMin&&tm){
         html+='<div class="tb-wrap"><div class="tb" style="width:'+pct+'%"></div></div>';
         html+='<div style="font-size:.6rem;color:var(--faint);">'+fmtMin(tm)+' / '+fmtMin(e.estMin)+'</div>';
@@ -3937,9 +3976,8 @@ function saveOeuvre(){
   const nom=document.getElementById('ow-nom').value.trim();
   if(!nom){alert('Nom obligatoire');return;}
   var statut=document.getElementById('ow-actif').value||'encours';
-  var lieu=document.getElementById('ow-lieu').value.trim();
-  if(lieu && lieux.indexOf(lieu)<0){ lieux.push(lieu); updateLieuxDatalist(); }
-  var owRangement = statut==='range'    ? document.getElementById('ow-rangement').value.trim() : null;
+  var lieu=null; // ancien champ « Lieu » supprimé : l'emplacement passe par Rangement / Galerie / Fonderie
+  var owRangement = (statut==='stock'||statut==='cire') ? document.getElementById('ow-rangement').value.trim() : null;
   var owGalerie   = statut==='galerie'  ? document.getElementById('ow-galerie-nom').value.trim() : null;
   var owFonderie  = statut==='fonderie' ? document.getElementById('ow-fonderie').value.trim() : null;
   var owDepot     = statut==='fonderie' ? document.getElementById('ow-depot').value||null : null;
@@ -4314,12 +4352,11 @@ function saveEx(){
   const num=document.getElementById('ex-num').value;
   const exId=o?o.num+'-'+num:document.getElementById('ex-id').value;
   var statut=document.getElementById('ex-vente').value||'encours';
-  var lieu=document.getElementById('ex-lieu').value.trim();
-  if(lieu && lieux.indexOf(lieu)<0){ lieux.push(lieu); updateLieuxDatalist(); }
+  var lieu=null; // ancien champ « Lieu » supprimé
   var fonderieVal = statut==='fonderie' ? document.getElementById('ex-fonderie').value.trim() : null;
   var depotVal    = statut==='fonderie' ? document.getElementById('ex-depot').value||null : null;
   var retourVal   = document.getElementById('ex-retour').value||null;
-  var rangementVal= statut==='range'   ? document.getElementById('ex-rangement').value.trim() : null;
+  var rangementVal= (statut==='stock'||statut==='cire') ? document.getElementById('ex-rangement').value.trim() : null;
   var galerieVal  = statut==='galerie' ? document.getElementById('ex-galerie-nom').value.trim() : null;
   if(fonderieVal && fonderies.indexOf(fonderieVal)<0){ fonderies.push(fonderieVal); updateFonderiesDatalist(); sbSaveConfig('fonderies'); }
   if(rangementVal && rangements.indexOf(rangementVal)<0){ rangements.push(rangementVal); updateRangementsDatalist(); sbSaveConfig('rangements'); }
@@ -4327,7 +4364,7 @@ function saveEx(){
   var newExId = editExId||'e-'+Date.now();
   const e={_id:newExId,oeuvreId:pid,exId,mat:document.getElementById('ex-mat').value,num,
     statut:statut,
-    status:(statut==='encours'?'encours':(statut==='stock'||statut==='commande'?'termine':'archive')),
+    status:(statut==='encours'?'encours':(statut==='stock'||statut==='commande'||statut==='cire'?'termine':'archive')),
     venteStatus:statut,
     lieu:lieu||null,
     fonderie:fonderieVal||null,
@@ -4832,7 +4869,7 @@ function renderConfig(){
   cfgEl.innerHTML += fonderiesHtml;
 
   // Rangements
-  var rangementsHtml = cfgHd('rangements','📦 Emplacements de rangement',null,false)
+  var rangementsHtml = cfgHd('rangements','📦 Emplacements (stock)',null,false)
     +'<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">'
     +(rangements||[]).map(function(r){
       return '<div style="display:flex;align-items:center;gap:5px;background:var(--w);border:1px solid var(--border);border-radius:var(--r);padding:4px 10px;">'
@@ -4880,7 +4917,7 @@ function renderConfig(){
     +'<button class="btn btn-primary" onclick="addLieu()">+ Ajouter</button>'
     +'</div>'
     +cfgFt();
-  cfgEl.innerHTML += lieuxHtml;
+  // Section « Lieux » retirée : fusionnée dans les emplacements (stock)
 
   // Cercles — Types d'interaction (points)
   var intTypesBadge='<span style="font-size:.68rem;color:var(--faint);">'+(interactionTypes||[]).length+'</span>';
@@ -8402,16 +8439,16 @@ function renderExpo(){
   var sel = document.getElementById('expo-empl'); if(!sel) return;
   var cur = sel.value;
   var gal = (typeof galeries!=='undefined' && galeries ? galeries.slice() : []);
-  var lx  = (typeof lieux!=='undefined' && lieux ? lieux.slice() : []);
+  var lx  = (typeof rangements!=='undefined' && rangements ? rangements.slice() : []);
   oeuvres.concat(exemplaires).forEach(function(x){
     if(x.galerie && gal.indexOf(x.galerie)<0) gal.push(x.galerie);
-    if(x.lieu && lx.indexOf(x.lieu)<0) lx.push(x.lieu);
+    if(x.rangement && lx.indexOf(x.rangement)<0) lx.push(x.rangement);
   });
   gal.sort(function(a,b){return a.localeCompare(b,'fr');});
   lx.sort(function(a,b){return a.localeCompare(b,'fr');});
   var h = '<option value="">— Choisir un emplacement —</option>';
   if(gal.length) h += '<optgroup label="🖼 Galeries">'+gal.map(function(g){var v='g:'+g;return '<option value="'+_expoEsc(v)+'"'+(v===cur?' selected':'')+'>'+_expoEsc(g)+'</option>';}).join('')+'</optgroup>';
-  if(lx.length)  h += '<optgroup label="📍 Lieux">'+lx.map(function(l){var v='l:'+l;return '<option value="'+_expoEsc(v)+'"'+(v===cur?' selected':'')+'>'+_expoEsc(l)+'</option>';}).join('')+'</optgroup>';
+  if(lx.length)  h += '<optgroup label="📦 Emplacements (stock)">'+lx.map(function(l){var v='r:'+l;return '<option value="'+_expoEsc(v)+'"'+(v===cur?' selected':'')+'>'+_expoEsc(l)+'</option>';}).join('')+'</optgroup>';
   sel.innerHTML = h;
   var tSel = document.getElementById('expo-filter-type'), curT = tSel.value;
   var types = [...new Set(oeuvres.map(function(o){return o.type;}).filter(Boolean))].sort();
@@ -8459,7 +8496,8 @@ function _expoAtEmpl(it, em){
     var st = it.isEx ? _expoExStatut(x) : x.statut;
     return st==='galerie' && x.galerie===em.name;
   }
-  return x.lieu===em.name;
+  var st2 = it.isEx ? _expoExStatut(x) : x.statut;
+  return (st2==='stock'||st2==='cire') && x.rangement===em.name;
 }
 
 function _expoInfos(it){
@@ -8544,24 +8582,25 @@ function expoToggle(key, checked){
   var x = isEx ? exemplaires.find(function(e){return e._id===id;}) : oeuvres.find(function(o){return o._id===id;});
   if(!x) return;
   if(checked){
-    _expoPrev[key] = { statut:x.statut, venteStatus:x.venteStatus, status:x.status, galerie:x.galerie, lieu:x.lieu };
+    _expoPrev[key] = { statut:x.statut, venteStatus:x.venteStatus, status:x.status, galerie:x.galerie, rangement:x.rangement, actif:x.actif };
     if(em.kind==='g'){
       x.statut = 'galerie'; x.galerie = em.name;
-      if(isEx){ x.venteStatus = 'galerie'; x.status = 'archive'; }
+      if(isEx){ x.venteStatus = 'galerie'; x.status = 'archive'; } else { x.actif = false; }
     } else {
-      x.lieu = em.name;
+      x.statut = 'stock'; x.rangement = em.name;
+      if(isEx){ x.venteStatus = 'stock'; x.status = 'termine'; } else { x.actif = false; }
     }
   } else {
     var p = _expoPrev[key];
     if(p){
-      x.statut = p.statut; x.galerie = p.galerie; x.lieu = p.lieu;
-      if(isEx){ x.venteStatus = p.venteStatus; x.status = p.status; }
+      x.statut = p.statut; x.galerie = p.galerie; x.rangement = p.rangement;
+      if(isEx){ x.venteStatus = p.venteStatus; x.status = p.status; } else { x.actif = p.actif; }
       delete _expoPrev[key];
     } else if(em.kind==='g'){
       x.statut = 'stock'; x.galerie = null;
       if(isEx){ x.venteStatus = 'stock'; x.status = 'termine'; }
     } else {
-      x.lieu = null;
+      x.rangement = null;
     }
   }
   if(isEx) sbSaveEx(x); else sbSaveOeuvre(x);
@@ -8706,7 +8745,7 @@ function genererExpoExcel(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20261006 - v139 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20261006 - v140 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -8728,9 +8767,9 @@ function renderTemps(){
 
   document.getElementById('temps-title').textContent = isCatalogue ? 'Catalogue complet' : 'Temps — Éléments en cours';
 
-  var STATUTS_O = ['encours','stock','range','commande','vendu','collection'];
-  var STATUTS_E = ['encours','fonderie','range','stock','galerie','commande','vendu','collection'];
-  var STATUT_L  = {encours:'En cours',fonderie:'Fonderie',range:'Rangé',stock:'En stock',galerie:'En galerie',commande:'Commande',vendu:'Vendu',collection:'Col. part.'};
+  var STATUTS_O = ['encours','fonderie','stock','galerie','commande','vendu','collection'];
+  var STATUTS_E = ['encours','fonderie','cire','stock','galerie','commande','vendu','collection'];
+  var STATUT_L  = {encours:'En cours',fonderie:'Fonderie',cire:'Cire en stock',stock:'En stock',galerie:'En galerie',commande:'Commande',vendu:'Vendu',collection:'Col. part.'};
   var PRIO_L    = {1:'🔴 Urgent',2:'🟠 Import.',3:'🟡 Normal',4:'⚪ Basse'};
 
   var html='';
@@ -8763,7 +8802,7 @@ function renderTemps(){
         r+='<option value=""'+(!item.fonderie?' selected':'')+'>—</option>';
         (fonderies||[]).forEach(function(f){ r+='<option value="'+f+'"'+(item.fonderie===f?' selected':'')+'>'+f+'</option>'; });
         r+='</select>';
-      } else if(item.statut==='range'){
+      } else if(item.statut==='stock'||item.statut==='cire'){
         r+='<br><input type="text" class="temps-input" style="width:90px;margin-top:3px;" list="rangements-list" placeholder="Emplacement…" value="'+(item.rangement||'')+'" onchange="saveTempsRangement2(\''+item._id+'\',\''+item.type+'\',this.value)">';
       } else if(item.statut==='galerie'){
         r+='<br><input type="text" class="temps-input" style="width:90px;margin-top:3px;" list="galeries-list" placeholder="Galerie…" value="'+(item.galerie||'')+'" onchange="saveTempsGalerie2(\''+item._id+'\',\''+item.type+'\',this.value)">';
@@ -8965,7 +9004,7 @@ function saveTempsStatut(id, type, val, sel){
       td.appendChild(br); td.appendChild(sel2);
     };
     if(val==='fonderie') addCtxSelect(fonderies, 'saveTempsFounderie2', item2&&item2.fonderie);
-    else if(val==='range') addCtxField('rangements-list','Emplacement…','saveTempsRangement2',item2&&item2.rangement);
+    else if(val==='stock'||val==='cire') addCtxField('rangements-list','Emplacement…','saveTempsRangement2',item2&&item2.rangement);
     else if(val==='galerie') addCtxField('galeries-list','Galerie…','saveTempsGalerie2',item2&&item2.galerie);
   }
 }
