@@ -1099,7 +1099,12 @@ function doLogout(){
       <div id="expo-count" style="font-size:.75rem;color:var(--mid);margin-bottom:6px;"></div>
       <div id="expo-list" style="max-height:380px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--r);padding:6px;background:var(--off);margin-bottom:16px;"></div>
 
-      <button class="btn btn-primary" onclick="genererExpoExcel()" style="gap:6px;">📊 Générer le fichier Excel</button>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;">
+        <button class="btn btn-primary" onclick="genererExpoExcel()" style="gap:6px;">📊 Générer l'export</button>
+        <label style="font-size:.78rem;color:var(--mid);display:flex;align-items:center;gap:6px;cursor:pointer;" title="Petits cartels 4 × 4,8 cm à découper (30 par page A4), texte en bas pour plier en chevalet">
+          <input type="checkbox" id="expo-cartouches" checked style="accent-color:var(--gold);"> + cartouches à découper (PDF)
+        </label>
+      </div>
       <div id="expo-status" style="font-size:.75rem;color:var(--faint);margin-top:8px;display:none;"></div>
     </div>
   </div>
@@ -8705,6 +8710,96 @@ function _expoLoadImg(url){
   });
 }
 
+// ══ CARTOUCHES À DÉCOUPER (PDF) ══
+// 5 colonnes × 6 lignes sur A4 = 30 cartouches de 40 × 48 mm.
+// Texte dans la moitié basse : on peut plier en haut pour faire un petit chevalet.
+function genererCartouchesPDF(msgAvant){
+  var em = _expoEmpl();
+  var status = document.getElementById('expo-status');
+  status.style.display = 'block';
+  if(!em){ status.textContent = '⚠️ Choisis d\'abord un emplacement.'; return; }
+  var list = _expoItems().filter(function(it){ return _expoAtEmpl(it,em); }).sort(_expoSort);
+  if(!list.length){ status.textContent = '⚠️ Aucune pièce cochée pour cet emplacement.'; return; }
+
+  function doGenerate(jsPDF){
+    var doc = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
+    var COLS=5, ROWS=6, W=40, H=48, FOLD=13;   // FOLD = hauteur du rabat (pliure à 13 mm du haut)
+    var pageW=210, pageH=297;
+    var mX=(pageW-COLS*W)/2, mY=(pageH-ROWS*H)/2;   // marges centrées (5 mm / 4,5 mm)
+    var parPage=COLS*ROWS;
+    var nbPages=Math.ceil(list.length/parPage);
+
+    function grille(nbCases){
+      // Lignes de découpe très fines, sur toute la largeur/hauteur pour couper à la règle
+      var rows=Math.ceil(nbCases/COLS);
+      doc.setDrawColor(170,170,170); doc.setLineWidth(0.08);
+      doc.setLineDashPattern([],0);
+      for(var r=0;r<=rows;r++){ var y=mY+r*H; doc.line(0,y,pageW,y); }
+      for(var c=0;c<=COLS;c++){ var x=mX+c*W; doc.line(x,0,x,mY+rows*H+ (rows<ROWS?3:mY)); }
+      // Pliure (facultative) : pointillés très légers au milieu de chaque cartouche
+      doc.setDrawColor(215,215,215); doc.setLineWidth(0.06);
+      doc.setLineDashPattern([0.6,1.2],0);
+      for(var r2=0;r2<rows;r2++){ var yf=mY+r2*H+FOLD; doc.line(mX,yf,mX+COLS*W,yf); }
+      doc.setLineDashPattern([],0);
+    }
+
+    list.forEach(function(it, i){
+      var posPage=i%parPage;
+      if(posPage===0){
+        if(i>0) doc.addPage();
+        grille(Math.min(parPage, list.length-i));
+      }
+      var col=posPage%COLS, row=Math.floor(posPage/COLS);
+      var x=mX+col*W, y=mY+row*H, cx=x+W/2;
+      var inf=_expoInfos(it);
+      var zoneH=H-FOLD;           // hauteur de la partie texte (sous la pliure)
+      var maxW=W-4;
+      var PT=0.3528;              // 1 point = 0,3528 mm
+
+      // Nom : retour à la ligne automatique ; si trop long, on réduit un peu la taille
+      var nomTxt=String(inf.nom||''), nomSize=9, nomL;
+      doc.setFont('helvetica','bold');
+      do { doc.setFontSize(nomSize); nomL=doc.splitTextToSize(nomTxt, maxW); if(nomL.length<=4) break; nomSize-=0.5; } while(nomSize>6);
+      var matTxt=inf.mat+(inf.ex?' · '+inf.ex:''), matSize=7.5;
+      doc.setFont('helvetica','normal'); doc.setFontSize(matSize);
+      var matL=doc.splitTextToSize(matTxt, maxW);
+
+      var numSize=16;
+      var hNum=numSize*PT, hNomL=nomSize*PT*1.2, hMatL=matSize*PT*1.25;
+      var blocH=hNum+2.2+nomL.length*hNomL+1.2+matL.length*hMatL;
+      var ty=y+FOLD+Math.max(2.5,(zoneH-blocH)/2)+hNum*0.85;   // bloc centré verticalement
+
+      // Numéro (pastille)
+      doc.setFont('helvetica','bold'); doc.setFontSize(numSize); doc.setTextColor(26,24,22);
+      doc.text(String(i+1), cx, ty, {align:'center'});
+      ty+=2.2+nomSize*PT;
+
+      // Nom
+      doc.setFont('helvetica','bold'); doc.setFontSize(nomSize);
+      nomL.forEach(function(l){ doc.text(l, cx, ty, {align:'center'}); ty+=hNomL; });
+      ty+=1.2-hNomL+matSize*PT;
+
+      // Matière + exemplaire (ex : « Bronze · 1/8 », « Terre · Original »)
+      doc.setFont('helvetica','normal'); doc.setFontSize(matSize); doc.setTextColor(80,76,70);
+      matL.forEach(function(l){ doc.text(l, cx, ty, {align:'center'}); ty+=hMatL; });
+    });
+
+    var safe = em.name.replace(/[^\wÀ-ÿ\- ]+/g,'').trim().replace(/\s+/g,'-') || 'expo';
+    doc.save('cartouches-'+safe+'-'+new Date().toISOString().slice(0,10)+'.pdf');
+    status.textContent = (msgAvant?msgAvant+' ':'')+'✅ Cartouches PDF créés : '+list.length+' (sur '+nbPages+' page'+(nbPages>1?'s':'')+').';
+  }
+
+  if(window.jspdf && window.jspdf.jsPDF){ doGenerate(window.jspdf.jsPDF); }
+  else {
+    status.textContent = 'Chargement de l\'outil PDF…';
+    var s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+    s.onload = function(){ doGenerate(window.jspdf.jsPDF); };
+    s.onerror = function(){ status.textContent = '❌ Impossible de charger l\'outil PDF. Vérifie ta connexion.'; };
+    document.head.appendChild(s);
+  }
+}
+
 function genererExpoExcel(){
   var em = _expoEmpl();
   var status = document.getElementById('expo-status');
@@ -8796,6 +8891,8 @@ function genererExpoExcel(){
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
       status.textContent = '✅ Fichier Excel créé ('+list.length+' pièce'+(list.length>1?'s':'')+').';
+      var chk=document.getElementById('expo-cartouches');
+      if(chk && chk.checked){ var msgXls=status.textContent; setTimeout(function(){ genererCartouchesPDF(msgXls); }, 600); }
     }).catch(function(err){
       console.error(err);
       status.textContent = '❌ Erreur pendant la création du fichier : '+(err&&err.message||err);
@@ -8818,7 +8915,7 @@ function genererExpoExcel(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20261006 - v143 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20261006 - v145 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
