@@ -1077,6 +1077,31 @@ function doLogout(){
       </button>
       <div id="export-status" style="font-size:.75rem;color:var(--faint);margin-top:8px;display:none;"></div>
     </div>
+
+    <!-- Carte export : liste expo Excel -->
+    <div style="background:var(--w);border:1px solid var(--border);border-radius:var(--r);padding:22px 24px;max-width:680px;margin-top:22px;">
+      <div style="font-family:'Playfair Display',serif;font-size:1.05rem;color:var(--ink);margin-bottom:4px;">🏷 Liste d'exposition (Excel)</div>
+      <div style="font-size:.78rem;color:var(--faint);margin-bottom:18px;">Une pièce par ligne : Photo · N° pastille · Nom · Matière · Exemplaire · Prix — modifiable dans Excel</div>
+
+      <div style="margin-bottom:12px;">
+        <label style="font-size:.78rem;font-weight:500;color:var(--mid);letter-spacing:.04em;text-transform:uppercase;display:block;margin-bottom:6px;">Emplacement de l'expo</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <select id="expo-empl" onchange="expoChangeEmpl()" style="flex:1;min-width:200px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r);font-size:.82rem;background:var(--w);"></select>
+          <button class="btn btn-sm" onclick="expoNouvelEmpl()" style="font-size:.75rem;">＋ Nouvelle galerie</button>
+        </div>
+        <div style="font-size:.72rem;color:var(--faint);margin-top:6px;">Les pièces déjà à cet emplacement sont cochées. Cocher / décocher une pièce <b>change son emplacement dans sa fiche</b>.</div>
+      </div>
+
+      <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
+        <select id="expo-filter-type" onchange="renderExpoSel()" style="padding:5px 8px;border:1px solid var(--border);border-radius:var(--r);font-size:.78rem;background:var(--w);"></select>
+        <input type="text" id="expo-search" oninput="renderExpoSel()" placeholder="Rechercher…" style="flex:1;min-width:140px;padding:5px 8px;border:1px solid var(--border);border-radius:var(--r);font-size:.78rem;">
+      </div>
+      <div id="expo-count" style="font-size:.75rem;color:var(--mid);margin-bottom:6px;"></div>
+      <div id="expo-list" style="max-height:380px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--r);padding:6px;background:var(--off);margin-bottom:16px;"></div>
+
+      <button class="btn btn-primary" onclick="genererExpoExcel()" style="gap:6px;">📊 Générer le fichier Excel</button>
+      <div id="expo-status" style="font-size:.75rem;color:var(--faint);margin-top:8px;display:none;"></div>
+    </div>
   </div>
 
   <!-- ══ CATALOGUE ══ -->
@@ -8086,6 +8111,7 @@ function renderExport(){
   var types = [...new Set(oeuvres.map(function(o){return o.type;}).filter(Boolean))].sort();
   typeSel.innerHTML = '<option value="">Tous types</option>' + types.map(function(t){return '<option value="'+t+'"'+(t===curType?' selected':'')+'>'+t+'</option>';}).join('');
   renderExportSel();
+  renderExpo();
 }
 
 function renderExportSel(){
@@ -8335,12 +8361,322 @@ function genererPlanchePDF(){
   }
 }
 
+// ══ EXPORT EXPO (EXCEL) ══
+var _expoPrev = {}; // mémorise l'état avant cochage, pour pouvoir annuler en décochant
+
+function _expoEsc(t){ return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function _expoCap(t){ t=String(t||'').trim(); return t ? t.charAt(0).toUpperCase()+t.slice(1).toLowerCase() : ''; }
+function _expoExStatut(e){ return e.statut||e.venteStatus||e.status||''; }
+
+function renderExpo(){
+  var sel = document.getElementById('expo-empl'); if(!sel) return;
+  var cur = sel.value;
+  var gal = (typeof galeries!=='undefined' && galeries ? galeries.slice() : []);
+  var lx  = (typeof lieux!=='undefined' && lieux ? lieux.slice() : []);
+  oeuvres.concat(exemplaires).forEach(function(x){
+    if(x.galerie && gal.indexOf(x.galerie)<0) gal.push(x.galerie);
+    if(x.lieu && lx.indexOf(x.lieu)<0) lx.push(x.lieu);
+  });
+  gal.sort(function(a,b){return a.localeCompare(b,'fr');});
+  lx.sort(function(a,b){return a.localeCompare(b,'fr');});
+  var h = '<option value="">— Choisir un emplacement —</option>';
+  if(gal.length) h += '<optgroup label="🖼 Galeries">'+gal.map(function(g){var v='g:'+g;return '<option value="'+_expoEsc(v)+'"'+(v===cur?' selected':'')+'>'+_expoEsc(g)+'</option>';}).join('')+'</optgroup>';
+  if(lx.length)  h += '<optgroup label="📍 Lieux">'+lx.map(function(l){var v='l:'+l;return '<option value="'+_expoEsc(v)+'"'+(v===cur?' selected':'')+'>'+_expoEsc(l)+'</option>';}).join('')+'</optgroup>';
+  sel.innerHTML = h;
+  var tSel = document.getElementById('expo-filter-type'), curT = tSel.value;
+  var types = [...new Set(oeuvres.map(function(o){return o.type;}).filter(Boolean))].sort();
+  tSel.innerHTML = '<option value="">Tous types</option>'+types.map(function(t){return '<option value="'+t+'"'+(t===curT?' selected':'')+'>'+t+'</option>';}).join('');
+  renderExpoSel();
+}
+
+function expoNouvelEmpl(){
+  var nom = prompt('Nom de la galerie / de l\'expo :');
+  if(!nom) return; nom = nom.trim(); if(!nom) return;
+  if(galeries.indexOf(nom)<0){ galeries.push(nom); updateGaleriesDatalist(); sbSaveConfig('galeries'); }
+  renderExpo();
+  document.getElementById('expo-empl').value = 'g:'+nom;
+  expoChangeEmpl();
+}
+
+function expoChangeEmpl(){ _expoPrev = {}; renderExpoSel(); }
+
+function _expoEmpl(){
+  var v = document.getElementById('expo-empl').value;
+  if(!v) return null;
+  return { kind: v.slice(0,1), name: v.slice(2) };
+}
+
+// Toutes les pièces exposables : originaux (œuvres) + exemplaires (sauf moules)
+function _expoItems(){
+  var items = [];
+  oeuvres.forEach(function(o){
+    items.push({ key:'o:'+o._id, isEx:false, obj:o, oeuvre:o, sub:'' });
+  });
+  exemplaires.forEach(function(e){
+    var n = String(e.num||'');
+    if(n==='97'||n==='98'||n==='99') return;
+    var o = oeuvres.find(function(x){return x._id===e.oeuvreId;});
+    if(!o) return;
+    items.push({ key:'e:'+e._id, isEx:true, obj:e, oeuvre:o, sub:n||'zz' });
+  });
+  return items;
+}
+
+function _expoAtEmpl(it, em){
+  if(!em) return false;
+  var x = it.obj;
+  if(em.kind==='g'){
+    var st = it.isEx ? _expoExStatut(x) : x.statut;
+    return st==='galerie' && x.galerie===em.name;
+  }
+  return x.lieu===em.name;
+}
+
+function _expoInfos(it){
+  var o = it.oeuvre, x = it.obj;
+  var mat, exLbl, prix, photo;
+  if(!it.isEx){
+    mat = o.type==='DESSIN' ? (o.technique||'Dessin') : 'Terre';
+    exLbl = 'Original';
+    prix = o.prix;
+    photo = o.photo;
+  } else {
+    mat = _expoCap(x.mat);
+    exLbl = (x.num==='00') ? 'Original' : (SUFS[x.num]||x.num||'');
+    prix = x.prix || o.prix;
+    photo = x.photo || o.photo;
+  }
+  return { nom: o.nom||o.num, mat: mat, ex: exLbl, prix: prix||null, photo: photo||null, ref: it.isEx ? (x.exId||o.num) : o.num };
+}
+
+function _expoSort(a,b){
+  var td = typeSort(a.oeuvre.type,b.oeuvre.type); if(td!==0) return td;
+  var nd = numRang(b.oeuvre)-numRang(a.oeuvre); if(nd!==0) return nd;
+  if(a.oeuvre._id!==b.oeuvre._id) return String(a.oeuvre.num).localeCompare(String(b.oeuvre.num));
+  return a.sub.localeCompare(b.sub);
+}
+
+function renderExpoSel(){
+  var box = document.getElementById('expo-list'); if(!box) return;
+  var em = _expoEmpl();
+  var cnt = document.getElementById('expo-count');
+  if(!em){
+    box.innerHTML = '<div style="padding:14px;font-size:.78rem;color:var(--faint);text-align:center;">Choisis d\'abord un emplacement ci-dessus</div>';
+    cnt.textContent = '';
+    return;
+  }
+  var typeF = document.getElementById('expo-filter-type').value;
+  var q = document.getElementById('expo-search').value.trim().toLowerCase();
+  var all = _expoItems();
+  var dedans = all.filter(function(it){ return _expoAtEmpl(it,em); }).sort(_expoSort);
+  var autres = all.filter(function(it){
+    if(_expoAtEmpl(it,em)) return false;
+    var st = it.isEx ? _expoExStatut(it.obj) : it.obj.statut;
+    if(st==='vendu'||st==='collection') return false;
+    if(typeF && it.oeuvre.type!==typeF) return false;
+    if(q){
+      var inf = _expoInfos(it);
+      var hay = (inf.nom+' '+inf.ref+' '+inf.mat+' '+inf.ex).toLowerCase();
+      if(hay.indexOf(q)<0) return false;
+    }
+    return true;
+  }).sort(_expoSort);
+
+  cnt.innerHTML = '<b>'+dedans.length+'</b> pièce'+(dedans.length>1?'s':'')+' à « '+_expoEsc(em.name)+' »';
+
+  function ligne(it, checked, num){
+    var inf = _expoInfos(it);
+    var thumb = inf.photo ? '<img src="'+inf.photo+'" style="width:38px;height:38px;object-fit:contain;background:var(--w);border-radius:2px;flex-shrink:0;">' : '<div style="width:38px;height:38px;background:var(--light);border-radius:2px;display:flex;align-items:center;justify-content:center;font-size:.9rem;flex-shrink:0;">🏺</div>';
+    return '<label style="display:flex;align-items:center;gap:10px;padding:5px 8px;cursor:pointer;border-radius:var(--r);user-select:none;'+(checked?'background:var(--w);':'')+'">'+
+      '<input type="checkbox" '+(checked?'checked':'')+' style="accent-color:var(--gold);flex-shrink:0;" onchange="expoToggle(\''+it.key+'\',this.checked)">'+
+      (checked?'<span style="font-size:.72rem;font-weight:600;color:var(--gold);min-width:20px;text-align:right;">'+num+'</span>':'')+
+      thumb+
+      '<div style="flex:1;min-width:0;">'+
+        '<div style="font-size:.82rem;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+_expoEsc(inf.nom)+'</div>'+
+        '<div style="font-size:.7rem;color:var(--faint);">'+_expoEsc(inf.ref)+' · '+_expoEsc(inf.mat)+' · '+_expoEsc(inf.ex)+(inf.prix?' · '+inf.prix+' €':'')+(inf.photo?'':' <span style="color:var(--red);">sans photo</span>')+'</div>'+
+      '</div></label>';
+  }
+  var h = '';
+  if(dedans.length){
+    h += '<div style="font-size:.65rem;letter-spacing:.1em;text-transform:uppercase;color:var(--mid);font-weight:600;padding:4px 8px;">✔ Dans l\'expo</div>';
+    dedans.forEach(function(it,i){ h += ligne(it,true,i+1); });
+  }
+  h += '<div style="font-size:.65rem;letter-spacing:.1em;text-transform:uppercase;color:var(--mid);font-weight:600;padding:10px 8px 4px;border-top:'+(dedans.length?'1px solid var(--border)':'none')+';margin-top:'+(dedans.length?'6px':'0')+';">Autres pièces disponibles</div>';
+  if(!autres.length) h += '<div style="padding:8px;font-size:.75rem;color:var(--faint);">Aucune</div>';
+  autres.forEach(function(it){ h += ligne(it,false); });
+  box.innerHTML = h;
+}
+
+function expoToggle(key, checked){
+  var em = _expoEmpl(); if(!em) return;
+  var isEx = key.slice(0,2)==='e:';
+  var id = key.slice(2);
+  var x = isEx ? exemplaires.find(function(e){return e._id===id;}) : oeuvres.find(function(o){return o._id===id;});
+  if(!x) return;
+  if(checked){
+    _expoPrev[key] = { statut:x.statut, venteStatus:x.venteStatus, status:x.status, galerie:x.galerie, lieu:x.lieu };
+    if(em.kind==='g'){
+      x.statut = 'galerie'; x.galerie = em.name;
+      if(isEx){ x.venteStatus = 'galerie'; x.status = 'archive'; }
+    } else {
+      x.lieu = em.name;
+    }
+  } else {
+    var p = _expoPrev[key];
+    if(p){
+      x.statut = p.statut; x.galerie = p.galerie; x.lieu = p.lieu;
+      if(isEx){ x.venteStatus = p.venteStatus; x.status = p.status; }
+      delete _expoPrev[key];
+    } else if(em.kind==='g'){
+      x.statut = 'stock'; x.galerie = null;
+      if(isEx){ x.venteStatus = 'stock'; x.status = 'termine'; }
+    } else {
+      x.lieu = null;
+    }
+  }
+  if(isEx) sbSaveEx(x); else sbSaveOeuvre(x);
+  try{ updateCounts(); }catch(err){}
+  renderExpoSel();
+}
+
+// Charge une image et la ré-encode en JPEG (taille réduite), en gardant ses proportions
+function _expoLoadImg(url){
+  return new Promise(function(resolve){
+    if(!url){ resolve(null); return; }
+    var img = new Image();
+    if(!/^data:/.test(url)) img.crossOrigin = 'anonymous';
+    img.onload = function(){
+      try{
+        var max = 400, w = img.naturalWidth, h = img.naturalHeight;
+        if(!w||!h){ resolve(null); return; }
+        var r = Math.min(1, max/Math.max(w,h));
+        var c = document.createElement('canvas');
+        c.width = Math.round(w*r); c.height = Math.round(h*r);
+        var ctx = c.getContext('2d');
+        ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,c.width,c.height);
+        ctx.drawImage(img,0,0,c.width,c.height);
+        resolve({ data: c.toDataURL('image/jpeg',0.85), w: w, h: h });
+      }catch(err){ resolve(null); }
+    };
+    img.onerror = function(){ resolve(null); };
+    img.src = url + (/^data:/.test(url) ? '' : (url.indexOf('?')<0?'?':'&')+'xl=1');
+  });
+}
+
+function genererExpoExcel(){
+  var em = _expoEmpl();
+  var status = document.getElementById('expo-status');
+  status.style.display = 'block';
+  if(!em){ status.textContent = '⚠️ Choisis d\'abord un emplacement.'; return; }
+  var list = _expoItems().filter(function(it){ return _expoAtEmpl(it,em); }).sort(_expoSort);
+  if(!list.length){ status.textContent = '⚠️ Aucune pièce cochée pour cet emplacement.'; return; }
+
+  function doGenerate(){
+    status.textContent = 'Chargement des photos… (0/'+list.length+')';
+    var done = 0;
+    Promise.all(list.map(function(it){
+      return _expoLoadImg(_expoInfos(it).photo).then(function(r){ done++; status.textContent = 'Chargement des photos… ('+done+'/'+list.length+')'; return r; });
+    })).then(function(imgs){
+      status.textContent = 'Création du fichier Excel…';
+      var wb = new ExcelJS.Workbook();
+      wb.creator = 'Atelier';
+      var sheetName = em.name.replace(/[\\\/\?\*\[\]:]/g,' ').slice(0,31) || 'Expo';
+      var ws = wb.addWorksheet(sheetName, { pageSetup:{ paperSize:9, orientation:'portrait', fitToPage:true, fitToWidth:1, fitToHeight:0 } });
+      ws.columns = [
+        { key:'photo', width:20 },
+        { key:'num',   width:10 },
+        { key:'nom',   width:34 },
+        { key:'mat',   width:16 },
+        { key:'ex',    width:14 },
+        { key:'prix',  width:13 },
+        { key:'ref',   width:20 }
+      ];
+      var now = new Date();
+      var dStr = now.toLocaleDateString('fr-FR');
+      ws.mergeCells('A1:G1');
+      var t = ws.getCell('A1');
+      t.value = 'Exposition — '+em.name+' — '+dStr;
+      t.font = { name:'Calibri', size:15, bold:true };
+      ws.getRow(1).height = 26;
+      var hdr = ws.getRow(2);
+      hdr.values = ['Photo','N° pastille','Nom de l\'œuvre','Matière','Exemplaire','Prix','Référence'];
+      hdr.height = 20;
+      hdr.eachCell(function(c){
+        c.font = { bold:true, color:{argb:'FFFFFFFF'} };
+        c.fill = { type:'pattern', pattern:'solid', fgColor:{argb:'FF8A7350'} };
+        c.alignment = { vertical:'middle', horizontal:'center' };
+      });
+      ws.views = [{ state:'frozen', ySplit:2 }];
+
+      var BOX = 120;                  // taille max de la photo en pixels
+      var colPx = 20*7+5;             // largeur colonne A en pixels (approx.)
+      var rowPx = BOX + 12;           // hauteur ligne en pixels
+      var thin = { style:'thin', color:{argb:'FFBFBFBF'} };
+
+      list.forEach(function(it, i){
+        var inf = _expoInfos(it);
+        var rIdx = i + 3;
+        var row = ws.getRow(rIdx);
+        row.values = ['', i+1, inf.nom, inf.mat, inf.ex, inf.prix!=null ? Number(inf.prix) : '', inf.ref];
+        row.height = rowPx * 0.75;
+        row.eachCell({ includeEmpty:true }, function(c, col){
+          c.alignment = { vertical:'middle', horizontal: (col===3?'left':'center'), wrapText:true };
+          c.border = { top:thin, left:thin, bottom:thin, right:thin };
+        });
+        row.getCell(2).font = { bold:true, size:14 };
+        row.getCell(3).font = { size:12 };
+        row.getCell(6).numFmt = '#,##0 "€"';
+        var im = imgs[i];
+        if(im){
+          var r = Math.min(BOX/im.w, BOX/im.h);
+          var w = Math.round(im.w*r), h = Math.round(im.h*r);
+          var id = wb.addImage({ base64: im.data, extension:'jpeg' });
+          ws.addImage(id, {
+            tl: { col: ((colPx - w)/2)/colPx, row: (rIdx-1) + ((rowPx - h)/2)/rowPx },
+            ext: { width:w, height:h },
+            editAs: 'oneCell'
+          });
+        } else if(inf.photo){
+          row.getCell(1).value = '(photo indisponible)';
+          row.getCell(1).font = { italic:true, color:{argb:'FF999999'}, size:9 };
+        }
+      });
+
+      return wb.xlsx.writeBuffer();
+    }).then(function(buf){
+      var blob = new Blob([buf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      var a = document.createElement('a');
+      var pad = function(n){return String(n).padStart(2,'0');};
+      var d = new Date();
+      var safe = em.name.replace(/[^\wÀ-ÿ\- ]+/g,'').trim().replace(/\s+/g,'-') || 'expo';
+      a.href = URL.createObjectURL(blob);
+      a.download = 'expo-'+safe+'-'+d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate())+'.xlsx';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
+      status.textContent = '✅ Fichier Excel créé ('+list.length+' pièce'+(list.length>1?'s':'')+').';
+    }).catch(function(err){
+      console.error(err);
+      status.textContent = '❌ Erreur pendant la création du fichier : '+(err&&err.message||err);
+    });
+  }
+
+  if(window.ExcelJS){ doGenerate(); }
+  else {
+    status.textContent = 'Chargement de l\'outil Excel…';
+    var s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js';
+    s.onload = doGenerate;
+    s.onerror = function(){ status.textContent = '❌ Impossible de charger l\'outil Excel. Vérifie ta connexion.'; };
+    document.head.appendChild(s);
+  }
+}
+
 // ══ VERSION ══
 (function(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20261002 - v136 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20261006 - v137 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
