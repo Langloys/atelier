@@ -8713,7 +8713,7 @@ function _expoLoadImg(url){
 // ══ CARTOUCHES À DÉCOUPER (PDF) ══
 // 5 colonnes × 6 lignes sur A4 = 30 cartouches de 40 × 48 mm.
 // Texte dans la moitié basse : on peut plier en haut pour faire un petit chevalet.
-function genererCartouchesPDF(msgAvant){
+function genererCartouchesPDF(msgAvant, enLien){
   var em = _expoEmpl();
   var status = document.getElementById('expo-status');
   status.style.display = 'block';
@@ -8785,8 +8785,16 @@ function genererCartouchesPDF(msgAvant){
     });
 
     var safe = em.name.replace(/[^\wÀ-ÿ\- ]+/g,'').trim().replace(/\s+/g,'-') || 'expo';
-    doc.save('cartouches-'+safe+'-'+new Date().toISOString().slice(0,10)+'.pdf');
-    status.textContent = (msgAvant?msgAvant+' ':'')+'✅ Cartouches PDF créés : '+list.length+' (sur '+nbPages+' page'+(nbPages>1?'s':'')+').';
+    var nomFichier='cartouches-'+safe+'-'+new Date().toISOString().slice(0,10)+'.pdf';
+    var info='Cartouches PDF : '+list.length+' (sur '+nbPages+' page'+(nbPages>1?'s':'')+')';
+    if(enLien){
+      // Le navigateur bloque souvent un 2e téléchargement automatique : on propose un bouton à cliquer
+      var url=URL.createObjectURL(doc.output('blob'));
+      status.innerHTML = _expoEsc(msgAvant||'')+'<br><a href="'+url+'" download="'+_expoEsc(nomFichier)+'" class="btn btn-primary" style="display:inline-flex;margin-top:8px;text-decoration:none;gap:6px;">🏷 Télécharger les cartouches (PDF)</a> <span style="font-size:.72rem;color:var(--faint);">'+info+'</span>';
+    } else {
+      doc.save(nomFichier);
+      status.textContent = '✅ '+info+'.';
+    }
   }
 
   if(window.jspdf && window.jspdf.jsPDF){ doGenerate(window.jspdf.jsPDF); }
@@ -8892,7 +8900,7 @@ function genererExpoExcel(){
       setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
       status.textContent = '✅ Fichier Excel créé ('+list.length+' pièce'+(list.length>1?'s':'')+').';
       var chk=document.getElementById('expo-cartouches');
-      if(chk && chk.checked){ var msgXls=status.textContent; setTimeout(function(){ genererCartouchesPDF(msgXls); }, 600); }
+      if(chk && chk.checked){ genererCartouchesPDF(status.textContent, true); }
     }).catch(function(err){
       console.error(err);
       status.textContent = '❌ Erreur pendant la création du fichier : '+(err&&err.message||err);
@@ -8915,7 +8923,7 @@ function genererExpoExcel(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20261006 - v145 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20261006 - v146 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
