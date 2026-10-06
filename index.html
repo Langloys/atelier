@@ -8122,7 +8122,7 @@ function renderExportSel(){
     if(statutF && o.statut !== statutF) return false;
     return true;
   }).sort(function(a,b){
-    var td = typeSort(a.type,b.type); return td!==0?td:numRang(b)-numRang(a);
+    var td = typeSort(a.type,b.type); return td!==0?td:numRang(a)-numRang(b);
   });
 
   var html = '';
@@ -8182,6 +8182,11 @@ function photoOeuvreOuEx(o){
 
 function genererPlanchePDF(){
   var sel = oeuvres.filter(function(o){ return _exportSel.has(o._id); });
+  // Classement par numéro d'œuvre (par type, puis numéro croissant)
+  sel.sort(function(a,b){
+    var td = typeSort(a.type,b.type); if(td!==0) return td;
+    return numRang(a)-numRang(b) || String(a.num||'').localeCompare(String(b.num||''));
+  });
   if(!sel.length){ alert('Sélectionne au moins une œuvre.'); return; }
 
   var showNum   = document.getElementById('export-show-num').checked;
@@ -8476,7 +8481,7 @@ function _expoInfos(it){
 
 function _expoSort(a,b){
   var td = typeSort(a.oeuvre.type,b.oeuvre.type); if(td!==0) return td;
-  var nd = numRang(b.oeuvre)-numRang(a.oeuvre); if(nd!==0) return nd;
+  var nd = numRang(a.oeuvre)-numRang(b.oeuvre); if(nd!==0) return nd;
   if(a.oeuvre._id!==b.oeuvre._id) return String(a.oeuvre.num).localeCompare(String(b.oeuvre.num));
   return a.sub.localeCompare(b.sub);
 }
@@ -8701,7 +8706,7 @@ function genererExpoExcel(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20261006 - v138 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20261006 - v139 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
