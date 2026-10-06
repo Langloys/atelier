@@ -8129,8 +8129,9 @@ function renderExportSel(){
   if(!list.length){ html='<div style="padding:12px;font-size:.78rem;color:var(--faint);text-align:center;">Aucune œuvre</div>'; }
   list.forEach(function(o){
     var checked = _exportSel.has(o._id);
-    var thumb = o.photo ? '<img src="'+o.photo+'" style="width:32px;height:32px;object-fit:cover;border-radius:2px;flex-shrink:0;">' : '<div style="width:32px;height:32px;background:var(--light);border-radius:2px;display:flex;align-items:center;justify-content:center;font-size:.9rem;flex-shrink:0;">🏺</div>';
-    var photoBadge = o.photo ? '' : '<span style="font-size:.65rem;color:var(--red);margin-left:4px;">sans photo</span>';
+    var ph = photoOeuvreOuEx(o);
+    var thumb = ph ? '<img src="'+ph+'" style="width:32px;height:32px;object-fit:contain;background:var(--w);border-radius:2px;flex-shrink:0;">' : '<div style="width:32px;height:32px;background:var(--light);border-radius:2px;display:flex;align-items:center;justify-content:center;font-size:.9rem;flex-shrink:0;">🏺</div>';
+    var photoBadge = ph ? '' : '<span style="font-size:.65rem;color:var(--red);margin-left:4px;">sans photo</span>';
     html += '<label style="display:flex;align-items:center;gap:10px;padding:6px 8px;cursor:pointer;border-radius:var(--r);user-select:none;" onmouseover="this.style.background=\'var(--light)\'" onmouseout="this.style.background=\'\'">'+
       '<input type="checkbox" '+(checked?'checked':'')+' style="accent-color:var(--gold);flex-shrink:0;" onchange="exportToggle(\''+o._id+'\',this.checked)">'+
       thumb+
@@ -8165,6 +8166,18 @@ function exportSelNone(){
     return true;
   }).forEach(function(o){ _exportSel.delete(o._id); });
   renderExportSel();
+}
+
+// Photo à utiliser pour une œuvre : la sienne, sinon celle d'un de ses exemplaires (hors moules)
+function photoOeuvreOuEx(o){
+  if(o.photo) return o.photo;
+  var exs = exemplaires.filter(function(e){ return e.oeuvreId===o._id && e.photo; });
+  if(!exs.length) return null;
+  exs.sort(function(a,b){
+    var am = ['97','98','99'].indexOf(String(a.num))>=0 ? 1 : 0, bm = ['97','98','99'].indexOf(String(b.num))>=0 ? 1 : 0;
+    return am-bm || String(a.num).localeCompare(String(b.num));
+  });
+  return exs[0].photo;
 }
 
 function genererPlanchePDF(){
@@ -8224,18 +8237,24 @@ function genererPlanchePDF(){
         doc.setLineWidth(0.3);
         doc.rect(cx, cy, colW-4, imgH, 'FD');
 
-        // Image si disponible
+        // Image si disponible — ajustée dans le cadre SANS déformation (proportions gardées, centrée)
         var img = imgData[o._id];
-        if(img){
+        var imgOk = false;
+        if(img && img.data){
           try{
-            var iW = colW - 4, iH = imgH;
-            doc.addImage(img, 'JPEG', cx, cy, iW, iH, undefined, 'FAST');
+            var boxW = colW - 4, boxH = imgH;
+            var r = Math.min(boxW / img.w, boxH / img.h);
+            var iW = img.w * r, iH = img.h * r;
+            doc.addImage(img.data, 'JPEG', cx + (boxW - iW)/2, cy + (boxH - iH)/2, iW, iH, undefined, 'FAST');
+            imgOk = true;
           }catch(err){}
-        } else {
-          // Placeholder emoji centré
-          doc.setFontSize(18);
+        }
+        if(!imgOk){
+          // Pas de photo : petit texte centré (les emojis ne passent pas dans le PDF)
+          doc.setFont('helvetica','italic');
+          doc.setFontSize(9);
           doc.setTextColor(180,172,162);
-          doc.text('🏺', cx + (colW-4)/2, cy + imgH/2 + 3, {align:'center'});
+          doc.text(img===false ? 'Photo introuvable' : 'Pas de photo', cx + (colW-4)/2, cy + imgH/2 + 1.5, {align:'center'});
         }
 
         // Textes sous la photo
@@ -8319,17 +8338,20 @@ function genererPlanchePDF(){
 
       var date = new Date().toISOString().slice(0,10);
       doc.save('planche-oeuvres-'+date+'.pdf');
-      status.textContent = '✅ PDF généré — '+sel.length+' œuvre'+(sel.length>1?'s':'');
+      var sansPhoto = sel.filter(function(o){ var d=imgData[o._id]; return !(d && d.data); });
+      status.textContent = '✅ PDF généré — '+sel.length+' œuvre'+(sel.length>1?'s':'') +
+        (sansPhoto.length ? ' · ⚠️ '+sansPhoto.length+' sans photo : '+sansPhoto.map(function(o){return o.num;}).join(', ') : '');
     }
 
     // Charger toutes les images en parallèle
-    if(sel.every(function(o){return !o.photo;})){
+    if(sel.every(function(o){return !photoOeuvreOuEx(o);})){
       proceed(); return;
     }
     sel.forEach(function(o){
-      if(!o.photo){ imgData[o._id]=null; loaded++; if(loaded===sel.length)proceed(); return; }
+      var url = photoOeuvreOuEx(o);
+      if(!url){ imgData[o._id]=null; loaded++; if(loaded===sel.length)proceed(); return; }
       var img = new Image();
-      img.crossOrigin = 'anonymous';
+      if(!/^data:/.test(url)) img.crossOrigin = 'anonymous';
       img.onload = function(){
         try{
           var canvas = document.createElement('canvas');
@@ -8337,15 +8359,18 @@ function genererPlanchePDF(){
           var scale = Math.min(max/img.width, max/img.height, 1);
           canvas.width  = Math.round(img.width  * scale);
           canvas.height = Math.round(img.height * scale);
-          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-          imgData[o._id] = canvas.toDataURL('image/jpeg', 0.82);
-        }catch(e){ imgData[o._id]=null; }
+          var ctx2 = canvas.getContext('2d');
+          ctx2.fillStyle = '#ffffff'; ctx2.fillRect(0,0,canvas.width,canvas.height);
+          ctx2.drawImage(img, 0, 0, canvas.width, canvas.height);
+          imgData[o._id] = { data: canvas.toDataURL('image/jpeg', 0.82), w: canvas.width, h: canvas.height };
+        }catch(e){ imgData[o._id]=false; }
         loaded++;
         status.textContent = 'Chargement des images… ('+loaded+'/'+sel.length+')';
         if(loaded===sel.length) proceed();
       };
-      img.onerror = function(){ imgData[o._id]=null; loaded++; status.textContent='Chargement des images… ('+loaded+'/'+sel.length+')'; if(loaded===sel.length)proceed(); };
-      img.src = o.photo;
+      img.onerror = function(){ imgData[o._id]=false; loaded++; status.textContent='Chargement des images… ('+loaded+'/'+sel.length+')'; if(loaded===sel.length)proceed(); };
+      // petit paramètre ajouté pour éviter un souci de cache du navigateur (photo déjà affichée en vignette)
+      img.src = /^data:/.test(url) ? url : url + (url.indexOf('?')<0?'?':'&') + 'pdf=1';
     });
   }
 
@@ -8676,7 +8701,7 @@ function genererExpoExcel(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20261006 - v137 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20261006 - v138 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
