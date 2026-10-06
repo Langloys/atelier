@@ -2163,6 +2163,22 @@ function migrerEmplacements(){
   oeuvres.forEach(function(o){ fix(o,false); });
   exemplaires.forEach(function(e){ fix(e,true); });
   (lieux||[]).forEach(addRang);
+  // Réparation (v142) : une pièce dont l'emplacement porte le nom d'une galerie est remise « En galerie »
+  var repares=[];
+  (galeries||[]).forEach(function(g){
+    _piecesAEmplacement(g).forEach(function(p){
+      var x=p.x;
+      x.statut='galerie'; x.galerie=g; x.rangement=null;
+      if(p.isEx){ x.venteStatus='galerie'; x.status='archive'; sbSaveEx(x); }
+      else { x.actif=false; sbSaveOeuvre(x); }
+      repares.push((p.isEx?(x.exId||''):(x.num||''))+' → '+g);
+    });
+    if(rangements.indexOf(g)>=0){ rangements=rangements.filter(function(r){return r!==g;}); rangChanged=true; }
+  });
+  if(repares.length){
+    console.log('Réparation galeries :', repares);
+    setTimeout(function(){ alert('🔧 '+repares.length+' pièce(s) remise(s) en galerie (leur emplacement portait le nom d\'une galerie) :\n\n'+repares.slice(0,40).join('\n')+(repares.length>40?'\n…':'')); }, 800);
+  }
   if(rangChanged){ updateRangementsDatalist(); sbSaveConfig('rangements'); }
   if(galChanged){ updateGaleriesDatalist(); sbSaveConfig('galeries'); }
   if(nb) console.log('Migration emplacements :', nb, 'fiche(s) mise(s) à jour');
@@ -3193,8 +3209,9 @@ function addRangementConfig(){
 // Pièces (œuvres + exemplaires) en stock / cire à un emplacement donné
 function _piecesAEmplacement(nom){
   var res=[];
-  oeuvres.forEach(function(o){ if((o.statut==='stock'||o.statut==='cire') && o.rangement===nom) res.push({x:o,isEx:false}); });
-  exemplaires.forEach(function(e){ var st=e.statut||e.venteStatus||e.status; if((st==='stock'||st==='cire') && e.rangement===nom) res.push({x:e,isEx:true}); });
+  var exclus=['vendu','collection','galerie','fonderie'];
+  oeuvres.forEach(function(o){ if(o.rangement===nom && exclus.indexOf(o.statut)<0) res.push({x:o,isEx:false}); });
+  exemplaires.forEach(function(e){ var st=e.statut||e.venteStatus||e.status; if(e.rangement===nom && exclus.indexOf(st)<0) res.push({x:e,isEx:true}); });
   return res;
 }
 // Un emplacement qui est en fait une galerie : on le déplace vers les galeries, et ses pièces passent « En galerie »
@@ -8771,7 +8788,7 @@ function genererExpoExcel(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20261006 - v141 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20261006 - v142 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
