@@ -1101,7 +1101,7 @@ function doLogout(){
 
       <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;">
         <button class="btn btn-primary" onclick="genererExpoExcel()" style="gap:6px;">📊 Générer l'export</button>
-        <label style="font-size:.78rem;color:var(--mid);display:flex;align-items:center;gap:6px;cursor:pointer;" title="Petits cartels 4 × 4,8 cm à découper (30 par page A4), texte en bas pour plier en chevalet">
+        <label style="font-size:.78rem;color:var(--mid);display:flex;align-items:center;gap:6px;cursor:pointer;" title="Cartels 8 × 4,8 cm à découper (12 par page A4), texte en bas pour plier en chevalet">
           <input type="checkbox" id="expo-cartouches" checked style="accent-color:var(--gold);"> + cartouches à découper (PDF)
         </label>
       </div>
@@ -8352,7 +8352,7 @@ function genererPlanchePDF(){
         doc.setTextColor(26,24,22);
 
         // Nom
-        var nom = o.nom || o.num || '';
+        var nom = _pdfSafe(o.nom || o.num || '');
         doc.setFont('helvetica','bold');
         doc.setFontSize(8);
         var nomLines = doc.splitTextToSize(nom, colW-5);
@@ -8710,8 +8710,23 @@ function _expoLoadImg(url){
   });
 }
 
+// Nettoie un texte pour le PDF : les polices de base du PDF ne connaissent pas certains caractères
+// (apostrophe typographique, œ, tirets longs…), ce qui provoquait des espacements bizarres entre les lettres.
+function _pdfSafe(t){
+  return String(t==null?'':t)
+    .replace(/[\u2018\u2019\u201A\u2032\u00B4`]/g,"'")
+    .replace(/[\u201C\u201D\u201E\u00AB\u00BB]/g,'"')
+    .replace(/\u0153/g,'oe').replace(/\u0152/g,'OE')
+    .replace(/[\u2013\u2014\u2212]/g,'-')
+    .replace(/\u2026/g,'...')
+    .replace(/[\u00A0\u202F\u2007\u2009\u200B]/g,' ')
+    .normalize('NFC')
+    .replace(/[^\x20-\x7E\u00A0-\u00FF]/g,'')
+    .replace(/\s+/g,' ').trim();
+}
+
 // ══ CARTOUCHES À DÉCOUPER (PDF) ══
-// 5 colonnes × 6 lignes sur A4 = 30 cartouches de 40 × 48 mm.
+// 2 colonnes × 6 lignes sur A4 = 12 cartouches de 80 × 48 mm (on recoupe aux ciseaux si le texte est court).
 // Texte dans la moitié basse : on peut plier en haut pour faire un petit chevalet.
 function genererCartouchesPDF(msgAvant, enLien){
   var em = _expoEmpl();
@@ -8723,7 +8738,7 @@ function genererCartouchesPDF(msgAvant, enLien){
 
   function doGenerate(jsPDF){
     var doc = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
-    var COLS=5, ROWS=6, W=40, H=48, FOLD=13;   // FOLD = hauteur du rabat (pliure à 13 mm du haut)
+    var COLS=2, ROWS=6, W=80, H=48, FOLD=13;   // FOLD = hauteur du rabat (pliure à 13 mm du haut)
     var pageW=210, pageH=297;
     var mX=(pageW-COLS*W)/2, mY=(pageH-ROWS*H)/2;   // marges centrées (5 mm / 4,5 mm)
     var parPage=COLS*ROWS;
@@ -8753,18 +8768,18 @@ function genererCartouchesPDF(msgAvant, enLien){
       var x=mX+col*W, y=mY+row*H, cx=x+W/2;
       var inf=_expoInfos(it);
       var zoneH=H-FOLD;           // hauteur de la partie texte (sous la pliure)
-      var maxW=W-4;
+      var maxW=W-8;
       var PT=0.3528;              // 1 point = 0,3528 mm
 
       // Nom : retour à la ligne automatique ; si trop long, on réduit un peu la taille
-      var nomTxt=String(inf.nom||''), nomSize=9, nomL;
+      var nomTxt=_pdfSafe(inf.nom), nomSize=12, nomL;
       doc.setFont('helvetica','bold');
-      do { doc.setFontSize(nomSize); nomL=doc.splitTextToSize(nomTxt, maxW); if(nomL.length<=4) break; nomSize-=0.5; } while(nomSize>6);
-      var matTxt=inf.mat+(inf.ex?' · '+inf.ex:''), matSize=7.5;
+      do { doc.setFontSize(nomSize); nomL=doc.splitTextToSize(nomTxt, maxW); if(nomL.length<=3) break; nomSize-=0.5; } while(nomSize>7);
+      var matTxt=_pdfSafe(inf.mat+(inf.ex?' · '+inf.ex:'')), matSize=9.5;
       doc.setFont('helvetica','normal'); doc.setFontSize(matSize);
       var matL=doc.splitTextToSize(matTxt, maxW);
 
-      var numSize=16;
+      var numSize=20;
       var hNum=numSize*PT, hNomL=nomSize*PT*1.2, hMatL=matSize*PT*1.25;
       var blocH=hNum+2.2+nomL.length*hNomL+1.2+matL.length*hMatL;
       var ty=y+FOLD+Math.max(2.5,(zoneH-blocH)/2)+hNum*0.85;   // bloc centré verticalement
@@ -8923,7 +8938,7 @@ function genererExpoExcel(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20261006 - v146 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20261006 - v147 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
