@@ -502,6 +502,7 @@ async function loadFromSupabase() {
         if(row.key === 'galeries' && row.data) galeries = row.data;
         if(row.key === 'planEvts' && row.data) planEvts = row.data;
         if(row.key === 'dayPlan' && row.data) dayPlan = row.data;
+        if(row.key === 'dpHist' && row.data) dpHist = row.data;
         if(row.key === 'dpFutureBlocks' && row.data) dpFutureBlocks = row.data;
         if(row.key === 'dpItemSkip' && row.data) dpItemSkip = row.data;
       });
@@ -561,7 +562,7 @@ function sbSaveOeuvre(o){ sbUpsert('oeuvres',o._id,o).catch(function(e){console.
 function sbSaveEx(e){ sbUpsert('exemplaires',e._id,e).catch(function(e2){console.error('sbSaveEx',e2);}); }
 function sbSaveProjet(p){ sbUpsert('projets',p._id,p).catch(function(e){console.error('sbSaveProjet',e);}); }
 function sbSaveClient(c){ sbUpsert('clients',c._id,c).catch(function(e){console.error('sbSaveClient',e);}); }
-function sbSaveConfig(key){ var val; if(key==='actionsConfig')val=actionsConfig; else if(key==='activites')val=activites; else if(key==='recettesPatine')val=recettesPatine; else if(key==='taches')val=taches; else if(key==='techniques')val=techniques||[]; else if(key==='matieres')val=matieres||[]; else if(key==='typesOeuvres')val=typesOeuvres||[]; else if(key==='creationActions')val=creationActions||[]; else if(key==='lieux')val=lieux||[]; else if(key==='fonderies')val=fonderies||[]; else if(key==='rangements')val=rangements||[]; else if(key==='galeries')val=galeries||[]; else if(key==='planEvts')val=planEvts||[]; else if(key==='finances')val=finances||[]; else if(key==='finTypes')val=finTypes||[]; else if(key==='interactionTypes')val=interactionTypes||[]; else if(key==='relationTags')val=relationTags||[]; else if(key==='relationGroups')val=relationGroups||[]; else if(key==='dayPlan')val=dayPlan; else if(key==='dpFutureBlocks')val=dpFutureBlocks||{}; else if(key==='dpItemSkip')val=dpItemSkip||{}; else return; sbUpsert('config',key,val).catch(function(e){console.error('sbSaveConfig '+key,e);}); }
+function sbSaveConfig(key){ var val; if(key==='actionsConfig')val=actionsConfig; else if(key==='activites')val=activites; else if(key==='recettesPatine')val=recettesPatine; else if(key==='taches')val=taches; else if(key==='techniques')val=techniques||[]; else if(key==='matieres')val=matieres||[]; else if(key==='typesOeuvres')val=typesOeuvres||[]; else if(key==='creationActions')val=creationActions||[]; else if(key==='lieux')val=lieux||[]; else if(key==='fonderies')val=fonderies||[]; else if(key==='rangements')val=rangements||[]; else if(key==='galeries')val=galeries||[]; else if(key==='planEvts')val=planEvts||[]; else if(key==='finances')val=finances||[]; else if(key==='finTypes')val=finTypes||[]; else if(key==='interactionTypes')val=interactionTypes||[]; else if(key==='relationTags')val=relationTags||[]; else if(key==='relationGroups')val=relationGroups||[]; else if(key==='dayPlan')val=dayPlan; else if(key==='dpFutureBlocks')val=dpFutureBlocks||{}; else if(key==='dpItemSkip')val=dpItemSkip||{}; else if(key==='dpHist')val=dpHist||{}; else return; sbUpsert('config',key,val).catch(function(e){console.error('sbSaveConfig '+key,e);}); }
 function sbSaveAllConfig(){ ['actionsConfig','activites','recettesPatine','taches','techniques','matieres','typesOeuvres','creationActions','lieux','fonderies','rangements','galeries','interactionTypes','relationTags','relationGroups'].forEach(sbSaveConfig); }
 
 async function persistSupabase() {
@@ -2216,7 +2217,7 @@ function startApp(){
 if(window._pendingAutoStart) startApp();
 
 let currentTab='today', currentView='oeuvre', editOeuvreId=null, editExId=null, detExId=null, tmpPhoto=null, tmpPhotoOw=null, photoExDeleted=false;
-const TODAY = new Date().toISOString().slice(0,10);
+const TODAY = localDateStr(new Date()); // date LOCALE (avant : UTC, qui changeait de jour à 2h du matin en France)
 // Construit une date-string YYYY-MM-DD à partir des composantes LOCALES d'un objet Date,
 // plutôt que via toISOString() (qui repasse par UTC et peut faire "reculer" la date d'un
 // jour dans les fuseaux horaires en avance sur UTC, comme la France) — à utiliser partout
@@ -2364,6 +2365,7 @@ async function refreshToday(btn){
       if(row.key==='activites'&&row.data) activites=row.data;
       if(row.key==='planEvts'&&row.data) planEvts=row.data;
       if(row.key==='dayPlan'&&row.data) dayPlan=row.data;
+      if(row.key==='dpHist'&&row.data) dpHist=row.data;
     });}
     ensureMatiereActions();
   } catch(e){ console.error('refreshToday',e); }
@@ -8938,7 +8940,7 @@ function genererExpoExcel(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20261006 - v147 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20261008 - v148 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -9579,6 +9581,7 @@ var _dpAutoScrolled = false; // n'auto-cale sur l'heure actuelle qu'à l'arrivé
 var dpViewDate = null; // date affichée dans la Vue Journée ; null = TODAY (initialisé au premier rendu)
 var dpCurBlocks = null; // tableau de blocs actuellement affiché (dayPlan.blocks pour aujourd'hui, aperçu sinon) — cible du drag/resize
 var dpFutureBlocks = {}; // { 'YYYY-MM-DD': [bloc libre, ...] } — éléments type "Trajet" ajoutés à la main sur un jour suivant (persistés, indépendants de dayPlan qui reste réservé à aujourd'hui)
+var dpHist = {}; // { 'YYYY-MM-DD': [blocs] } — journées passées archivées (lecture seule dans la Vue Journée)
 var dpItemSkip = {}; // { 'oeuvre|o-xxx': 'YYYY-MM-DD' } — quand on supprime un élément (œuvre/exemplaire/projet) placé manuellement un jour donné, la Vue Algorithme ne le proposera plus CE jour-là (il reprend normalement le lendemain)
 
 function dpChangeDay(delta){
@@ -9586,8 +9589,8 @@ function dpChangeDay(delta){
   var d = new Date(dpViewDate+'T00:00:00');
   d.setDate(d.getDate()+delta);
   var ds = localDateStr(d);
-  if(ds < TODAY) return; // on prépare les jours à venir, pas le passé (déjà dans le Journal)
-  dpViewDate = ds;
+  dpViewDate = ds; // passé = lecture de l'historique, futur = préparation
+
   renderPlanningJour();
 }
 function dpGoToday(){
@@ -9618,6 +9621,11 @@ function dpBuildPreview(dateStr){
   // modifications (glisser, éditer) s'appliquent directement au tableau stocké.
   (dpFutureBlocks[dateStr]||[]).forEach(function(b){ blocks.push(b); });
   return blocks;
+}
+// Journée passée : copie en lecture seule de ce qui avait été planifié ce jour-là
+function dpPastBlocks(dateStr){
+  var src = dpHist[dateStr] || ((dayPlan && dayPlan.date===dateStr) ? dayPlan.blocks : []);
+  return JSON.parse(JSON.stringify(src||[])).map(function(b){ b.preview=true; b.past=true; b.fixed=true; b.id='past-'+b.id; return b; });
 }
 function dpPreviewUnscheduled(dateStr){
   // Tâches de ce jour sans heure fixe — juste pour info dans l'aperçu, non cliquables.
@@ -9839,8 +9847,23 @@ function renderPlanningJour(){
   var pPrev=document.getElementById('pm-btn-prev'), pToday=document.getElementById('pm-btn-today'), pNext=document.getElementById('pm-btn-next');
   if(pPrev){pPrev.style.display='none';pToday.style.display='none';pNext.style.display='none';}
   if(!dpViewDate) dpViewDate = TODAY;
+  // Onglet resté ouvert depuis un autre jour : on ne touche à rien (sinon il écraserait
+  // la journée enregistrée depuis un autre appareil) et on propose de recharger.
+  var vraiJour = localDateStr(new Date());
+  if(vraiJour !== TODAY || (dayPlan && dayPlan.date > TODAY)){
+    wrap.innerHTML = '<div style="text-align:center;padding:40px 20px;"><div style="font-size:1.6rem;margin-bottom:8px;">🌅</div><div style="font-family:\'Playfair Display\',serif;font-style:italic;color:var(--mid);margin-bottom:6px;">La page a été ouverte un autre jour</div><div style="font-size:.78rem;color:var(--faint);margin-bottom:14px;">Recharge-la pour retrouver ta journée à jour (rien n\'a été modifié).</div><button class="btn btn-primary" onclick="location.reload()">↻ Recharger</button></div>';
+    return;
+  }
   var isViewingToday = (dpViewDate === TODAY);
+  var isPast = dpViewDate < TODAY;
   if(!dayPlan || dayPlan.date !== TODAY){
+    // Nouvelle journée : la précédente est archivée telle quelle (consultable avec ←)
+    if(dayPlan && dayPlan.date && dayPlan.blocks && dayPlan.date < TODAY){
+      dpHist[dayPlan.date] = JSON.parse(JSON.stringify(dayPlan.blocks));
+      var limite = localDateStr(new Date(Date.now()-180*86400000));
+      Object.keys(dpHist).forEach(function(k){ if(k < limite) delete dpHist[k]; });
+      sbSaveConfig('dpHist');
+    }
     // Ce qui n'a pas été validé (hors RDV, recalculés séparément à partir des événements)
     // est reporté sur la nouvelle journée, pour ne rien perdre de ce qui traîne.
     var carryOver = (dayPlan && dayPlan.blocks) ? dayPlan.blocks.filter(function(b){ return !b.done && b.type!=='rdv'; }) : [];
@@ -9851,7 +9874,7 @@ function renderPlanningJour(){
     });
     dpSaveRemote();
   }
-  var blocks = isViewingToday ? dayPlan.blocks : dpBuildPreview(dpViewDate);
+  var blocks = isViewingToday ? dayPlan.blocks : isPast ? dpPastBlocks(dpViewDate) : dpBuildPreview(dpViewDate);
   dpCurBlocks = blocks;
   var totalPx = ((DP_END-DP_START)/DP_SLOT)*DP_PXSLOT;
 
@@ -9863,12 +9886,18 @@ function renderPlanningJour(){
   var dLbl = new Date(dpViewDate+'T00:00:00');
   var dateLabel = (isViewingToday?'Aujourd\'hui, ':'')+joursFRj[dLbl.getDay()]+' '+dLbl.getDate()+' '+moisFRj[dLbl.getMonth()];
   html += '<div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:4px;">';
-  html += '<button class="btn btn-sm" onclick="dpChangeDay(-1)"'+(dpViewDate<=TODAY?' disabled style="opacity:.3;cursor:default;"':'')+'>←</button>';
+  html += '<button class="btn btn-sm" onclick="dpChangeDay(-1)" title="Jour précédent">←</button>';
   html += '<div style="font-family:\'Playfair Display\',serif;font-style:italic;color:var(--mid);min-width:200px;text-align:center;">'+dateLabel+'</div>';
   html += '<button class="btn btn-sm" onclick="dpChangeDay(1)">→</button>';
   if(!isViewingToday) html += '<button class="btn btn-sm" onclick="dpGoToday()" style="margin-left:4px;">Aujourd\'hui</button>';
   html += '</div>';
-  if(!isViewingToday){
+  if(isPast){
+    var nbSess = sessions.filter(function(s){ return s.date===dpViewDate; });
+    var totSess = nbSess.reduce(function(a,s){ return a+(s.dur||0); },0);
+    html += '<div style="text-align:center;font-size:.7rem;color:var(--faint);font-style:italic;margin-bottom:12px;">📖 Journée passée — lecture seule'+(nbSess.length?' · '+nbSess.length+' session'+(nbSess.length>1?'s':'')+' enregistrée'+(nbSess.length>1?'s':'')+' ('+fmtMin(totSess)+')':'')+'</div>';
+    if(!blocks.length) html += '<div style="text-align:center;font-size:.78rem;color:var(--mid);margin-bottom:12px;">Aucun planning enregistré pour ce jour'+(Object.keys(dpHist).length?'':' — l\'historique commence à partir d\'aujourd\'hui')+'.</div>';
+  }
+  if(!isViewingToday && !isPast){
     html += '<div style="text-align:center;font-size:.7rem;color:var(--faint);font-style:italic;margin-bottom:8px;">👁 Tâches, rendez-vous et éléments ajoutés ici sont bien enregistrés — seules les œuvres/exemplaires/projets à faire restent à consulter dans la Vue Algorithme (pas recalculés sur cette page).</div>';
     html += '<div style="text-align:center;margin-bottom:12px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;"><button class="btn btn-sm" onclick="openAddTache(\''+dpViewDate+'\')">+ Ajouter une tâche</button><button class="btn btn-sm" onclick="dpOpenQuickAdd(480)">+ Ajouter un élément (trajet…)</button></div>';
   }
@@ -9885,7 +9914,7 @@ function renderPlanningJour(){
     });
     html += '</div></div>';
   }
-  var unschedTaches = isViewingToday ? dpTodayUnscheduledTaches() : dpPreviewUnscheduled(dpViewDate);
+  var unschedTaches = isViewingToday ? dpTodayUnscheduledTaches() : isPast ? [] : dpPreviewUnscheduled(dpViewDate);
   if(unschedTaches.length){
     html += '<div style="margin-bottom:12px;">';
     html += '<div style="font-size:.65rem;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin-bottom:6px;">Tâches à placer — clique sur le nom pour l\'ouvrir'+(isViewingToday?', sur + pour la placer maintenant':'')+'</div>';
@@ -9923,7 +9952,7 @@ function renderPlanningJour(){
     var lay = dpLayout[b.id] || {col:0, cols:1};
     var leftPct = (lay.col/lay.cols*100);
     var widthPct = (100/lay.cols);
-    if(b.preview && b.type==='rdv'){
+    if(b.preview && b.type==='rdv' && !b.past){
       // Rendez-vous en aperçu : lecture seule (à modifier depuis Vue Perso/l'agenda), style discret en pointillés.
       html += '<div class="dp-block" title="'+dpMinToStr(b.start)+'–'+dpMinToStr(b.start+b.dur)+' (aperçu)" style="position:absolute;left:calc('+leftPct+'% + 2px);width:calc('+widthPct+'% - 4px);top:'+top+'px;height:'+height+'px;background:'+bg+'1a;border:1px dashed '+bg+';border-radius:4px;overflow:hidden;display:flex;align-items:center;padding:0 6px;">';
       html += '<div style="flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:.7rem;font-weight:500;color:var(--mid);">'+b.label+'</div>';
@@ -9937,7 +9966,7 @@ function renderPlanningJour(){
     if(!b.preview){
       html += '<button onclick="event.stopPropagation();dpDeleteBlock(\''+b.id+'\')" title="'+(b.done?'Retirer de la journée (garde la session)':'Supprimer ce bloc')+'" style="flex-shrink:0;border:none;background:none;color:var(--red);padding:0;cursor:pointer;font-size:.72rem;line-height:1;">✕</button>';
     }
-    if(b.type==='custom' || (b.refId && (b.type==='rdv'||b.type==='tache'))){
+    if(!b.past && (b.type==='custom' || (b.refId && (b.type==='rdv'||b.type==='tache')))){
       html += '<button onclick="event.stopPropagation();'+(b.preview?'openEditTache(\''+b.refId+'\')':'dpEditBlock(\''+b.id+'\')')+'" title="Modifier" style="flex-shrink:0;border:none;background:none;color:var(--faint);padding:0;cursor:pointer;font-size:.68rem;line-height:1;">✏️</button>';
     }
     if(!b.done && !b.preview){
@@ -10167,6 +10196,7 @@ var _dpQuickAddStart = null;
 var _dpEditBlockId = null;
 function dpGridClick(ev){
   if(ev.target.closest('.dp-block')) return; // clic sur un bloc existant : on ignore
+  if(dpViewDate && dpViewDate < TODAY) return; // journée passée : lecture seule
   var grid = document.getElementById('dp-grid');
   var rect = grid.getBoundingClientRect();
   var y = ev.clientY - rect.top;
