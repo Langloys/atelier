@@ -2241,6 +2241,7 @@ async function synchroAuto(force){
   if(!_syncPossible()) return;
   _syncEnCours = true;
   try{
+    if(typeof _dpSaveChain!=='undefined') await _dpSaveChain;   // ne pas relire avant la fin d'un enregistrement en cours
     var ok = await loadFromSupabase();
     _derniereSynchro = Date.now();
     if(ok && !document.querySelector('.mo.open')){
@@ -8997,7 +8998,7 @@ function genererExpoExcel(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20261008 - v151 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20261008 - v152 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -9738,7 +9739,11 @@ function planScrollToday(){
 // (un bloc qu'on connaissait et qui n'est plus chez nous = supprimé ici, on ne le ressuscite pas).
 var _dpKnownIds = new Set();
 var _dpSaveChain = Promise.resolve();
-function dpMarkSynced(){ _dpKnownIds = new Set(((dayPlan&&dayPlan.blocks)||[]).map(function(b){return b.id;})); }
+// Ensemble des blocs déjà « vus en ligne » par cet appareil (on ne fait qu'en ajouter : un bloc
+// connu qui n'est plus en ligne = supprimé sur l'autre appareil ; un bloc connu qui n'est plus ici = supprimé ici).
+function dpMarkSynced(ids){
+  (ids || ((dayPlan&&dayPlan.blocks)||[]).map(function(b){return b.id;})).forEach(function(id){ _dpKnownIds.add(id); });
+}
 function _deviceLabel(){ return /iPhone|iPad|Android|Mobile/i.test(navigator.userAgent) ? 'téléphone' : 'ordinateur'; }
 function _saveErrorToast(msg){
   var t=document.getElementById('save-err-toast');
@@ -9758,16 +9763,23 @@ async function _dpSaveMerge(){
     var remote = r && r.data && r.data.data;
     if(remote && remote.date===dayPlan.date && Array.isArray(remote.blocks)){
       var localIds = new Set(dayPlan.blocks.map(function(b){return b.id;}));
+      var remoteIds = new Set(remote.blocks.map(function(b){return b.id;}));
+      // Ajoutés sur l'autre appareil → on les récupère
       remote.blocks.forEach(function(rb){
         if(!localIds.has(rb.id) && !_dpKnownIds.has(rb.id)){ dayPlan.blocks.push(rb); ajoutes++; }
       });
+      // Supprimés sur l'autre appareil → on les retire aussi ici
+      var avant = dayPlan.blocks.length;
+      dayPlan.blocks = dayPlan.blocks.filter(function(b){ return !(_dpKnownIds.has(b.id) && !remoteIds.has(b.id)); });
+      if(dayPlan.blocks.length !== avant) ajoutes++;
     }
   } catch(e){ console.warn('Lecture de la journée en ligne impossible', e); }
   dayPlan.savedAt = new Date().toISOString();
   dayPlan.savedBy = _deviceLabel();
-  var res = await sb.from('config').upsert({key:'dayPlan', data:dayPlan, updated_at:new Date().toISOString()}, {onConflict:'key'});
+  var envoyes = dayPlan.blocks.map(function(b){return b.id;});
+  var res = await sb.from('config').upsert({key:'dayPlan', data:JSON.parse(JSON.stringify(dayPlan)), updated_at:new Date().toISOString()}, {onConflict:'key'});
   if(res && res.error){ console.error('dayPlan', res.error); _saveErrorToast(res.error.message); return; }
-  dpMarkSynced();
+  dpMarkSynced(envoyes);
   if(ajoutes && currentTab==='planning' && planningMode==='jour') renderPlanningJour();
   else if(currentTab==='planning' && planningMode==='jour'){ var el=document.getElementById('dp-saved-info'); if(el) el.textContent=_dpSavedInfo(); }
 }
