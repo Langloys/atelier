@@ -8995,7 +8995,7 @@ function genererExpoExcel(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20261008 - v149 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20261008 - v150 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -10043,7 +10043,7 @@ function renderPlanningJour(){
   });
   html += '</div>';
   if(isViewingToday){
-    html += '<div style="text-align:center;margin-top:10px;"><button class="btn btn-sm" onclick="dpResetAuto()" style="color:var(--faint);">↺ Réinitialiser la journée</button></div>';
+    html += '<div style="text-align:center;margin-top:10px;"><button class="btn btn-sm" onclick="dpResetAuto()" style="color:var(--faint);" title="Rajoute les rendez-vous et tâches prévus ce jour, sans effacer ce que tu as ajouté">↺ Remettre à jour la journée</button></div>';
   }
   html += '</div>';
 
@@ -10417,11 +10417,32 @@ function dpConfirmQuickAdd(){
   closeM('mo-dp-quickadd');
   renderPlanningJour();
 }
+// Remet la journée à jour SANS rien effacer de ce qu'on a ajouté soi-même :
+// • on garde les blocs ajoutés à la main (trajets, œuvres, exemplaires, projets…) et tout ce qui est validé (fait)
+// • on garde les tâches placées à la main si elles sont toujours prévues aujourd'hui
+// • on rafraîchit les rendez-vous et les tâches à heure fixe d'après l'agenda / la liste des tâches
 function dpResetAuto(){
-  if(!confirm('Réinitialiser le planning du jour avec le pré-remplissage automatique ? Les blocs ajoutés manuellement seront perdus.')) return;
-  dayPlan = dpBuildAuto();
+  var auto = dpBuildAuto();
+  var anciens = (dayPlan && dayPlan.date===TODAY) ? dayPlan.blocks : [];
+  var garde = anciens.filter(function(b){
+    if(b.done) return true;
+    if(b.type==='rdv') return false;                       // recalculé depuis l'agenda
+    if(b.type==='tache'){
+      var t = (taches||[]).find(function(x){ return x._id===b.refId; });
+      return !!(t && !t.done && t.echeance===TODAY);       // toujours d'actualité
+    }
+    return true;                                           // blocs ajoutés à la main
+  });
+  var ajoutes = 0;
+  auto.blocks.forEach(function(nb){
+    var idx = garde.findIndex(function(x){ return nb.refId!=null && x.type===nb.type && x.refId===nb.refId; });
+    if(idx<0){ garde.push(nb); ajoutes++; }
+    else if(!garde[idx].done && nb.type==='tache'){ garde[idx].start=nb.start; garde[idx].dur=nb.dur; garde[idx].label=nb.label; }
+  });
+  dayPlan = {date:TODAY, blocks:garde};
   dpSaveRemote();
   renderPlanningJour();
+  if(typeof _syncToast==='function'){ _syncToast(); var t=document.getElementById('sync-toast'); if(t) t.textContent = ajoutes ? '↻ Journée à jour (+'+ajoutes+')' : '↻ Journée à jour'; }
 }
 
 function openDpLog(id){
