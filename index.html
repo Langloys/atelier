@@ -1166,6 +1166,29 @@ function doLogout(){
   </div>
 </div>
 
+<!-- MODAL REPORTER UN BLOC — VUE JOURNÉE -->
+<div class="mo" id="mo-dp-report">
+  <div class="modal" style="max-width:360px;">
+    <div class="mh"><h2>Reporter</h2><button class="mc" onclick="closeM('mo-dp-report')">✕</button></div>
+    <div class="mb">
+      <div id="dp-rp-label" style="font-weight:600;color:var(--ink);margin-bottom:12px;"></div>
+      <div class="fr">
+        <div class="fg"><label>Jour</label><input type="date" id="dp-rp-date"></div>
+        <div class="fg"><label>Heure</label><input type="time" id="dp-rp-heure" step="300"></div>
+        <div class="fg" style="max-width:90px;"><label>Durée (min)</label><input type="number" id="dp-rp-dur" min="5" step="5"></div>
+      </div>
+      <label id="dp-rp-tache-wrap" style="display:flex;align-items:center;gap:8px;font-size:.8rem;color:var(--mid);margin-top:6px;cursor:pointer;">
+        <input type="checkbox" id="dp-rp-tache" checked style="accent-color:var(--gold);"> En faire une tâche (visible aussi dans l'onglet Tâches)
+      </label>
+      <div style="font-size:.7rem;color:var(--faint);margin-top:8px;">Le bloc est retiré d'aujourd'hui et placé ce jour-là, à cette heure.</div>
+    </div>
+    <div class="mfoot" style="display:flex;justify-content:flex-end;gap:8px;">
+      <button class="btn" onclick="closeM('mo-dp-report')">Annuler</button>
+      <button class="btn btn-primary" onclick="dpConfirmReport()">Reporter</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL AJOUT RAPIDE — VUE JOURNÉE (clic sur un créneau) -->
 <div class="mo" id="mo-dp-quickadd">
   <div class="modal" style="max-width:340px;">
@@ -8998,7 +9021,7 @@ function genererExpoExcel(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20261008 - v152 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20261008 - v153 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -10078,6 +10101,9 @@ function renderPlanningJour(){
     if(!b.past && (b.type==='custom' || (b.refId && (b.type==='rdv'||b.type==='tache')))){
       html += '<button onclick="event.stopPropagation();'+(b.preview?'openEditTache(\''+b.refId+'\')':'dpEditBlock(\''+b.id+'\')')+'" title="Modifier" style="flex-shrink:0;border:none;background:none;color:var(--faint);padding:0;cursor:pointer;font-size:.68rem;line-height:1;">✏️</button>';
     }
+    if(!b.done && !b.preview && !b.future){
+      html += '<button onclick="event.stopPropagation();dpOpenReport(\''+b.id+'\')" title="Reporter à un autre jour (ou en faire une tâche)" style="flex-shrink:0;border:none;background:none;color:var(--mid);padding:0;cursor:pointer;font-size:.72rem;line-height:1;">⏭</button>';
+    }
     if(!b.done && !b.preview){
       var lockSvg = b.fixed
         ? '<svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>'
@@ -10156,6 +10182,60 @@ function dpDeleteBlock(id){
     dpSaveRemote();
   }
   renderPlanningJour();
+}
+
+// ── Reporter un bloc non fait à un autre jour (par défaut demain, même heure, même durée) ──
+var _dpReportId = null;
+function dpOpenReport(id){
+  var b = (dayPlan && dayPlan.blocks || []).find(function(x){return x.id===id;});
+  if(!b) return;
+  _dpReportId = id;
+  var d = new Date(TODAY+'T00:00:00'); d.setDate(d.getDate()+1);
+  document.getElementById('dp-rp-label').textContent = b.label;
+  document.getElementById('dp-rp-date').value = localDateStr(d);
+  document.getElementById('dp-rp-heure').value = dpMinToStr(b.start);
+  document.getElementById('dp-rp-dur').value = b.dur;
+  // Une tâche reste une tâche (on change juste sa date) ; une œuvre/exemplaire/projet reste un bloc lié
+  var chk = document.getElementById('dp-rp-tache');
+  var wrap = document.getElementById('dp-rp-tache-wrap');
+  if(b.type==='tache'){ chk.checked=true; wrap.style.display='none'; }
+  else if(b.type==='item'){ chk.checked=false; wrap.style.display='none'; }
+  else { chk.checked=true; wrap.style.display='flex'; }
+  openM('mo-dp-report');
+}
+function dpConfirmReport(){
+  var b = (dayPlan && dayPlan.blocks || []).find(function(x){return x.id===_dpReportId;});
+  if(!b){ closeM('mo-dp-report'); return; }
+  var date = document.getElementById('dp-rp-date').value;
+  var heure = document.getElementById('dp-rp-heure').value;
+  var dur = parseInt(document.getElementById('dp-rp-dur').value)||b.dur||30;
+  if(!date){ alert('Choisis un jour.'); return; }
+  if(date <= TODAY){ alert('Choisis un jour à venir.'); return; }
+  var hm = (heure||dpMinToStr(b.start)).split(':');
+  var start = parseInt(hm[0])*60+parseInt(hm[1]||0);
+  var finStr = dpMinToStr(Math.min(start+dur, 24*60-1));
+  var enTache = document.getElementById('dp-rp-tache').checked;
+
+  if(b.type==='tache' && b.refId){
+    var t = (taches||[]).find(function(x){return x._id===b.refId;});
+    if(t){ t.echeance=date; t.heureDebut=dpMinToStr(start); t.heureFin=finStr; sbSaveConfig('taches'); }
+  } else if(enTache){
+    taches = taches || [];
+    taches.push({ _id:'t-'+Date.now(), texte:b.label, prio:'', lienId:null, action:null, projetId:null,
+      echeance:date, heureDebut:dpMinToStr(start), heureFin:finStr, notes:'', done:false, createdAt:Date.now() });
+    sbSaveConfig('taches');
+  } else {
+    var copie = JSON.parse(JSON.stringify(b));
+    copie.id = 'fb-'+Date.now(); copie.start = start; copie.dur = dur; copie.future = true; copie.done = false;
+    dpFutureBlocks[date] = (dpFutureBlocks[date]||[]); dpFutureBlocks[date].push(copie);
+    sbSaveConfig('dpFutureBlocks');
+  }
+  dayPlan.blocks = dayPlan.blocks.filter(function(x){return x.id!==_dpReportId;});
+  dpSaveRemote();
+  closeM('mo-dp-report');
+  try{ updateCounts(); }catch(e){}
+  renderPlanningJour();
+  if(typeof _syncToast==='function'){ _syncToast(); var tt=document.getElementById('sync-toast'); if(tt){ var dd=new Date(date+'T00:00:00'); tt.textContent='⏭ Reporté au '+dd.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'})+' à '+dpMinToStr(start); } }
 }
 
 function dpToggleFixed(id){
