@@ -2216,6 +2216,61 @@ function startApp(){
 }
 if(window._pendingAutoStart) startApp();
 
+// ══ SYNCHRO AUTOMATIQUE ENTRE APPAREILS ══
+// Quand on revient sur l'app (onglet réaffiché, téléphone rallumé, fenêtre reprise),
+// on relit les dernières données dans Supabase et on réaffiche la page en cours.
+// Pas de synchro si une fenêtre d'édition est ouverte ou si on est en train de taper.
+var _syncEnCours = false, _derniereSynchro = Date.now();
+function _syncPossible(){
+  if(!_appStarted || _syncEnCours) return false;
+  if(document.querySelector('.mo.open')) return false;
+  var a = document.activeElement;
+  if(a && (a.tagName==='INPUT' || a.tagName==='TEXTAREA' || a.tagName==='SELECT') && a.type!=='checkbox') return false;
+  return true;
+}
+async function synchroAuto(force){
+  if(document.visibilityState === 'hidden') return;
+  // Page ouverte depuis un autre jour : on recharge tout simplement
+  if(localDateStr(new Date()) !== TODAY){
+    if(!document.querySelector('.mo.open')) location.reload();
+    return;
+  }
+  if(!force && Date.now() - _derniereSynchro < 15000) return;   // pas plus d'une fois toutes les 15 s
+  if(!_syncPossible()) return;
+  _syncEnCours = true;
+  try{
+    var ok = await loadFromSupabase();
+    _derniereSynchro = Date.now();
+    if(ok && !document.querySelector('.mo.open')){
+      var y = window.scrollY;
+      var pj = document.getElementById('planning-jour-content');
+      var pjScroll = pj ? pj.scrollTop : 0;
+      updateCounts();
+      if(currentTab==='planning' && planningMode==='jour') renderPlanningJour();
+      else setTab(currentTab);
+      refreshJExSel && refreshJExSel();
+      window.scrollTo(0, y);
+      if(pj) pj.scrollTop = pjScroll;
+      _syncToast();
+    }
+  } catch(e){ console.log('synchroAuto', e); }
+  _syncEnCours = false;
+}
+function _syncToast(){
+  var t = document.getElementById('sync-toast');
+  if(!t){
+    t = document.createElement('div'); t.id='sync-toast';
+    t.style.cssText='position:fixed;bottom:14px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--w);font-size:.72rem;padding:5px 12px;border-radius:12px;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none;';
+    document.body.appendChild(t);
+  }
+  t.textContent = '↻ À jour';
+  t.style.opacity = '.85';
+  clearTimeout(t._h); t._h = setTimeout(function(){ t.style.opacity='0'; }, 1500);
+}
+document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='visible') synchroAuto(); });
+window.addEventListener('focus', function(){ synchroAuto(); });
+window.addEventListener('pageshow', function(ev){ if(ev.persisted) synchroAuto(true); });
+
 let currentTab='today', currentView='oeuvre', editOeuvreId=null, editExId=null, detExId=null, tmpPhoto=null, tmpPhotoOw=null, photoExDeleted=false;
 const TODAY = localDateStr(new Date()); // date LOCALE (avant : UTC, qui changeait de jour à 2h du matin en France)
 // Construit une date-string YYYY-MM-DD à partir des composantes LOCALES d'un objet Date,
@@ -8940,7 +8995,7 @@ function genererExpoExcel(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20261008 - v148 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20261008 - v149 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
