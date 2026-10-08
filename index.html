@@ -431,12 +431,14 @@ var sbSyncing = false;
 
 async function sbUpsert(table, id, data) {
   try {
+    var res;
     if(table === 'config') {
-      await sb.from(table).upsert({key: id, data: data, updated_at: new Date().toISOString()}, {onConflict: 'key'});
+      res = await sb.from(table).upsert({key: id, data: data, updated_at: new Date().toISOString()}, {onConflict: 'key'});
     } else {
-      await sb.from(table).upsert({id: id, data: data, updated_at: new Date().toISOString()});
+      res = await sb.from(table).upsert({id: id, data: data, updated_at: new Date().toISOString()});
     }
-  } catch(e) { console.error('sbUpsert', table, e); }
+    if(res && res.error){ console.error('sbUpsert', table, id, res.error); if(typeof _saveErrorToast==='function') _saveErrorToast(res.error.message); }
+  } catch(e) { console.error('sbUpsert', table, e); if(typeof _saveErrorToast==='function') _saveErrorToast(e.message||String(e)); }
 }
 
 async function sbDelete(table, id) {
@@ -501,7 +503,7 @@ async function loadFromSupabase() {
         if(row.key === 'rangements' && row.data) rangements = row.data;
         if(row.key === 'galeries' && row.data) galeries = row.data;
         if(row.key === 'planEvts' && row.data) planEvts = row.data;
-        if(row.key === 'dayPlan' && row.data) dayPlan = row.data;
+        if(row.key === 'dayPlan' && row.data){ dayPlan = row.data; if(typeof dpMarkSynced==='function') dpMarkSynced(); }
         if(row.key === 'dpHist' && row.data) dpHist = row.data;
         if(row.key === 'dpFutureBlocks' && row.data) dpFutureBlocks = row.data;
         if(row.key === 'dpItemSkip' && row.data) dpItemSkip = row.data;
@@ -562,7 +564,7 @@ function sbSaveOeuvre(o){ sbUpsert('oeuvres',o._id,o).catch(function(e){console.
 function sbSaveEx(e){ sbUpsert('exemplaires',e._id,e).catch(function(e2){console.error('sbSaveEx',e2);}); }
 function sbSaveProjet(p){ sbUpsert('projets',p._id,p).catch(function(e){console.error('sbSaveProjet',e);}); }
 function sbSaveClient(c){ sbUpsert('clients',c._id,c).catch(function(e){console.error('sbSaveClient',e);}); }
-function sbSaveConfig(key){ var val; if(key==='actionsConfig')val=actionsConfig; else if(key==='activites')val=activites; else if(key==='recettesPatine')val=recettesPatine; else if(key==='taches')val=taches; else if(key==='techniques')val=techniques||[]; else if(key==='matieres')val=matieres||[]; else if(key==='typesOeuvres')val=typesOeuvres||[]; else if(key==='creationActions')val=creationActions||[]; else if(key==='lieux')val=lieux||[]; else if(key==='fonderies')val=fonderies||[]; else if(key==='rangements')val=rangements||[]; else if(key==='galeries')val=galeries||[]; else if(key==='planEvts')val=planEvts||[]; else if(key==='finances')val=finances||[]; else if(key==='finTypes')val=finTypes||[]; else if(key==='interactionTypes')val=interactionTypes||[]; else if(key==='relationTags')val=relationTags||[]; else if(key==='relationGroups')val=relationGroups||[]; else if(key==='dayPlan')val=dayPlan; else if(key==='dpFutureBlocks')val=dpFutureBlocks||{}; else if(key==='dpItemSkip')val=dpItemSkip||{}; else if(key==='dpHist')val=dpHist||{}; else return; sbUpsert('config',key,val).catch(function(e){console.error('sbSaveConfig '+key,e);}); }
+function sbSaveConfig(key){ var val; if(key==='actionsConfig')val=actionsConfig; else if(key==='activites')val=activites; else if(key==='recettesPatine')val=recettesPatine; else if(key==='taches')val=taches; else if(key==='techniques')val=techniques||[]; else if(key==='matieres')val=matieres||[]; else if(key==='typesOeuvres')val=typesOeuvres||[]; else if(key==='creationActions')val=creationActions||[]; else if(key==='lieux')val=lieux||[]; else if(key==='fonderies')val=fonderies||[]; else if(key==='rangements')val=rangements||[]; else if(key==='galeries')val=galeries||[]; else if(key==='planEvts')val=planEvts||[]; else if(key==='finances')val=finances||[]; else if(key==='finTypes')val=finTypes||[]; else if(key==='interactionTypes')val=interactionTypes||[]; else if(key==='relationTags')val=relationTags||[]; else if(key==='relationGroups')val=relationGroups||[]; else if(key==='dayPlan'){ if(typeof dpSaveRemote==='function'){ dpSaveRemote(); return; } val=dayPlan; } else if(key==='dpFutureBlocks')val=dpFutureBlocks||{}; else if(key==='dpItemSkip')val=dpItemSkip||{}; else if(key==='dpHist')val=dpHist||{}; else return; sbUpsert('config',key,val).catch(function(e){console.error('sbSaveConfig '+key,e);}); }
 function sbSaveAllConfig(){ ['actionsConfig','activites','recettesPatine','taches','techniques','matieres','typesOeuvres','creationActions','lieux','fonderies','rangements','galeries','interactionTypes','relationTags','relationGroups'].forEach(sbSaveConfig); }
 
 async function persistSupabase() {
@@ -2419,7 +2421,7 @@ async function refreshToday(btn){
       if(row.key==='actionsConfig'&&row.data) actionsConfig=row.data;
       if(row.key==='activites'&&row.data) activites=row.data;
       if(row.key==='planEvts'&&row.data) planEvts=row.data;
-      if(row.key==='dayPlan'&&row.data) dayPlan=row.data;
+      if(row.key==='dayPlan'&&row.data){ dayPlan=row.data; dpMarkSynced(); }
       if(row.key==='dpHist'&&row.data) dpHist=row.data;
     });}
     ensureMatiereActions();
@@ -8995,7 +8997,7 @@ function genererExpoExcel(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20261008 - v150 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20261008 - v151 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -9731,8 +9733,48 @@ function planScrollToday(){
   if(todayCol) pw.scrollTo({left: todayCol.offsetLeft, behavior:'smooth'});
 }
 
+// Enregistrement de la Vue Journée, fusionné avec ce qu'un autre appareil a pu enregistrer entre-temps :
+// avant d'écrire, on relit la journée en ligne et on y récupère les blocs ajoutés ailleurs
+// (un bloc qu'on connaissait et qui n'est plus chez nous = supprimé ici, on ne le ressuscite pas).
+var _dpKnownIds = new Set();
+var _dpSaveChain = Promise.resolve();
+function dpMarkSynced(){ _dpKnownIds = new Set(((dayPlan&&dayPlan.blocks)||[]).map(function(b){return b.id;})); }
+function _deviceLabel(){ return /iPhone|iPad|Android|Mobile/i.test(navigator.userAgent) ? 'téléphone' : 'ordinateur'; }
+function _saveErrorToast(msg){
+  var t=document.getElementById('save-err-toast');
+  if(!t){ t=document.createElement('div'); t.id='save-err-toast'; t.style.cssText='position:fixed;top:12px;left:50%;transform:translateX(-50%);background:#b03a2e;color:#fff;font-size:.78rem;padding:8px 14px;border-radius:8px;z-index:10000;max-width:90vw;box-shadow:0 2px 8px rgba(0,0,0,.2);'; document.body.appendChild(t); }
+  t.textContent='⚠️ Enregistrement en ligne impossible — vérifie ta connexion ('+String(msg||'').slice(0,80)+')';
+  t.style.display='block'; clearTimeout(t._h); t._h=setTimeout(function(){ t.style.display='none'; }, 6000);
+}
 function dpSaveRemote(){
-  sbSaveConfig('dayPlan');
+  _dpSaveChain = _dpSaveChain.then(_dpSaveMerge).catch(function(e){ console.error('dpSaveRemote', e); });
+  return _dpSaveChain;
+}
+async function _dpSaveMerge(){
+  if(!dayPlan) return;
+  var ajoutes = 0;
+  try{
+    var r = await sb.from('config').select('data').eq('key','dayPlan').maybeSingle();
+    var remote = r && r.data && r.data.data;
+    if(remote && remote.date===dayPlan.date && Array.isArray(remote.blocks)){
+      var localIds = new Set(dayPlan.blocks.map(function(b){return b.id;}));
+      remote.blocks.forEach(function(rb){
+        if(!localIds.has(rb.id) && !_dpKnownIds.has(rb.id)){ dayPlan.blocks.push(rb); ajoutes++; }
+      });
+    }
+  } catch(e){ console.warn('Lecture de la journée en ligne impossible', e); }
+  dayPlan.savedAt = new Date().toISOString();
+  dayPlan.savedBy = _deviceLabel();
+  var res = await sb.from('config').upsert({key:'dayPlan', data:dayPlan, updated_at:new Date().toISOString()}, {onConflict:'key'});
+  if(res && res.error){ console.error('dayPlan', res.error); _saveErrorToast(res.error.message); return; }
+  dpMarkSynced();
+  if(ajoutes && currentTab==='planning' && planningMode==='jour') renderPlanningJour();
+  else if(currentTab==='planning' && planningMode==='jour'){ var el=document.getElementById('dp-saved-info'); if(el) el.textContent=_dpSavedInfo(); }
+}
+function _dpSavedInfo(){
+  if(!dayPlan || !dayPlan.savedAt) return '';
+  var d=new Date(dayPlan.savedAt);
+  return 'Enregistré en ligne à '+String(d.getHours()).padStart(2,'0')+'h'+String(d.getMinutes()).padStart(2,'0')+(dayPlan.savedBy?' depuis '+(dayPlan.savedBy==='ordinateur'?'l\'ordinateur':'le '+dayPlan.savedBy):'');
 }
 function dpMinToStr(min){
   var h=Math.floor(min/60), m=min%60;
@@ -10043,7 +10085,8 @@ function renderPlanningJour(){
   });
   html += '</div>';
   if(isViewingToday){
-    html += '<div style="text-align:center;margin-top:10px;"><button class="btn btn-sm" onclick="dpResetAuto()" style="color:var(--faint);" title="Rajoute les rendez-vous et tâches prévus ce jour, sans effacer ce que tu as ajouté">↺ Remettre à jour la journée</button></div>';
+    html += '<div id="dp-saved-info" style="text-align:center;margin-top:10px;font-size:.66rem;color:var(--faint);">'+_dpSavedInfo()+'</div>';
+    html += '<div style="text-align:center;margin-top:6px;"><button class="btn btn-sm" onclick="dpResetAuto()" style="color:var(--faint);" title="Rajoute les rendez-vous et tâches prévus ce jour, sans effacer ce que tu as ajouté">↺ Remettre à jour la journée</button></div>';
   }
   html += '</div>';
 
