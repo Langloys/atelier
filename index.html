@@ -531,6 +531,7 @@ async function loadFromSupabase() {
     if(sessionsMigrees)console.log('Migration activites:',sessionsMigrees,'session(s) corrigee(s)');
     // ──────────────────────────────────────────────────────────────────────────
     console.log('Chargé depuis Supabase:', oeuvres.length, 'oeuvres,', sessions.length, 'sessions');
+    window._donneesChargees = true;
     return true;
   } catch(e) {
     console.error('loadFromSupabase:', e);
@@ -9021,7 +9022,7 @@ function genererExpoExcel(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20261008 - v153 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20261014 - v154 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -9986,6 +9987,13 @@ function renderPlanningJour(){
     wrap.innerHTML = '<div style="text-align:center;padding:40px 20px;"><div style="font-size:1.6rem;margin-bottom:8px;">🌅</div><div style="font-family:\'Playfair Display\',serif;font-style:italic;color:var(--mid);margin-bottom:6px;">La page a été ouverte un autre jour</div><div style="font-size:.78rem;color:var(--faint);margin-bottom:14px;">Recharge-la pour retrouver ta journée à jour (rien n\'a été modifié).</div><button class="btn btn-primary" onclick="location.reload()">↻ Recharger</button></div>';
     return;
   }
+  // Tant que les données ne sont pas arrivées de Supabase, on n'affiche ni ne crée rien :
+  // sinon une journée vide pourrait être enregistrée par-dessus la vraie.
+  if(!window._donneesChargees){
+    wrap.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--faint);font-size:.82rem;">⏳ Chargement de ta journée…<br><span style="font-size:.72rem;">Si ça dure, vérifie ta connexion puis recharge la page.</span></div>';
+    setTimeout(function(){ if(window._donneesChargees && currentTab==='planning' && planningMode==='jour') renderPlanningJour(); }, 1500);
+    return;
+  }
   var isViewingToday = (dpViewDate === TODAY);
   var isPast = dpViewDate < TODAY;
   if(!dayPlan || dayPlan.date !== TODAY){
@@ -10004,6 +10012,18 @@ function renderPlanningJour(){
       var dup = b.refId!=null && dayPlan.blocks.some(function(x){ return x.type===b.type && x.refId===b.refId; });
       if(!dup) dayPlan.blocks.push(b);
     });
+    dpSaveRemote();
+  }
+  // Éléments préparés à l'avance pour aujourd'hui (via → sur un jour suivant, ou ⏭ Reporter)
+  // qui n'auraient pas encore été intégrés à la journée : on les y ajoute maintenant.
+  if(dpFutureBlocks && (dpFutureBlocks[TODAY]||[]).length){
+    var dejaLa = new Set(dayPlan.blocks.map(function(b){return b.id;}));
+    dpFutureBlocks[TODAY].forEach(function(fb){
+      if(dejaLa.has(fb.id)) return;
+      var c = Object.assign({}, fb); delete c.future; dayPlan.blocks.push(c);
+    });
+    delete dpFutureBlocks[TODAY];
+    sbSaveConfig('dpFutureBlocks');
     dpSaveRemote();
   }
   var blocks = isViewingToday ? dayPlan.blocks : isPast ? dpPastBlocks(dpViewDate) : dpBuildPreview(dpViewDate);
