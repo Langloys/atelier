@@ -9030,7 +9030,7 @@ function genererExpoExcel(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20261025 - v155 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20261025 - v156 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -10746,6 +10746,25 @@ function confirmDpLog(){
   if(b.type==='tache' && b.refId){
     var tDone = (taches||[]).find(function(x){return x._id===b.refId;});
     if(tDone && !tDone.done){ tDone.done = true; sbSaveConfig('taches'); }
+  }
+  // Validé sur un AUTRE jour qu'aujourd'hui : le bloc quitte la journée d'aujourd'hui
+  // et va (marqué fait) dans la journée choisie. Il est aussi retiré des journées passées
+  // où il traînait encore "non fait" (jour où il était programmé au départ, jours de report).
+  if(sessDate !== TODAY){
+    var blocFait = JSON.parse(JSON.stringify(b));
+    Object.keys(dpHist||{}).forEach(function(k){
+      if(k === sessDate || !Array.isArray(dpHist[k])) return;
+      var avant = dpHist[k].length;
+      dpHist[k] = dpHist[k].filter(function(x){ return !(x.id===b.id && !x.done); });
+      if(dpHist[k].length !== avant && !dpHist[k].length) delete dpHist[k];
+    });
+    var jour = (Array.isArray(dpHist[sessDate]) ? dpHist[sessDate] : []).filter(function(x){ return x.id!==b.id; });
+    jour.push(blocFait);
+    jour.sort(function(x,y){ return (x.start||0)-(y.start||0); });
+    dpHist[sessDate] = jour;
+    sbSaveConfig('dpHist');
+    dayPlan.blocks = dayPlan.blocks.filter(function(x){ return x.id!==b.id; });
+    if(typeof _syncToast==='function'){ _syncToast(); var tt=document.getElementById('sync-toast'); if(tt){ var dd=new Date(sessDate+'T12:00:00'); tt.textContent='✓ Validé et déplacé au '+dd.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'}); } }
   }
   dpSaveRemote();
   closeM('mo-dp-log');
