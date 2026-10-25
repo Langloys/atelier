@@ -9030,7 +9030,7 @@ function genererExpoExcel(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20261025 - v156 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20261025 - v157 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -9715,7 +9715,10 @@ function dpBuildPreview(dateStr){
 // Journée passée : copie en lecture seule de ce qui avait été planifié ce jour-là
 function dpPastBlocks(dateStr){
   var src = dpHist[dateStr] || ((dayPlan && dayPlan.date===dateStr) ? dayPlan.blocks : []);
-  return JSON.parse(JSON.stringify(src||[])).map(function(b){ b.preview=true; b.past=true; b.fixed=true; b.id='past-'+b.id; return b; });
+  // Jours passés : on n'affiche que ce qui a été fait (+ RDV). Les blocs non validés ont été
+  // reportés au lendemain ; les montrer ici donnerait l'impression d'avoir travaillé deux fois.
+  src = (src||[]).filter(function(b){ return b.done || b.type==='rdv'; });
+  return JSON.parse(JSON.stringify(src)).map(function(b){ b.preview=true; b.past=true; b.fixed=true; b.id='past-'+b.id; return b; });
 }
 function dpPreviewUnscheduled(dateStr){
   // Tâches de ce jour sans heure fixe — juste pour info dans l'aperçu, non cliquables.
@@ -10007,7 +10010,9 @@ function renderPlanningJour(){
   if(!dayPlan || dayPlan.date !== TODAY){
     // Nouvelle journée : la précédente est archivée telle quelle (consultable avec ←)
     if(dayPlan && dayPlan.date && dayPlan.blocks && dayPlan.date < TODAY){
-      dpHist[dayPlan.date] = JSON.parse(JSON.stringify(dayPlan.blocks));
+      // On n'archive que ce qui a vraiment été fait (+ les RDV) : les blocs non validés
+      // partent sur la nouvelle journée et ne doivent pas rester aussi sur la veille.
+      dpHist[dayPlan.date] = JSON.parse(JSON.stringify(dayPlan.blocks.filter(function(b){ return b.done || b.type==='rdv'; })));
       var limite = localDateStr(new Date(Date.now()-180*86400000));
       Object.keys(dpHist).forEach(function(k){ if(k < limite) delete dpHist[k]; });
       sbSaveConfig('dpHist');
