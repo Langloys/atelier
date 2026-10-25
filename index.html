@@ -1213,6 +1213,14 @@ function doLogout(){
   <div class="modal" style="max-width:380px;">
     <div class="mh"><h2 id="dp-log-title">Session</h2><button class="mc" onclick="closeM('mo-dp-log')">×</button></div>
     <div class="mb">
+      <div class="fg"><label>Date de la session</label>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <input type="date" id="dp-log-date" style="flex:1;">
+          <button type="button" class="btn" onclick="dpLogSetDate(-1)" title="Je l'ai fait hier">Hier</button>
+          <button type="button" class="btn" onclick="dpLogSetDate(0)" title="Je l'ai fait aujourd'hui">Auj.</button>
+        </div>
+        <div id="dp-log-date-info" style="display:none;font-size:.72rem;color:var(--mid);margin-top:4px;"></div>
+      </div>
       <div class="fg"><label>Heure de début</label><input type="text" id="dp-log-heure" readonly style="background:var(--off);"></div>
       <div class="fg"><label>Rattaché à</label><select id="dp-log-item" onchange="dpLogItemChange()"></select></div>
       <div class="fg"><label>Durée réelle (min)</label><input type="number" id="dp-log-dur" min="1"></div>
@@ -9022,7 +9030,7 @@ function genererExpoExcel(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20261014 - v154 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20261025 - v155 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -10608,6 +10616,12 @@ function openDpLog(id){
   document.getElementById('dp-log-dur').value = b.dur;
   document.getElementById('dp-log-heure').value = dpMinToStr(b.start);
   document.getElementById('dp-log-com').value = b.label || '';
+  // Date de la session : aujourd'hui par défaut, modifiable si c'était fait un autre jour (ex. la veille)
+  var dIn = document.getElementById('dp-log-date');
+  dIn.max = TODAY;
+  dIn.value = TODAY;
+  dIn.onchange = dpLogDateInfo;
+  dpLogDateInfo();
 
   var itemSel = document.getElementById('dp-log-item');
   itemSel.innerHTML = buildJExOptionsHTML();
@@ -10634,6 +10648,27 @@ function openDpLog(id){
   }
   dpLogItemChange(defaultAction);
   openM('mo-dp-log');
+}
+
+// Boutons rapides "Hier" / "Auj." dans la fenêtre de validation
+function dpLogSetDate(decalJours){
+  var d = new Date(TODAY+'T12:00:00');
+  d.setDate(d.getDate()+decalJours);
+  document.getElementById('dp-log-date').value = localDateStr(d);
+  dpLogDateInfo();
+}
+// Petit rappel sous le champ quand la date choisie n'est pas aujourd'hui
+function dpLogDateInfo(){
+  var v = document.getElementById('dp-log-date').value;
+  var info = document.getElementById('dp-log-date-info');
+  if(!info) return;
+  if(v && v !== TODAY){
+    var d = new Date(v+'T12:00:00');
+    info.textContent = '📅 La session sera enregistrée dans le Journal au '+d.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'})+'.';
+    info.style.display = '';
+  } else {
+    info.style.display = 'none';
+  }
 }
 
 function dpLogItemChange(defaultAction){
@@ -10696,7 +10731,11 @@ function confirmDpLog(){
       exId = b.refId; projetId=null; activId=null;
     }
   }
-  var _ns={_id:Date.now(),date:TODAY,exId:exId,projetId:projetId,activId:activId,label:label,action:action,dur:dur,com:com,createdAt:(function(){var n=new Date();return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0')+' '+String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');})()};
+  // Date choisie dans la fenêtre (aujourd'hui par défaut) ; on refuse une date dans le futur
+  var sessDate = document.getElementById('dp-log-date').value || TODAY;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(sessDate)) sessDate = TODAY;
+  if(sessDate > TODAY){ alert('La date ne peut pas être dans le futur.'); return; }
+  var _ns={_id:Date.now(),date:sessDate,exId:exId,projetId:projetId,activId:activId,label:label,action:action,dur:dur,com:com,createdAt:(function(){var n=new Date();return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0')+' '+String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');})()};
   sessions.push(_ns);
   sbSaveSession(_ns);
   syncDebutFin(exId);
