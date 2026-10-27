@@ -9030,7 +9030,7 @@ function genererExpoExcel(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20261025 - v157 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20261027 - v158 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
@@ -9713,6 +9713,16 @@ function dpBuildPreview(dateStr){
   return blocks;
 }
 // Journée passée : copie en lecture seule de ce qui avait été planifié ce jour-là
+// Bloc non validé reporté au lendemain : un RDV de l'agenda devient un bloc libre
+// (même libellé, même heure, même durée, même couleur), sinon il serait recalculé
+// depuis l'agenda et disparaîtrait. Si l'événement continue aujourd'hui, l'agenda le
+// recrée déjà : on ne le duplique pas (null).
+function dpRdvEnBlocLibre(b){
+  if(!b || b.type!=='rdv') return b;
+  var evt = (planEvts||[]).find(function(e){ return e._id===b.refId; });
+  if(evt && evt.debut<=TODAY && TODAY<=evt.fin && evt.heureDebut) return null;
+  return {id:'rep-'+b.id, type:'custom', label:b.label, start:b.start, dur:b.dur, fixed:false, color:b.color||'#a89bc9', done:false, refId:null};
+}
 function dpPastBlocks(dateStr){
   var src = dpHist[dateStr] || ((dayPlan && dayPlan.date===dateStr) ? dayPlan.blocks : []);
   // Jours passés : on n'affiche que ce qui a été fait (+ RDV). Les blocs non validés ont été
@@ -10012,21 +10022,38 @@ function renderPlanningJour(){
     if(dayPlan && dayPlan.date && dayPlan.blocks && dayPlan.date < TODAY){
       // On n'archive que ce qui a vraiment été fait (+ les RDV) : les blocs non validés
       // partent sur la nouvelle journée et ne doivent pas rester aussi sur la veille.
-      dpHist[dayPlan.date] = JSON.parse(JSON.stringify(dayPlan.blocks.filter(function(b){ return b.done || b.type==='rdv'; })));
+      dpHist[dayPlan.date] = JSON.parse(JSON.stringify(dayPlan.blocks.filter(function(b){ return b.done; })));
       var limite = localDateStr(new Date(Date.now()-180*86400000));
       Object.keys(dpHist).forEach(function(k){ if(k < limite) delete dpHist[k]; });
       sbSaveConfig('dpHist');
     }
-    // Ce qui n'a pas été validé (hors RDV, recalculés séparément à partir des événements)
-    // est reporté sur la nouvelle journée, pour ne rien perdre de ce qui traîne.
-    var carryOver = (dayPlan && dayPlan.blocks) ? dayPlan.blocks.filter(function(b){ return !b.done && b.type!=='rdv'; }) : [];
+    // Tout ce qui n'a pas été validé est reporté sur la nouvelle journée, à la même heure,
+    // pour ne rien perdre de ce qui traîne. Les RDV de l'agenda deviennent des blocs libres
+    // (déplaçables, validables, supprimables avec ✕).
+    var carryOver = (dayPlan && dayPlan.blocks) ? dayPlan.blocks.filter(function(b){ return !b.done; }).map(dpRdvEnBlocLibre).filter(Boolean) : [];
     dayPlan = dpBuildAuto();
     carryOver.forEach(function(b){
-      var dup = b.refId!=null && dayPlan.blocks.some(function(x){ return x.type===b.type && x.refId===b.refId; });
+      var dup = (b.refId!=null && dayPlan.blocks.some(function(x){ return x.type===b.type && x.refId===b.refId; }))
+             || dayPlan.blocks.some(function(x){ return x.id===b.id; });
       if(!dup) dayPlan.blocks.push(b);
     });
     dpSaveRemote();
   }
+  // Rattrapage : RDV non validés restés figés sur le dernier jour archivé (avant la v158)
+  // → on les ramène aujourd'hui et on les retire de ce jour-là.
+  (function(){
+    var jours = Object.keys(dpHist||{}).filter(function(k){ return k < TODAY && Array.isArray(dpHist[k]); }).sort();
+    if(!jours.length) return;
+    var dernier = jours[jours.length-1];
+    var aRamener = dpHist[dernier].filter(function(b){ return !b.done && b.type==='rdv'; });
+    if(!aRamener.length) return;
+    dpHist[dernier] = dpHist[dernier].filter(function(b){ return !(!b.done && b.type==='rdv'); });
+    aRamener.map(dpRdvEnBlocLibre).filter(Boolean).forEach(function(nb){
+      if(!dayPlan.blocks.some(function(x){ return x.id===nb.id; })) dayPlan.blocks.push(nb);
+    });
+    sbSaveConfig('dpHist');
+    dpSaveRemote();
+  })();
   // Éléments préparés à l'avance pour aujourd'hui (via → sur un jour suivant, ou ⏭ Reporter)
   // qui n'auraient pas encore été intégrés à la journée : on les y ajoute maintenant.
   if(dpFutureBlocks && (dpFutureBlocks[TODAY]||[]).length){
