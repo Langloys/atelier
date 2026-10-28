@@ -1074,11 +1074,29 @@ function doLogout(){
           <input type="checkbox" id="export-show-prix" style="accent-color:var(--gold);">
           Afficher le prix
         </label>
+        <label style="font-size:.78rem;color:var(--mid);display:flex;align-items:center;gap:6px;cursor:pointer;">
+          <input type="checkbox" id="export-show-note" style="accent-color:var(--gold);">
+          Afficher la note de l'œuvre
+        </label>
       </div>
 
-      <button class="btn btn-primary" onclick="genererPlanchePDF()" style="gap:6px;">
-        📄 Générer le PDF
-      </button>
+      <!-- Demande de devis fondeur -->
+      <div style="margin-bottom:18px;padding:10px 12px;border:1px dashed var(--border);border-radius:var(--r);background:var(--off);">
+        <label style="font-size:.78rem;color:var(--ink);display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:500;">
+          <input type="checkbox" id="export-show-fondeur" style="accent-color:var(--gold);">
+          🔥 Demande de devis fondeur
+        </label>
+        <div style="font-size:.72rem;color:var(--faint);margin-top:4px;margin-left:22px;">Ajoute deux cases à remplir par le fondeur : <b>Prix fonte brute</b> et <b>Prix fini</b> (avec un total dans l'Excel). Pense à cocher aussi « Afficher la note » pour lui transmettre tes indications.</div>
+      </div>
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-primary" onclick="genererPlanchePDF()" style="gap:6px;">
+          📄 Générer le PDF
+        </button>
+        <button class="btn btn-primary" onclick="genererPlancheExcel()" style="gap:6px;">
+          📊 Générer l'Excel
+        </button>
+      </div>
       <div id="export-status" style="font-size:.75rem;color:var(--faint);margin-top:8px;display:none;"></div>
     </div>
 
@@ -8371,6 +8389,8 @@ function genererPlanchePDF(){
   var showPoids = document.getElementById('export-show-poids').checked;
   var showCire  = document.getElementById('export-show-cire').checked;
   var showPrix  = document.getElementById('export-show-prix').checked;
+  var showNote  = document.getElementById('export-show-note').checked;
+  var showFondeur = document.getElementById('export-show-fondeur').checked;
 
   var status = document.getElementById('export-status');
   status.style.display = 'block';
@@ -8398,7 +8418,7 @@ function genererPlanchePDF(){
       doc.setFont('helvetica','bold');
       doc.setFontSize(14);
       doc.setTextColor(26,24,22);
-      doc.text('Atelier — Planche de présentation', mL, 12);
+      doc.text(showFondeur ? 'Atelier - Demande de devis fonderie' : 'Atelier - Planche de présentation', mL, 12);
       doc.setFont('helvetica','normal');
       doc.setFontSize(8);
       doc.setTextColor(138,130,120);
@@ -8409,103 +8429,94 @@ function genererPlanchePDF(){
       doc.setLineWidth(0.3);
       doc.line(mL, 14.5, pageW-mR, 14.5);
 
-      sel.forEach(function(o, idx){
-        var cx = mL + col * colW;
-        var cy = curY;
-
-        // Cadre photo
-        doc.setFillColor(240,237,232);
-        doc.setDrawColor(210,203,194);
-        doc.setLineWidth(0.3);
-        doc.rect(cx, cy, colW-4, imgH, 'FD');
-
-        // Image si disponible — ajustée dans le cadre SANS déformation (proportions gardées, centrée)
-        var img = imgData[o._id];
-        var imgOk = false;
-        if(img && img.data){
-          try{
-            var boxW = colW - 4, boxH = imgH;
-            var r = Math.min(boxW / img.w, boxH / img.h);
-            var iW = img.w * r, iH = img.h * r;
-            doc.addImage(img.data, 'JPEG', cx + (boxW - iW)/2, cy + (boxH - iH)/2, iW, iH, undefined, 'FAST');
-            imgOk = true;
-          }catch(err){}
+      // Lignes de texte sous chaque photo (calculées avant de dessiner, pour adapter la
+      // hauteur de chaque rangée : une note longue agrandit la rangée au lieu de déborder).
+      var txtW = colW - 5;
+      function lignesTexte(o){
+        var L = [];
+        function add(txt, style, size, rgb, lh, align){
+          doc.setFont('helvetica', style); doc.setFontSize(size);
+          var lines = doc.splitTextToSize(_pdfSafe(txt), txtW);
+          L.push({lines:lines, style:style, size:size, rgb:rgb, lh:lh, align:align||'center'});
         }
-        if(!imgOk){
-          // Pas de photo : petit texte centré (les emojis ne passent pas dans le PDF)
-          doc.setFont('helvetica','italic');
-          doc.setFontSize(9);
-          doc.setTextColor(180,172,162);
-          doc.text(img===false ? 'Photo introuvable' : 'Pas de photo', cx + (colW-4)/2, cy + imgH/2 + 1.5, {align:'center'});
+        add(o.nom || o.num || '', 'bold', 8, [26,24,22], 4);
+        if(showNum && o.num)        add(o.num, 'normal', 7, [100,96,90], 3.5);
+        if(showDim && o.dim)        add(o.dim + ' cm', 'normal', 7, [138,130,120], 3.5);
+        if(showPoids && o.poids)    add(o.poids + ' kg', 'normal', 7, [138,130,120], 3.5);
+        if(showCire && o.poidsCire) add('Cire : ' + o.poidsCire + ' g', 'normal', 7, [160,140,100], 3.5);
+        if(showPrix && o.prix)      add(Number(o.prix).toLocaleString('fr-FR') + ' €', 'normal', 7, [160,128,80], 3.5);
+        if(showNote && o.desc && String(o.desc).trim()){
+          doc.setFont('helvetica','italic'); doc.setFontSize(6.5);
+          var nl = [];
+          String(o.desc).trim().split(/\r?\n/).forEach(function(par){
+            nl = nl.concat(par.trim() ? doc.splitTextToSize(_pdfSafe(par.trim()), txtW) : ['']);
+          });
+          if(nl.length > 14){ nl = nl.slice(0,14); nl[13] = nl[13].replace(/\s*\S*$/,'') + ' ...'; }
+          L.push({lines:nl, style:'italic', size:6.5, rgb:[70,66,60], lh:3, align:'left', gapAvant:1});
         }
-
-        // Textes sous la photo
-        var ty = cy + imgH + 5;
-        doc.setTextColor(26,24,22);
-
-        // Nom
-        var nom = _pdfSafe(o.nom || o.num || '');
-        doc.setFont('helvetica','bold');
-        doc.setFontSize(8);
-        var nomLines = doc.splitTextToSize(nom, colW-5);
-        doc.text(nomLines, cx + (colW-4)/2, ty, {align:'center'});
-        ty += nomLines.length * 4;
-
-        // Numéro
-        if(showNum && o.num){
-          doc.setFont('helvetica','normal');
-          doc.setFontSize(7);
-          doc.setTextColor(100,96,90);
-          doc.text(o.num, cx + (colW-4)/2, ty, {align:'center'});
-          ty += 3.5;
+        if(showFondeur){
+          L.push({lines:['Prix fonte brute : ................ €'], style:'normal', size:7, rgb:[26,24,22], lh:4.5, align:'left', gapAvant:1.5});
+          L.push({lines:['Prix fini : ........................ €'], style:'normal', size:7, rgb:[26,24,22], lh:4.5, align:'left'});
         }
+        return L;
+      }
+      function hauteurTexte(L){ return L.reduce(function(h,b){ return h + (b.gapAvant||0) + b.lines.length*b.lh; }, 0); }
 
-        // Dimensions
-        if(showDim && o.dim){
-          doc.setFont('helvetica','normal');
-          doc.setFontSize(7);
-          doc.setTextColor(138,130,120);
-          doc.text(o.dim + ' cm', cx + (colW-4)/2, ty, {align:'center'});
-          ty += 3.5;
-        }
+      var rangees = [];
+      for(var ri=0; ri<sel.length; ri+=cols) rangees.push(sel.slice(ri, ri+cols));
 
-        // Poids
-        if(showPoids && o.poids){
-          doc.setFont('helvetica','normal');
-          doc.setFontSize(7);
-          doc.setTextColor(138,130,120);
-          doc.text(o.poids + ' kg', cx + (colW-4)/2, ty, {align:'center'});
-          ty += 3.5;
-        }
+      rangees.forEach(function(rangee, rIdx){
+        var textes = rangee.map(lignesTexte);
+        var hTxt = Math.max.apply(null, textes.map(hauteurTexte));
+        var rowHreel = imgH + 5 + hTxt;
+        // Nouvelle page si la rangée ne tient pas (sauf si on est déjà en haut de page)
+        if(rIdx > 0 && curY + rowHreel > pageH - mB){ doc.addPage(); curY = mT; }
 
-        // Poids de cire
-        if(showCire && o.poidsCire){
-          doc.setFont('helvetica','normal');
-          doc.setFontSize(7);
-          doc.setTextColor(160,140,100);
-          doc.text('Cire : ' + o.poidsCire + ' g', cx + (colW-4)/2, ty, {align:'center'});
-          ty += 3.5;
-        }
+        rangee.forEach(function(o, c){
+          var cx = mL + c * colW;
+          var cy = curY;
 
-        // Prix
-        if(showPrix && o.prix){
-          doc.setFont('helvetica','normal');
-          doc.setFontSize(7);
-          doc.setTextColor(160,128,80);
-          doc.text(o.prix.toLocaleString('fr-FR') + ' €', cx + (colW-4)/2, ty, {align:'center'});
-        }
+          // Cadre photo
+          doc.setFillColor(240,237,232);
+          doc.setDrawColor(210,203,194);
+          doc.setLineWidth(0.3);
+          doc.rect(cx, cy, colW-4, imgH, 'FD');
 
-        // Avancer colonne / ligne
-        col++;
-        if(col >= cols){
-          col = 0;
-          curY += rowH + 6;
-          // Nouvelle page si débordement
-          if(curY + rowH > pageH - mB){
-            doc.addPage();
-            curY = mT;
+          // Image si disponible — ajustée dans le cadre SANS déformation (proportions gardées, centrée)
+          var img = imgData[o._id];
+          var imgOk = false;
+          if(img && img.data){
+            try{
+              var boxW = colW - 4, boxH = imgH;
+              var r = Math.min(boxW / img.w, boxH / img.h);
+              var iW = img.w * r, iH = img.h * r;
+              doc.addImage(img.data, 'JPEG', cx + (boxW - iW)/2, cy + (boxH - iH)/2, iW, iH, undefined, 'FAST');
+              imgOk = true;
+            }catch(err){}
           }
-        }
+          if(!imgOk){
+            // Pas de photo : petit texte centré (les emojis ne passent pas dans le PDF)
+            doc.setFont('helvetica','italic');
+            doc.setFontSize(9);
+            doc.setTextColor(180,172,162);
+            doc.text(img===false ? 'Photo introuvable' : 'Pas de photo', cx + (colW-4)/2, cy + imgH/2 + 1.5, {align:'center'});
+          }
+
+          // Textes sous la photo
+          var ty = cy + imgH + 5;
+          textes[c].forEach(function(b){
+            ty += (b.gapAvant||0);
+            doc.setFont('helvetica', b.style);
+            doc.setFontSize(b.size);
+            doc.setTextColor(b.rgb[0], b.rgb[1], b.rgb[2]);
+            b.lines.forEach(function(ln){
+              if(b.align==='left') doc.text(ln, cx + 0.5, ty);
+              else doc.text(ln, cx + (colW-4)/2, ty, {align:'center'});
+              ty += b.lh;
+            });
+          });
+        });
+        curY += rowHreel + 6;
       });
 
       // Pied de page
@@ -8519,7 +8530,7 @@ function genererPlanchePDF(){
       }
 
       var date = new Date().toISOString().slice(0,10);
-      doc.save('planche-oeuvres-'+date+'.pdf');
+      doc.save((showFondeur ? 'devis-fonderie-' : 'planche-oeuvres-')+date+'.pdf');
       var sansPhoto = sel.filter(function(o){ var d=imgData[o._id]; return !(d && d.data); });
       status.textContent = '✅ PDF généré — '+sel.length+' œuvre'+(sel.length>1?'s':'') +
         (sansPhoto.length ? ' · ⚠️ '+sansPhoto.length+' sans photo : '+sansPhoto.map(function(o){return o.num;}).join(', ') : '');
@@ -8564,6 +8575,173 @@ function genererPlanchePDF(){
     s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
     s.onload = function(){ doGenerate(window.jspdf.jsPDF); };
     s.onerror = function(){ status.textContent = '❌ Impossible de charger jsPDF. Vérifie ta connexion.'; };
+    document.head.appendChild(s);
+  }
+}
+
+// ══ PLANCHE / DEVIS FONDEUR (EXCEL) ══
+// Mêmes œuvres et mêmes options que le PDF, mais dans un fichier Excel modifiable.
+// Option "Demande de devis fondeur" : deux colonnes jaunes à remplir (Prix fonte brute / Prix fini)
+// et une ligne de total qui se calcule toute seule dans Excel.
+function genererPlancheExcel(){
+  var sel = oeuvres.filter(function(o){ return _exportSel.has(o._id); });
+  sel.sort(function(a,b){
+    var td = typeSort(a.type,b.type); if(td!==0) return td;
+    return numRang(a)-numRang(b) || String(a.num||'').localeCompare(String(b.num||''));
+  });
+  var status = document.getElementById('export-status');
+  status.style.display = 'block';
+  if(!sel.length){ status.textContent = '⚠️ Sélectionne au moins une œuvre.'; return; }
+
+  var showNum   = document.getElementById('export-show-num').checked;
+  var showDim   = document.getElementById('export-show-dim').checked;
+  var showPoids = document.getElementById('export-show-poids').checked;
+  var showCire  = document.getElementById('export-show-cire').checked;
+  var showPrix  = document.getElementById('export-show-prix').checked;
+  var showNote  = document.getElementById('export-show-note').checked;
+  var showFondeur = document.getElementById('export-show-fondeur').checked;
+
+  // Colonnes affichées selon les options cochées
+  var colsDef = [{ key:'photo', titre:'Photo', width:20 }];
+  if(showNum)   colsDef.push({ key:'num',   titre:'N°',            width:18, val:function(o){ return o.num||''; } });
+  colsDef.push(              { key:'nom',   titre:'Nom de l\'œuvre', width:30, val:function(o){ return o.nom||''; }, left:true });
+  if(showDim)   colsDef.push({ key:'dim',   titre:'Dimensions (cm)', width:16, val:function(o){ return o.dim||''; } });
+  if(showPoids) colsDef.push({ key:'poids', titre:'Poids (kg)',    width:11, val:function(o){ return o.poids!=null ? Number(o.poids) : ''; } });
+  if(showCire)  colsDef.push({ key:'cire',  titre:'Poids cire (g)', width:13, val:function(o){ return o.poidsCire!=null ? Number(o.poidsCire) : ''; } });
+  if(showPrix)  colsDef.push({ key:'prix',  titre:'Prix de vente', width:13, val:function(o){ return o.prix!=null ? Number(o.prix) : ''; }, euro:true });
+  if(showNote)  colsDef.push({ key:'note',  titre:'Note / indications', width:45, val:function(o){ return String(o.desc||'').trim(); }, left:true });
+  if(showFondeur){
+    colsDef.push({ key:'brut', titre:'Prix fonte brute (€)', width:17, euro:true, fondeur:true, val:function(){ return null; } });
+    colsDef.push({ key:'fini', titre:'Prix fini (€)',        width:15, euro:true, fondeur:true, val:function(){ return null; } });
+  }
+  function lettre(n){ var s=''; while(n>0){ var m=(n-1)%26; s=String.fromCharCode(65+m)+s; n=Math.floor((n-1)/26); } return s; }
+  var nbCols = colsDef.length;
+  var derniere = lettre(nbCols);
+
+  function doGenerate(){
+    status.textContent = 'Chargement des photos… (0/'+sel.length+')';
+    var done = 0;
+    Promise.all(sel.map(function(o){
+      return _expoLoadImg(photoOeuvreOuEx(o)).then(function(r){ done++; status.textContent = 'Chargement des photos… ('+done+'/'+sel.length+')'; return r; });
+    })).then(function(imgs){
+      status.textContent = 'Création du fichier Excel…';
+      var wb = new ExcelJS.Workbook();
+      wb.creator = 'Atelier';
+      var ws = wb.addWorksheet(showFondeur ? 'Devis fonderie' : 'Planche', { pageSetup:{ paperSize:9, orientation:'landscape', fitToPage:true, fitToWidth:1, fitToHeight:0 } });
+      ws.columns = colsDef.map(function(c){ return { key:c.key, width:c.width }; });
+
+      var dStr = new Date().toLocaleDateString('fr-FR');
+      ws.mergeCells('A1:'+derniere+'1');
+      var t = ws.getCell('A1');
+      t.value = (showFondeur ? 'Demande de devis fonderie' : 'Planche de présentation')+' — '+dStr;
+      t.font = { name:'Calibri', size:15, bold:true };
+      ws.getRow(1).height = 26;
+      ws.mergeCells('A2:'+derniere+'2');
+      var st = ws.getCell('A2');
+      st.value = showFondeur ? 'Merci d\'indiquer vos prix dans les colonnes jaunes (fonte brute et pièce finie), en précisant HT ou TTC. Le total se calcule automatiquement.' : '';
+      st.font = { italic:true, size:10, color:{argb:'FF6B6155'} };
+      st.alignment = { wrapText:true, vertical:'middle' };
+      ws.getRow(2).height = showFondeur ? 30 : 6;
+
+      var hdr = ws.getRow(3);
+      hdr.values = colsDef.map(function(c){ return c.titre; });
+      hdr.height = 22;
+      hdr.eachCell(function(c, col){
+        var fond = colsDef[col-1].fondeur;
+        c.font = { bold:true, color:{argb: fond ? 'FF1A1816' : 'FFFFFFFF'} };
+        c.fill = { type:'pattern', pattern:'solid', fgColor:{argb: fond ? 'FFFFD966' : 'FF8A7350'} };
+        c.alignment = { vertical:'middle', horizontal:'center', wrapText:true };
+      });
+      ws.views = [{ state:'frozen', ySplit:3 }];
+
+      var BOX = 120, colPx = 20*7+5;
+      var thin = { style:'thin', color:{argb:'FFBFBFBF'} };
+      var noteCol = colsDef.find(function(c){ return c.key==='note'; });
+
+      sel.forEach(function(o, i){
+        var rIdx = i + 4;
+        var row = ws.getRow(rIdx);
+        row.values = colsDef.map(function(c){ return c.val ? c.val(o) : ''; });
+        // Hauteur : celle de la photo, ou plus si la note est longue
+        var rowPx = BOX + 12;
+        if(noteCol){
+          var txt = String(o.desc||'').trim(), nbL = 0, parL = Math.floor(noteCol.width*1.15);
+          txt.split(/\r?\n/).forEach(function(par){ nbL += Math.max(1, Math.ceil(par.length/parL)); });
+          rowPx = Math.max(rowPx, Math.round(nbL*20 + 10));
+        }
+        row.height = rowPx * 0.75;
+        row.eachCell({ includeEmpty:true }, function(c, col){
+          var def = colsDef[col-1]; if(!def) return;
+          c.alignment = { vertical:'middle', horizontal: def.left ? 'left' : 'center', wrapText:true };
+          c.border = { top:thin, left:thin, bottom:thin, right:thin };
+          if(def.euro) c.numFmt = '#,##0.00 "€"';
+          if(def.fondeur) c.fill = { type:'pattern', pattern:'solid', fgColor:{argb:'FFFFF2CC'} };
+          if(def.key==='nom') c.font = { size:12, bold:true };
+          if(def.key==='note') c.font = { size:10 };
+        });
+        var im = imgs[i];
+        if(im){
+          var r = Math.min(BOX/im.w, BOX/im.h);
+          var w = Math.round(im.w*r), h = Math.round(im.h*r);
+          var id = wb.addImage({ base64: im.data, extension:'jpeg' });
+          ws.addImage(id, {
+            tl: { col: ((colPx - w)/2)/colPx, row: (rIdx-1) + ((rowPx - h)/2)/rowPx },
+            ext: { width:w, height:h },
+            editAs: 'oneCell'
+          });
+        } else {
+          row.getCell(1).value = photoOeuvreOuEx(o) ? '(photo indisponible)' : '(pas de photo)';
+          row.getCell(1).font = { italic:true, color:{argb:'FF999999'}, size:9 };
+        }
+      });
+
+      // Ligne de total (formules Excel) pour les colonnes du fondeur
+      if(showFondeur){
+        var tIdx = sel.length + 4, premier = 4, dernierL = sel.length + 3;
+        var tRow = ws.getRow(tIdx);
+        tRow.height = 22;
+        var iBrut = colsDef.findIndex(function(c){ return c.key==='brut'; }) + 1;
+        tRow.getCell(iBrut-1 > 0 ? iBrut-1 : 1).value = 'TOTAL';
+        tRow.getCell(iBrut-1 > 0 ? iBrut-1 : 1).font = { bold:true };
+        tRow.getCell(iBrut-1 > 0 ? iBrut-1 : 1).alignment = { horizontal:'right', vertical:'middle' };
+        ['brut','fini'].forEach(function(k){
+          var ci = colsDef.findIndex(function(c){ return c.key===k; }) + 1;
+          var L = lettre(ci);
+          var cell = tRow.getCell(ci);
+          cell.value = { formula:'SUM('+L+premier+':'+L+dernierL+')' };
+          cell.numFmt = '#,##0.00 "€"';
+          cell.font = { bold:true };
+          cell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:'FFFFD966'} };
+          cell.border = { top:{style:'medium'}, left:thin, bottom:thin, right:thin };
+          cell.alignment = { horizontal:'center', vertical:'middle' };
+        });
+      }
+      return wb.xlsx.writeBuffer();
+    }).then(function(buf){
+      var blob = new Blob([buf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      var a = document.createElement('a');
+      var pad = function(n){return String(n).padStart(2,'0');};
+      var d = new Date();
+      a.href = URL.createObjectURL(blob);
+      a.download = (showFondeur ? 'devis-fonderie-' : 'planche-oeuvres-')+d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'.xlsx';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
+      var sansPhoto = sel.filter(function(o){ return !photoOeuvreOuEx(o); });
+      status.textContent = '✅ Fichier Excel créé — '+sel.length+' œuvre'+(sel.length>1?'s':'') +
+        (sansPhoto.length ? ' · ⚠️ '+sansPhoto.length+' sans photo : '+sansPhoto.map(function(o){return o.num;}).join(', ') : '');
+    }).catch(function(err){
+      console.error(err);
+      status.textContent = '❌ Erreur pendant la création du fichier : '+(err&&err.message||err);
+    });
+  }
+
+  if(window.ExcelJS){ doGenerate(); }
+  else {
+    status.textContent = 'Chargement de l\'outil Excel…';
+    var s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js';
+    s.onload = doGenerate;
+    s.onerror = function(){ status.textContent = '❌ Impossible de charger l\'outil Excel. Vérifie ta connexion.'; };
     document.head.appendChild(s);
   }
 }
@@ -9030,7 +9208,7 @@ function genererExpoExcel(){
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var h = pad(now.getHours()), min = pad(now.getMinutes()), s = pad(now.getSeconds());
-  document.getElementById('app-version').textContent = '20261027 - v158 · chargé à ' + h + 'h' + min + 's' + s;
+  document.getElementById('app-version').textContent = '20261028 - v159 · chargé à ' + h + 'h' + min + 's' + s;
 })();
 
 // ══ TEMPS ══
